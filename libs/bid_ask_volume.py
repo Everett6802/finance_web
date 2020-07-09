@@ -3,9 +3,10 @@
 
 from flask import jsonify, request
 from flask_restful import Resource
-from pymongo import MongoClient
 import datetime
+from common import common_definition as CMN_DEF
 from common import common_function as CMN_FUNC
+from common import common_class as CMN_CLS
 
 
 class BidAskVolume(Resource):
@@ -47,9 +48,12 @@ class BidAskVolume(Resource):
 
 
 	def __init__(self):
-		self.db_client = MongoClient('mongodb://localhost:27017')
-		db = self.db_client.FinanceWebDatabase
-		self.bid_ask_volume = db["BidAskVolume"]
+		# self.db_client = MongoClient('mongodb://localhost:27017')
+		# # db = self.db_client.FinanceWebDatabase
+		# db = self.db_client[CMN_DEF.DATABASE_NAME]
+		# # self.bid_ask_volume = db["BidAskVolume"]
+		# self.bid_ask_volume = db["BidAskVolume"]
+		pass
 		'''
 		# How to search database collections in the console
 
@@ -62,13 +66,16 @@ class BidAskVolume(Resource):
 	def test(self):
 		start = datetime.datetime(2020, 6, 23, 12, 35, 6, 764)
 		end = datetime.datetime(2020, 6, 23, 12, 55, 3, 381)
-		data_list = self.bid_ask_volume.find({'created_at': {'$gte': start, '$lt': end}})
+		# data_list = self.bid_ask_volume.find({'created_at': {'$gte': start, '$lt': end}})
+		with CMN_CLS.MongoDBClient(self.__class__.__name__) as db_client:
+				data_list = db_client.get_handle().find({'created_at': {'$gte': start, '$lt': end}})
+
 		for data in data_list:
 			print self.serialize(data)
 
 
 	def get(self):
-		assert self.bid_ask_volume is not None, "self.bid_ask_volume should NOT be None"
+		# assert self.bid_ask_volume is not None, "self.bid_ask_volume should NOT be None"
 		# args = request.args
 		# print (args) # For debugging
 		time_from_criteria = None
@@ -89,7 +96,11 @@ class BidAskVolume(Resource):
 		else:
 			time_criteria = {}
 		# print time_criteria
-		data_list = self.bid_ask_volume.find(time_criteria).sort("created_at")
+		# data_list = self.bid_ask_volume.find(time_criteria).sort("created_at")
+		data_list = None
+		with CMN_CLS.MongoDBClient(self.__class__.__name__) as db_client:
+			data_list = db_client.get_handle().find(time_criteria).sort("created_at")
+
 		serialized_data_list = []
 		for data in data_list:
 			print self.serialize(data)
@@ -101,12 +112,13 @@ class BidAskVolume(Resource):
 
 
 	def post(self):
-		assert self.bid_ask_volume is not None, "self.bid_ask_volume should NOT be None"
+		# import pdb; pdb.set_trace()
+		# assert self.bid_ask_volume is not None, "self.bid_ask_volume should NOT be None"
 
 		body = request.get_json()
 		# created_at = datetime.datetime.now() # datetime.datetime.utcnow()
 		data = {
-			"created_at": datetime.datetime.strptime(body["created_at"], self.DATETIME_FORMAT_STR),  # created_at,
+			"created_at": datetime.datetime.strptime(str(body["created_at"]), self.DATETIME_FORMAT_STR),  # created_at,
 			"tx_1": body["tx_1"], # 台指期:累計委買(全)
 			"tx_2": body["tx_2"], # 台指期:累計委賣(全)
 			"tx_3": body["tx_3"], # 台指期:累委買筆(全)
@@ -134,17 +146,22 @@ class BidAskVolume(Resource):
 			"tse_5": body["tse_5"], # 加權:上漲家(全)
 			"tse_6": body["tse_6"], # 加權:下跌家(全)
 		}
+		# import pdb; pdb.set_trace()
 		# print "data: %s" % data
-		self.bid_ask_volume.insert(data)
+		# self.bid_ask_volume.insert(data)
+		with CMN_CLS.MongoDBClient(self.__class__.__name__) as db_client:
+			db_client.get_handle().insert(data)
+
 		ret = {
 			"status": 200,
-			"msg": "New data created at %s" % body["created_at"].strftime(self.DATETIME_FORMAT_STR)
+			"msg": "New data created at %s" % data["created_at"].strftime(self.DATETIME_FORMAT_STR)
 		}
 		return jsonify(ret)
 
 
+# ex: http://localhost:5998/bid_ask_volume?from=12:34_20200623&&until=12:56_20200623
 	def delete(self):
-		assert self.bid_ask_volume is not None, "self.bid_ask_volume should NOT be None"
+		# assert self.bid_ask_volume is not None, "self.bid_ask_volume should NOT be None"
 		# args = request.args
 		# print (args) # For debugging
 		time_from_criteria = None
@@ -169,8 +186,12 @@ class BidAskVolume(Resource):
 # The Remove() method is out of date, 
 # so use delete_one() or delete_many() to delete documents
 		# write_res = self.bid_ask_volume.remove(time_criteria)
-		result = self.bid_ask_volume.delete_many(time_criteria)
-		print ("delete count:", result.deleted_count)
+		# result = self.bid_ask_volume.delete_many(time_criteria)
+		result = None
+		with CMN_CLS.MongoDBClient(self.__class__.__name__) as db_client:
+			result = db_client.get_handle().delete_many(time_criteria)
+
+		# print ("delete count:", result.deleted_count)
 		ret = {
 			"status": 200,
 			"msg": "%d Data deleted" % result.deleted_count

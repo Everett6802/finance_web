@@ -1,1 +1,2 @@
 QUERY_TIME_STRING_FORMAT = "%H:%M_%Y%m%d" # Ex: 12:56_20200623
+DATABASE_NAME = "FinanceWeb"
