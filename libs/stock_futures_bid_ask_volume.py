@@ -86,7 +86,7 @@ class StockFuturesBidAskVolume(Resource):
 			# print self.serialize(data)
 			serialized_data_list.append(self.serialize(data))
 		# print "serialized_data_list: %s" % serialized_data_list
-		return jsonify(serialized_data_list)
+		return serialized_data_list
 
 
 	def post(self):
@@ -100,10 +100,10 @@ class StockFuturesBidAskVolume(Resource):
 			db_client.get_handle().insert(data)
 
 		ret = {
-			"status": 200,
+			# "status": 200,
 			"msg": "New data created at %s" % data["created_at"].strftime(self.DATETIME_FORMAT_STR)
 		}
-		return jsonify(ret)
+		return ret
 
 
 # ex: http://localhost:5998/stock_futures_bid_ask_volume?from=12:34_20200623&&until=12:56_20200623
@@ -154,7 +154,7 @@ class StockFuturesBidAskVolume(Resource):
 
 		# print ("delete count:", result.deleted_count)
 		ret = {
-			"status": 200,
+			# "status": 200,
 			"msg": "%d Data deleted" % result.deleted_count
 		}
-		return jsonify(ret)
+		return ret
