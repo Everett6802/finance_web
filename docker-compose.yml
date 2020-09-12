@@ -1,0 +1,23 @@
+version: "3"
+services:
+  web:
+    build: ./web
+    ports:
+      - "5998:5998"
+    links:
+      - db
+    volumes:
+      - ./server:/usr/src/app/finance_web
+# The docker build command can only access the directory it is in and lower, not higher.
+# Unless you specify the higher directory as the context.
+#      - ./../finance_web:/usr/src/app/finance_web:ro
+
+  db:
+    build: ./db
+
+
+
+
+######################################################################
+# super@price-vm2:~/source$ docker container run -d -p 5998:5998 -v "$PWD"/finance_web:/usr/src/app/finance_web --name finance_database_web finance_database_web
+######################################################################
