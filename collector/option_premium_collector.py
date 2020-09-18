@@ -16,25 +16,36 @@ DEF_START_TIME_STR = "08:30"
 DEF_END_TIME_STR = "13:46"
 DEF_TIME_INTERVAL_IN_SEC = 300
 
-class StockFuturesBidAskVolumeCollector(object):
+class OptionPremiumCollector(object):
 
-	DEFAULT_SOURCE_FILENAME = "xq_bid_ask_volume.xlsx"
-	DEFAULT_SHEET_INDEX = 2
-	DATA_CELL_COLUMN_LIST = [1, 2, 5, 6,] # [累計委買(全), 累計委賣(全), 累委買筆(全), 累委賣筆(全),]
+	DEFAULT_SOURCE_FILENAME = "xq_option_premium.xlsx"
+	DEFAULT_SHEET_INDEX = 0
+	DATA_CELL_CHECK_NUMBER_COLUMN_INDEX = 4
+	DATA_CELL_COLUMN_LIST = [4, 7, 8,] # [成交, 總量, 未平倉,]
+	DATA_CELL_COLUMN_TYPE_LIST = ["float", "int", "int", ] # [成交, 總量, 未平倉,]
 	DATA_CELL_ROW_START_INDEX = 1
-	DATA_CELL_ROW_END_INDEX = 162
+	DATA_CELL_ROW_END_MAX_INDEX = 200
 	HTTP_SUCCESS_CODE_LIST = [200, 201, 204,]
 
 	DATETIME_FORMAT_STR = "%Y-%m-%d %H:%M:%S"
 	DATE_FORMAT_STR = "%Y-%m-%d"
 
+	@classmethod
+	def __is_string(cls, value):
+		is_string = False
+		try:
+			int(value)
+		except ValueError:
+			is_string = True
+		return is_string
+
 
 	class DateEncoder(json.JSONEncoder):  
 		def default(self, obj):  
 			if isinstance(obj, datetime.datetime):  
-				return obj.strftime(StockFuturesBidAskVolumeCollector.DATETIME_FORMAT_STR)  
+				return obj.strftime(OptionPremiumCollector.DATETIME_FORMAT_STR)  
 			elif isinstance(obj, date):  
-				return obj.strftime(StockFuturesBidAskVolumeCollector.DATE_FORMAT_STR)  
+				return obj.strftime(OptionPremiumCollector.DATE_FORMAT_STR)  
 			else:  
 				return json.JSONEncoder.default(self, obj) 
 
@@ -54,7 +65,7 @@ class StockFuturesBidAskVolumeCollector(object):
 		self.worksheet = None
 
 		self.headers = {'Content-Type': 'application/json'}
-		self.url = 'http://%s:%s/stock_futures_bid_ask_volume' % (self.xcfg["target_server_address"], self.xcfg["target_server_port"])
+		self.url = 'http://%s:%s/option_premium' % (self.xcfg["target_server_address"], self.xcfg["target_server_port"])
 		self.saved_cookies = None
 
 
@@ -78,18 +89,39 @@ class StockFuturesBidAskVolumeCollector(object):
 		dt_now = datetime.datetime.now()
 		print "Read %s at %s" % (os.path.basename(self.xcfg["source_filepath"]), dt_now.strftime(self.DATETIME_FORMAT_STR))
 		# for key, value in self.DATA_CELL_COORDINATE_DICT.items():
-		for row_index in range(self.DATA_CELL_ROW_START_INDEX, self.DATA_CELL_ROW_END_INDEX):
-			key = self.worksheet.cell_value(row_index, 0)
+		# 	row_index, column_index = value
+		# 	data_dict[key] = int(self.worksheet.cell_value(row_index, column_index))
+
+		for row_index in range(self.DATA_CELL_ROW_START_INDEX, self.DATA_CELL_ROW_END_MAX_INDEX):
+			key = None
+			try:
+				key = self.worksheet.cell_value(row_index, 0)
+			except IndexError:
+				# print "End row index: %d" % row_index
+				break
+			# print "row_index: %d, %s" % (row_index, self.worksheet.cell_value(row_index, 0))
 			data_dict[key] = []
-			for column_index in self.DATA_CELL_COLUMN_LIST:
-				data_dict[key].append(int(self.worksheet.cell_value(row_index, column_index)))
+			for index, column_index in enumerate(self.DATA_CELL_COLUMN_LIST):
+# Check if this option is traded
+				if self.__is_string(self.worksheet.cell_value(row_index, self.DATA_CELL_CHECK_NUMBER_COLUMN_INDEX)):
+					continue
+				# print "%s %d %d" % (key, row_index, column_index)
+				# import pdb; pdb.set_trace()
+				if self.DATA_CELL_COLUMN_TYPE_LIST[index] == "float":
+					data_dict[key].append(float(self.worksheet.cell_value(row_index, column_index)))
+				elif self.DATA_CELL_COLUMN_TYPE_LIST[index] == "int":
+					data_dict[key].append(int(self.worksheet.cell_value(row_index, column_index)))
+				else:
+					raise ValueError("Unknown type: %s" % self.DATA_CELL_COLUMN_TYPE_LIST[index])
+
+		# import pdb; pdb.set_trace()
 		data_dict["created_at"] = dt_now
 		return data_dict
 
 
 	def __update_data(self, data_dict):
 		#print json.dumps(data_dict)	
-		res = requests.post(self.url, headers=self.headers, verify=False, cookies=self.saved_cookies, data=json.dumps(data_dict, cls=StockFuturesBidAskVolumeCollector.DateEncoder))
+		res = requests.post(self.url, headers=self.headers, verify=False, cookies=self.saved_cookies, data=json.dumps(data_dict, cls=OptionPremiumCollector.DateEncoder))
 		#print res.status_code
 		if res.status_code in self.HTTP_SUCCESS_CODE_LIST:
 			# if len(res.text) > 0: logRead(logData={'log':res.text,'level':'DBG'})
@@ -151,7 +183,7 @@ if __name__ == "__main__":
 
 	# import pdb; pdb.set_trace()
 	if args.one_shot_query:
-		with StockFuturesBidAskVolumeCollector(cfg) as obj:
+		with OptionPremiumCollector(cfg) as obj:
 			print "* Collect one shot data at the time [%s]" % datetime.datetime.now()
 			obj.collect()
 		sys.exit(0)
@@ -159,7 +191,7 @@ if __name__ == "__main__":
 	start_time_str = args.start_time if (args.start_time is not None) else DEF_START_TIME_STR
 	end_time_str = args.end_time if (args.end_time is not None) else DEF_END_TIME_STR
 	for _ in CollectorTimer.wait_for_collecting(start_time=start_time_str, end_time=end_time_str):
-		with StockFuturesBidAskVolumeCollector(cfg) as obj:
+		with OptionPremiumCollector(cfg) as obj:
 			obj.collect()
 
 	# dt_start = None
@@ -195,7 +227,7 @@ if __name__ == "__main__":
 	# 		 if dt_now > dt_end:
 	# 		 	print "Current time[%s] is NOT in the range [%s, %s]... STOP" % (dt_now, dt_start, dt_end)
 	# 		 	break
-	# 	with StockFuturesBidAskVolumeCollector(cfg) as obj:
+	# 	with OptionPremiumCollector(cfg) as obj:
 	# 		obj.collect()
 	# 	time.sleep(DEF_TIME_INTERVAL_IN_SEC)
 

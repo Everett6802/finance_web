@@ -9,32 +9,42 @@ import argparse
 import time
 import json
 import datetime
-from lib.collector_timer import CollectorTimer
 
 
 DEF_START_TIME_STR = "08:30"
 DEF_END_TIME_STR = "13:46"
 DEF_TIME_INTERVAL_IN_SEC = 300
 
-class StockFuturesBidAskVolumeCollector(object):
+class OptionPremiumCollector(object):
 
-	DEFAULT_SOURCE_FILENAME = "xq_bid_ask_volume.xlsx"
-	DEFAULT_SHEET_INDEX = 2
-	DATA_CELL_COLUMN_LIST = [1, 2, 5, 6,] # [累計委買(全), 累計委賣(全), 累委買筆(全), 累委賣筆(全),]
+	DEFAULT_SOURCE_FILENAME = "xq_option_premium.xlsx"
+	DEFAULT_SHEET_INDEX = 0
+	DATA_CELL_CHECK_NUMBER_COLUMN_INDEX = 4
+	DATA_CELL_COLUMN_LIST = [4, 7, 8,] # [成交, 總量, 未平倉,]
+	DATA_CELL_COLUMN_TYPE_LIST = ["float", "int", "int", ] # [成交, 總量, 未平倉,]
 	DATA_CELL_ROW_START_INDEX = 1
-	DATA_CELL_ROW_END_INDEX = 162
+	DATA_CELL_ROW_END_MAX_INDEX = 200
 	HTTP_SUCCESS_CODE_LIST = [200, 201, 204,]
 
 	DATETIME_FORMAT_STR = "%Y-%m-%d %H:%M:%S"
 	DATE_FORMAT_STR = "%Y-%m-%d"
 
+	@classmethod
+	def __is_string(cls, value):
+		is_string = False
+		try:
+			int(value)
+		except ValueError:
+			is_string = True
+		return is_string
+
 
 	class DateEncoder(json.JSONEncoder):  
 		def default(self, obj):  
 			if isinstance(obj, datetime.datetime):  
-				return obj.strftime(StockFuturesBidAskVolumeCollector.DATETIME_FORMAT_STR)  
+				return obj.strftime(OptionPremiumCollector.DATETIME_FORMAT_STR)  
 			elif isinstance(obj, date):  
-				return obj.strftime(StockFuturesBidAskVolumeCollector.DATE_FORMAT_STR)  
+				return obj.strftime(OptionPremiumCollector.DATE_FORMAT_STR)  
 			else:  
 				return json.JSONEncoder.default(self, obj) 
 
@@ -54,7 +64,7 @@ class StockFuturesBidAskVolumeCollector(object):
 		self.worksheet = None
 
 		self.headers = {'Content-Type': 'application/json'}
-		self.url = 'http://%s:%s/stock_futures_bid_ask_volume' % (self.xcfg["target_server_address"], self.xcfg["target_server_port"])
+		self.url = 'http://%s:%s/option_premium' % (self.xcfg["target_server_address"], self.xcfg["target_server_port"])
 		self.saved_cookies = None
 
 
@@ -78,18 +88,39 @@ class StockFuturesBidAskVolumeCollector(object):
 		dt_now = datetime.datetime.now()
 		print "Read %s at %s" % (os.path.basename(self.xcfg["source_filepath"]), dt_now.strftime(self.DATETIME_FORMAT_STR))
 		# for key, value in self.DATA_CELL_COORDINATE_DICT.items():
-		for row_index in range(self.DATA_CELL_ROW_START_INDEX, self.DATA_CELL_ROW_END_INDEX):
-			key = self.worksheet.cell_value(row_index, 0)
+		# 	row_index, column_index = value
+		# 	data_dict[key] = int(self.worksheet.cell_value(row_index, column_index))
+
+		for row_index in range(self.DATA_CELL_ROW_START_INDEX, self.DATA_CELL_ROW_END_MAX_INDEX):
+			key = None
+			try:
+				key = self.worksheet.cell_value(row_index, 0)
+			except IndexError:
+				# print "End row index: %d" % row_index
+				break
+			# print "row_index: %d, %s" % (row_index, self.worksheet.cell_value(row_index, 0))
 			data_dict[key] = []
-			for column_index in self.DATA_CELL_COLUMN_LIST:
-				data_dict[key].append(int(self.worksheet.cell_value(row_index, column_index)))
+			for index, column_index in enumerate(self.DATA_CELL_COLUMN_LIST):
+# Check if this option is traded
+				if self.__is_string(self.worksheet.cell_value(row_index, self.DATA_CELL_CHECK_NUMBER_COLUMN_INDEX)):
+					continue
+				# print "%s %d %d" % (key, row_index, column_index)
+				# import pdb; pdb.set_trace()
+				if self.DATA_CELL_COLUMN_TYPE_LIST[index] == "float":
+					data_dict[key].append(float(self.worksheet.cell_value(row_index, column_index)))
+				elif self.DATA_CELL_COLUMN_TYPE_LIST[index] == "int":
+					data_dict[key].append(int(self.worksheet.cell_value(row_index, column_index)))
+				else:
+					raise ValueError("Unknown type: %s" % self.DATA_CELL_COLUMN_TYPE_LIST[index])
+
+		# import pdb; pdb.set_trace()
 		data_dict["created_at"] = dt_now
 		return data_dict
 
 
 	def __update_data(self, data_dict):
 		#print json.dumps(data_dict)	
-		res = requests.post(self.url, headers=self.headers, verify=False, cookies=self.saved_cookies, data=json.dumps(data_dict, cls=StockFuturesBidAskVolumeCollector.DateEncoder))
+		res = requests.post(self.url, headers=self.headers, verify=False, cookies=self.saved_cookies, data=json.dumps(data_dict, cls=OptionPremiumCollector.DateEncoder))
 		#print res.status_code
 		if res.status_code in self.HTTP_SUCCESS_CODE_LIST:
 			# if len(res.text) > 0: logRead(logData={'log':res.text,'level':'DBG'})
@@ -134,8 +165,7 @@ if __name__ == "__main__":
 	>>> parser.add_argument('--bar', action='store_false')
 	>>> parser.add_argument('--baz', action='store_false')
     '''
-	# parser.add_argument('-d', '--disable_check_time', required=False, action='store_true', help='No need to check time for collecting data')
-	parser.add_argument('-o', '--one_shot_query', required=False, action='store_true', help='Collect data immediately')
+	parser.add_argument('-d', '--disable_check_time', required=False, action='store_true', help='No need to check time for collecting data')
 	parser.add_argument('-s', '--start_time', required=False, help='The start time of collecting data. Format: HH:mm')
 	parser.add_argument('-e', '--end_time', required=False, help='The end_time of collecting data. Format: HH:mm')
 	args = parser.parse_args()
@@ -148,56 +178,43 @@ if __name__ == "__main__":
 		cfg['target_server_address'] = args.target_server_address
 	if args.target_server_port is not None:
 		cfg['target_server_port'] = args.target_server_port
-
+	
+	dt_start = None
+	dt_end = None
 	# import pdb; pdb.set_trace()
-	if args.one_shot_query:
-		with StockFuturesBidAskVolumeCollector(cfg) as obj:
-			print "* Collect one shot data at the time [%s]" % datetime.datetime.now()
+	if not args.disable_check_time:
+		start_time_str = args.start_time if (args.start_time is not None) else DEF_START_TIME_STR
+		end_time_str = args.end_time if (args.end_time is not None) else DEF_END_TIME_STR
+
+		dt_now = datetime.datetime.now()
+		dt_start_time_tmp = datetime.datetime.strptime(start_time_str, "%H:%M")
+		dt_end_time_tmp = datetime.datetime.strptime(end_time_str, "%H:%M")
+		dt_today_start = datetime.datetime(dt_now.year, dt_now.month, dt_now.day, dt_start_time_tmp.hour, dt_start_time_tmp.minute, 0)
+		dt_today_end = datetime.datetime(dt_now.year, dt_now.month, dt_now.day, dt_end_time_tmp.hour, dt_end_time_tmp.minute, 0)
+		# import pdb; pdb.set_trace()
+		if dt_now >= dt_today_end:
+			print "Current time[%s] expires on the end time [%s]" % (dt_now, dt_today_end)
+			sys.exit(0)
+		elif dt_now <= dt_today_start:
+			dt_start = dt_today_start
+		else:
+			time_diff = (int((dt_now - dt_today_start).total_seconds()) / DEF_TIME_INTERVAL_IN_SEC + 1) * DEF_TIME_INTERVAL_IN_SEC
+			dt_start = dt_today_start + datetime.timedelta(seconds=time_diff)
+		dt_end = dt_today_end
+		wait_time_before_start = (dt_start - datetime.datetime.now()).total_seconds()
+		print "* Collect data in time range[%s, %s] * " % (dt_start, dt_end)
+		print "Wait %d seconds before start......" % wait_time_before_start
+		time.sleep(wait_time_before_start)
+
+	while True:
+		if not args.disable_check_time:
+			 dt_now = datetime.datetime.now()
+			 if dt_now > dt_end:
+			 	print "Current time[%s] is NOT in the range [%s, %s]... STOP" % (dt_now, dt_start, dt_end)
+			 	break
+		with OptionPremiumCollector(cfg) as obj:
 			obj.collect()
-		sys.exit(0)
+		time.sleep(DEF_TIME_INTERVAL_IN_SEC)
 
-	start_time_str = args.start_time if (args.start_time is not None) else DEF_START_TIME_STR
-	end_time_str = args.end_time if (args.end_time is not None) else DEF_END_TIME_STR
-	for _ in CollectorTimer.wait_for_collecting(start_time=start_time_str, end_time=end_time_str):
-		with StockFuturesBidAskVolumeCollector(cfg) as obj:
-			obj.collect()
-
-	# dt_start = None
-	# dt_end = None
-	# # import pdb; pdb.set_trace()
-	# if not args.disable_check_time:
-	# 	start_time_str = args.start_time if (args.start_time is not None) else DEF_START_TIME_STR
-	# 	end_time_str = args.end_time if (args.end_time is not None) else DEF_END_TIME_STR
-
-	# 	dt_now = datetime.datetime.now()
-	# 	dt_start_time_tmp = datetime.datetime.strptime(start_time_str, "%H:%M")
-	# 	dt_end_time_tmp = datetime.datetime.strptime(end_time_str, "%H:%M")
-	# 	dt_today_start = datetime.datetime(dt_now.year, dt_now.month, dt_now.day, dt_start_time_tmp.hour, dt_start_time_tmp.minute, 0)
-	# 	dt_today_end = datetime.datetime(dt_now.year, dt_now.month, dt_now.day, dt_end_time_tmp.hour, dt_end_time_tmp.minute, 0)
-	# 	# import pdb; pdb.set_trace()
-	# 	if dt_now >= dt_today_end:
-	# 		print "Current time[%s] expires on the end time [%s]" % (dt_now, dt_today_end)
-	# 		sys.exit(0)
-	# 	elif dt_now <= dt_today_start:
-	# 		dt_start = dt_today_start
-	# 	else:
-	# 		time_diff = (int((dt_now - dt_today_start).total_seconds()) / DEF_TIME_INTERVAL_IN_SEC + 1) * DEF_TIME_INTERVAL_IN_SEC
-	# 		dt_start = dt_today_start + datetime.timedelta(seconds=time_diff)
-	# 	dt_end = dt_today_end
-	# 	wait_time_before_start = (dt_start - datetime.datetime.now()).total_seconds()
-	# 	print "* Collect data in time range[%s, %s] * " % (dt_start, dt_end)
-	# 	print "Wait %d seconds before start......" % wait_time_before_start
-	# 	time.sleep(wait_time_before_start)
-
-	# while True:
-	# 	if not args.disable_check_time:
-	# 		 dt_now = datetime.datetime.now()
-	# 		 if dt_now > dt_end:
-	# 		 	print "Current time[%s] is NOT in the range [%s, %s]... STOP" % (dt_now, dt_start, dt_end)
-	# 		 	break
-	# 	with StockFuturesBidAskVolumeCollector(cfg) as obj:
-	# 		obj.collect()
-	# 	time.sleep(DEF_TIME_INTERVAL_IN_SEC)
-
-	# if not args.disable_check_time:
-	# 	print "* Collect data in time range[%s, %s]... DONE" % (dt_start, dt_end)
+	if not args.disable_check_time:
+		print "* Collect data in time range[%s, %s]... DONE" % (dt_start, dt_end)
