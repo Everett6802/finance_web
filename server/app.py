@@ -5,6 +5,7 @@ from common.common_variable import GlobalVar as GV
 from libs.test import Test
 from libs.bid_ask_volume import BidAskVolume
 from libs.stock_futures_bid_ask_volume import StockFuturesBidAskVolume
+from libs.option_premium import OptionPremium
 
 
 app = Flask(__name__)
@@ -13,7 +14,7 @@ api = Api(app)
 api.add_resource(Test, "/test")
 api.add_resource(BidAskVolume, "/bid_ask_volume")
 api.add_resource(StockFuturesBidAskVolume, "/stock_futures_bid_ask_volume")
-api.add_resource(OptionPremium, "/option_preminum")
+api.add_resource(OptionPremium, "/option_premium")
 
 
 if __name__ == "__main__":
