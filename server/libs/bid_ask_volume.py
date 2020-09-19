@@ -13,7 +13,7 @@ from common import mongodb_client as MONGODB
 
 class BidAskVolume(Resource):
 
-	DATETIME_FORMAT_STR = "%Y-%m-%d %H:%M:%S"
+	# DATETIME_FORMAT_STR = "%Y-%m-%d %H:%M:%S"
 
 	# @classmethod
 	# def serialize(cls, data):

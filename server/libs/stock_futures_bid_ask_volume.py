@@ -13,14 +13,14 @@ from common import mongodb_client as MONGODB
 
 class StockFuturesBidAskVolume(Resource):
 
-	DATETIME_FORMAT_STR = "%Y-%m-%d %H:%M:%S"
+	# DATETIME_FORMAT_STR = "%Y-%m-%d %H:%M:%S"
 
-	@classmethod
-	def serialize(cls, data):
-		serialized_data = copy.deepcopy(data)
-		serialized_data["created_at"] = data["created_at"].strftime(cls.DATETIME_FORMAT_STR)
-		del serialized_data["_id"]
-		return serialized_data
+	# @classmethod
+	# def serialize(cls, data):
+	# 	serialized_data = copy.deepcopy(data)
+	# 	serialized_data["created_at"] = data["created_at"].strftime(cls.DATETIME_FORMAT_STR)
+	# 	del serialized_data["_id"]
+	# 	return serialized_data
 
 
 	def __init__(self):
