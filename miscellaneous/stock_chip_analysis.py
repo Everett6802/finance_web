@@ -5,7 +5,6 @@ import os
 import sys
 import re
 import errno
-# import requests
 '''
 Question: How to Solve xlrd.biffh.XLRDError: Excel xlsx file; not supported ?
 Answer : The latest version of xlrd(2.01) only supports .xls files. Installing the older version 1.2.0 to open .xlsx files.
@@ -13,102 +12,104 @@ Answer : The latest version of xlrd(2.01) only supports .xls files. Installing t
 import xlrd
 import argparse
 from collections import OrderedDict
-# import time
-# import json
-# import datetime
 
 
 class StockChipAnalysis(object):
 
 	DEFAULT_SOURCE_FOLDERPATH =  "C:\Users\Price\Downloads" # os.getcwd()
-	DEFAULT_SOURCE_FILENAME = "stock_chip_analysis.xlsx"
+	DEFAULT_SOURCE_FILENAME = "stock_chip_analysis.xlsm"
 	DEFAULT_CONFIG_FOLDERPATH =  "C:\Users\Price\source"
-	DEFAULT_SEARCH_STOCK_SHEET_FILENAME = "search_sheet_stock_list.txt"
-	SHEET_METADATA_LIST = [
-		{ # Dummy
+	DEFAULT_CHIP_ANALYSIS_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
+	SHEET_METADATA_DICT = {
+		u"即時指數": { # Dummy
+			"is_dummy": True,
 		},
-		{
+		u"主要指數": { # Dummy
+			"is_dummy": True,
+		},
+		u"外匯市場": { # Dummy
+			"is_dummy": True,
+		},
+		u"商品市場": { # Dummy
+			"is_dummy": True,
+		},
+		u"商品行情": { # Dummy
+			"is_dummy": True,
+		},
+		u"資金流向": { # Dummy
+			"is_dummy": True,
+		},
+		u"大盤籌碼多空勢力": { # Dummy
+			"is_dummy": True,
+		},
+		u"焦點股": { 
 			"key_mode": 0, # 1476.TW
-			"description": "法人共同買超累計",
-			# "column_length": 10,
+		},
+		u"法人共同買超累計": {
+			"key_mode": 0, # 1476.TW
 			"direction": "+",
 		},
-		{
+		u"主力買超天數累計": {
 			"key_mode": 0, # 1476.TW
-			"description": "主力買超天數累計",
-			# "column_length": 15,
 			"direction": "+",
 		},
-		{
+		u"法人買超天數累計": {
 			"key_mode": 0, # 1476.TW
-			"description": "法人買超天數累計",
-			# "column_length": 15,
 			"direction": "+",
 		},
-		{
+		u"外資買超天數累計": {
 			"key_mode": 0, # 1476.TW
-			"description": "外資買超天數累計",
-			# "column_length": 15,
 			"direction": "+",
 		},
-		{
+		u"投信買超天數累計": {
 			"key_mode": 0, # 1476.TW
-			"description": "投信買超天數累計",
-			# "column_length": 15,
 			"direction": "+",
 		},
-		{
+		u"外資買最多股": {
 			"key_mode": 1, # 陽明(2609)
-			"description": "外資買最多股",
-			# "column_length": 7,
 			"direction": "+",
 		},
-		{
+		u"外資賣最多股": {
 			"key_mode": 1, # 陽明(2609)
-			"description": "外資賣最多股",
-			# "column_length": 7,
 			"direction": "-",
 		},
-		{
+		u"投信買最多股": {
 			"key_mode": 1, # 陽明(2609)
-			"description": "投信買最多股",
-			# "column_length": 7,
 			"direction": "+",
 		},
-		{
+		u"投信賣最多股": {
 			"key_mode": 1, # 陽明(2609)
-			"description": "投信賣最多股",
-			# "column_length": 7,
 			"direction": "-",
 		},
-		{
+		u"主力買最多股": {
 			"key_mode": 1, # 陽明(2609)
-			"description": "主力買最多股",
-			# "column_length": 7,
 			"direction": "+",
 		},
-		{
+		u"主力賣最多股": {
 			"key_mode": 1, # 陽明(2609)
-			"description": "主力賣最多股",
-			# "column_length": 7,
 			"direction": "-",
 		},
-		{
+		u"籌碼排行-買超金額": {
 			"key_mode": 1, # 陽明(2609)
-			"description": "籌碼排行-買超金額",
-			# "column_length": 13,
 			"direction": "+",
 		},
-		{
+		u"籌碼排行-賣超金額": {
 			"key_mode": 1, # 陽明(2609)
-			"description": "籌碼排行-賣超金額",
-			# "column_length": 13,
 			"direction": "-",
 		},
-	]
-	SHEET_METADATA_LIST_LEN = len(SHEET_METADATA_LIST)
-	# import pdb; pdb.set_trace()
-	DEFAULT_BUY_SHEET_THRESHOLD = len([sheet_metadata for sheet_metadata in SHEET_METADATA_LIST[1:] if sheet_metadata["direction"] == "+"]) - 2
+		u"買超異常": {
+			"key_mode": 1, # 陽明(2609)
+			"direction": "+",
+		},
+		u"賣超異常": {
+			"key_mode": 1, # 陽明(2609)
+			"direction": "-",
+		},
+	}
+	DEFAULT_SHEET_NAME_LIST = [u"焦點股", u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計", u"外資買最多股", u"外資賣最多股", u"投信買最多股", u"投信賣最多股", u"主力買最多股", u"主力賣最多股", u"籌碼排行-買超金額", u"籌碼排行-賣超金額", u"買超異常", u"賣超異常",]
+	SHEET_CATEGORY_DICT = {
+		"consecutive_buy": [u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
+	}
 
 
 	@classmethod
@@ -134,15 +135,54 @@ class StockChipAnalysis(object):
 	    return check_exist
 
 
+	@classmethod
+	def read_stock_list_from_file(cls, stock_list_filepath):
+		# import pdb; pdb.set_trace()
+		if not cls.__check_file_exist(stock_list_filepath):
+			raise RuntimeError("The file[%s] does NOT exist" % stock_list_filepath)
+		stock_list = []
+		with open(stock_list_filepath, 'r') as fp:
+			for line in fp:
+				stock_list.append(line.strip("\n"))
+		return stock_list
+
+
 	def __init__(self, cfg):
 		self.xcfg = {
 			"show_detail": False,
 			"source_filepath": os.path.join(self.DEFAULT_SOURCE_FOLDERPATH, self.DEFAULT_SOURCE_FILENAME),
-			"search_sheet_filepath": os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.DEFAULT_SEARCH_STOCK_SHEET_FILENAME),
-			"search_sheet_list": None,
-			"buy_sheet_threshold": self.DEFAULT_BUY_SHEET_THRESHOLD,
+			"stock_list_filepath": os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.DEFAULT_CHIP_ANALYSIS_STOCK_LIST_FILENAME),
+			"stock_list": None,
+			# "buy_sheet_threshold": self.DEFAULT_BUY_SHEET_THRESHOLD,
+			"sheet_name_list": None,
+			"sheet_category": None,
 		}
+		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
+		if cfg.has_key("sheet_category"):
+			if cfg.has_key("sheet_name_list"):
+				print "WARNING: The 'sheet_category' setting overwrite the 'sheet_name_list' one"
+			if cfg.has_key("select_sheet_description_list"):
+				print "WARNING: The 'sheet_category' setting overwrite the 'select_sheet_description_list' one"
+			if cfg.has_key("buy_sheet_threshold"):
+				print "WARNING: The 'sheet_category' setting overwrite the 'buy_sheet_threshold' one"
+			self.xcfg["sheet_name_list"] = []
+			for sheet_description in self.SHEET_CATEGORY_DICT[self.xcfg["sheet_category"]]:
+				sheet_index = self.__get_sheet_index_by_description(sheet_description)
+				if sheet_index == -1:
+					raise RuntimeError("Unknown sheet description: %s" % sheet_description)
+				self.xcfg["sheet_name_list"].append(sheet_index)		
+			self.xcfg["buy_sheet_threshold"] = len(self.SHEET_CATEGORY_DICT[self.xcfg["sheet_category"]])
+		else:
+			if cfg.has_key("select_sheet_description_list"):
+				if cfg.has_key("sheet_name_list"):
+					print "WARNING: The 'select_sheet_description_list' setting overwrite the 'sheet_name_list' one"
+				self.xcfg["sheet_name_list"] = []
+				for sheet_description in self.xcfg["select_sheet_description_list"]:
+					sheet_index = self.__get_sheet_index_by_description(sheet_description)
+					if sheet_index == -1:
+						raise RuntimeError("Unknown sheet description: %s" % sheet_description)
+					self.xcfg["sheet_name_list"].append(sheet_index)
 
 		self.workbook = None
 		self.sheet_title_bar_list = None
@@ -162,14 +202,13 @@ class StockChipAnalysis(object):
 		return False
 
 
-	def __read_sheet_data(self, sheet_index):
-		# import pdb; pdb.set_trace()
-		sheet_metadata = self.SHEET_METADATA_LIST[sheet_index]
+	def __read_sheet_data(self, sheet_name):
+		sheet_metadata = self.SHEET_METADATA_DICT[sheet_name]
 		# print u"Read sheet: %s" % sheet_metadata["description"].decode("utf8")
 		assert self.workbook is not None, "self.workbook should NOT be None"
-		worksheet = self.workbook.sheet_by_index(sheet_index)
+		worksheet = self.workbook.sheet_by_name(sheet_name)
 		# https://www.itread01.com/content/1549650266.html
-		# print sheet1.name,sheet1.nrows,sheet1.ncols    #Sheet1 6 4
+		# print worksheet.name,worksheet.nrows,worksheet.ncols    #Sheet1 6 4
 		data_dict = {}
 		row_index = 1
 		while True:
@@ -198,10 +237,10 @@ class StockChipAnalysis(object):
 		return data_dict
 
 
-	def __read_sheet_title_bar(self, sheet_index):
+	def __read_sheet_title_bar(self, sheet_name):
 		# import pdb; pdb.set_trace()
-		sheet_metadata = self.SHEET_METADATA_LIST[sheet_index]
-		worksheet = self.workbook.sheet_by_index(sheet_index)
+		sheet_metadata = self.SHEET_METADATA_DICT[sheet_name]
+		worksheet = self.workbook.sheet_by_name(sheet_name)
 		title_bar_list = [u"商品",]
 		column_start_index = None
 		if sheet_metadata["key_mode"] == 0:
@@ -215,24 +254,48 @@ class StockChipAnalysis(object):
 		return title_bar_list
 
 
-	def __find_sheet_index(self, stock_number, sheet_data_func_ptr=None):
-		sheet_index_list = []
-		sheet_index_data_list = []
-		for sheet_index in range(1, self.SHEET_METADATA_LIST_LEN):
-			data_dict = self.__read_sheet_data(sheet_index)
-			# print data_dict
-			if data_dict.has_key(stock_number):
-				sheet_index_list.append(sheet_index)
+	def __collect_sheet_all_data(self, sheet_data_func_ptr=None):
+		sheet_data_collection_dict = {}
+		if self.xcfg["sheet_name_list"] is None:
+			self.xcfg["sheet_name_list"] = self.DEFAULT_SHEET_NAME_LIST
+		for sheet_name in self.xcfg["sheet_name_list"]:
+			data_dict = self.__read_sheet_data(sheet_name)
+			for data_key, data_value in data_dict.items():
+				if not sheet_data_collection_dict.has_key(data_key):
+					sheet_data_collection_dict[data_key] = {}
 				if sheet_data_func_ptr is not None:
-					sheet_index_data = sheet_data_func_ptr(data_dict[stock_number])
-					sheet_index_data_list.append(sheet_index_data)
-		return sheet_index_list, sheet_index_data_list
+					 data_value = sheet_data_func_ptr(data_value)
+				sheet_data_collection_dict[data_key][sheet_name] = data_value
+		return sheet_data_collection_dict
+
+
+	def __collect_sheet_data(self, sheet_data_func_ptr=None):
+		if self.xcfg["stock_list"] is None:
+			return self.__collect_sheet_all_data(sheet_data_func_ptr)
+		sheet_data_collection_dict = {}
+		if self.xcfg["sheet_name_list"] is None:
+			self.xcfg["sheet_name_list"] = self.DEFAULT_SHEET_NAME_LIST
+		for sheet_name in self.xcfg["sheet_name_list"]:
+			data_dict = self.__read_sheet_data(sheet_name)
+			for stock in self.xcfg["stock_list"]:
+				if not data_dict.has_key(stock):
+					continue
+				stock_data = data_dict[stock]
+				if not sheet_data_collection_dict.has_key(stock):
+					sheet_data_collection_dict[stock] = {}
+				if sheet_data_func_ptr is not None:
+					 stock_data = sheet_data_func_ptr(stock_data)
+				sheet_data_collection_dict[stock][sheet_name] = stock_data
+		return sheet_data_collection_dict
 
 
 	def __find_sheet_occurrence(self, ignore_sheet_func_ptr=None, sheet_data_func_ptr=None):
 		stock_number_sheet_dict = {}
 		stock_number_extra_dict = {}
-		for sheet_index in range(1, self.SHEET_METADATA_LIST_LEN):
+		# import pdb; pdb.set_trace()
+		if self.xcfg["sheet_name_list"] is None:
+			self.xcfg["sheet_name_list"] = self.DEFAULT_SHEET_NAME_LIST
+		for sheet_index in self.xcfg["sheet_name_list"]:
 			if ignore_sheet_func_ptr is not None and ignore_sheet_func_ptr(sheet_index):
 				continue
 			data_dict = self.__read_sheet_data(sheet_index)
@@ -248,83 +311,76 @@ class StockChipAnalysis(object):
 		return stock_number_sheet_dict, stock_number_extra_dict
 
 
+	def __search_stock_sheets(self):
+		# import pdb; pdb.set_trace()
+		sheet_data_func_ptr = (lambda x: x) if self.xcfg["show_detail"] else (lambda x: x[0])
+		sheet_data_collection_dict = self.__collect_sheet_data(sheet_data_func_ptr)
+		no_data = True
+		for stock_number in self.xcfg["stock_list"]:
+			if not sheet_data_collection_dict.has_key(stock_number):
+				continue
+			no_data = False
+			stock_sheet_data_collection_dict = sheet_data_collection_dict[stock_number]
+			if self.xcfg["show_detail"]:
+				stock_name = stock_sheet_data_collection_dict.values()[0][0]
+				print "=== %s(%s) ===" % (stock_number, stock_name)
+				for sheet_name, sheet_data_list in stock_sheet_data_collection_dict.items():
+					sheet_title_bar_list = self.__read_sheet_title_bar(sheet_name)
+					sheet_data_list_len = len(sheet_data_list)
+					sheet_title_bar_list_len = len(sheet_title_bar_list)
+					assert sheet_data_list_len == sheet_title_bar_list_len, "The list lengths are NOT identical, sheet_data_list_len: %d, sheet_title_bar_list_len: %d" % (sheet_data_list_len, sheet_title_bar_list_len)
+					print "* %s" % sheet_name
+					print "%s" % ",".join(["%s[%s]" % elem for elem in zip(sheet_title_bar_list[1:], sheet_data_list[1:])])
+			else:
+				stock_name = stock_sheet_data_collection_dict.values()[0]
+				print "=== %s(%s) ===" % (stock_number, stock_name)
+				print "%s" % (u",".join([stock_sheet_data_key for stock_sheet_data_key in stock_sheet_data_collection_dict.keys()]))
+		if no_data: print "*** No Data ***"	
+
+
 	def search_sheets_from_file(self):
 		# import pdb; pdb.set_trace()
-		if not self.__check_file_exist(self.xcfg['search_sheet_filepath']):
-			raise RuntimeError("The file[%s] does NOT exist" % self.xcfg['search_sheet_filepath'])
-		no_data = True
-		with open(self.xcfg['search_sheet_filepath'], 'r') as fp:
-			sheet_data_func_ptr = (lambda x: x) if self.xcfg["show_detail"] else (lambda x: x[0])
+		if not self.__check_file_exist(self.xcfg['stock_list_filepath']):
+			raise RuntimeError("The file[%s] does NOT exist" % self.xcfg['stock_list_filepath'])
+		self.xcfg["stock_list"] = []
+		with open(self.xcfg['stock_list_filepath'], 'r') as fp:
 			for line in fp:
-				stock_number = line.strip("\n")
-				sheet_index_list, sheet_index_data_list = obj.__find_sheet_index(stock_number, sheet_data_func_ptr)
-				sheet_index_list_len = len(sheet_index_list)
-				sheet_index_data_list_len = len(sheet_index_data_list)
-				assert sheet_index_list_len == sheet_index_data_list_len, "The list lengths are NOT identical, sheet_index_list_len: %d, sheet_index_data_list_len: %d" % (sheet_index_list_len, sheet_index_data_list_len) 
-				if sheet_index_list_len != 0:
-					no_data = False
-					if self.xcfg["show_detail"]:
-						print "=== %s(%s) ===" % (stock_number, sheet_index_data_list[0][0])
-						for i in range(sheet_index_list_len):
-							sheet_index = sheet_index_list[i]
-							sheet_index_data = sheet_index_data_list[i]
-							sheet_title_bar = self.__read_sheet_title_bar(sheet_index)
-							sheet_index_data_len = len(sheet_index_data)
-							sheet_title_bar_len = len(sheet_title_bar)
-							assert sheet_index_data_len == sheet_title_bar_len, "The list lengths are NOT identical, sheet_index_data_len: %d, sheet_title_bar_len: %d" % (sheet_index_list_len, sheet_title_bar_len)
-							# import pdb; pdb.set_trace()
-							print "* %s" % self.SHEET_METADATA_LIST[sheet_index]["description"].decode("utf8")
-							print "%s" % ",".join(["%s[%s]" % (sheet_title_bar[j], sheet_index_data[j]) for j in range(1, sheet_index_data_len)])
-					else:
-						print "=== %s(%s) ===" % (stock_number, sheet_index_data_list[0])
-						print "%s" % (u",".join([self.SHEET_METADATA_LIST[index]["description"].decode("utf8") for index in sheet_index_list]))
-		if no_data: print "*** No Data ***"
+				self.xcfg["stock_list"].append(line.strip("\n"))
+		self.__search_stock_sheets()
 
 
 	def search_sheets(self):
-		if self.xcfg['search_sheet_list'] is None:
+		if self.xcfg['stock_list'] is None:
 			raise RuntimeError("The search target list should NOT be None")
-		stock_number_list = self.xcfg['search_sheet_list'].split(",")
-		no_data = True
-		sheet_data_func_ptr = (lambda x: x) if self.xcfg["show_detail"] else (lambda x: x[0])
-		# import pdb; pdb.set_trace()
-		for stock_number in stock_number_list:
-			sheet_index_list, sheet_index_data_list = obj.__find_sheet_index(stock_number, sheet_data_func_ptr)
-			sheet_index_list_len = len(sheet_index_list)
-			sheet_index_data_list_len = len(sheet_index_data_list)
-			if sheet_index_list_len != 0:
-				no_data = False
-				if self.xcfg["show_detail"]:
-					print "=== %s(%s) ===" % (stock_number, sheet_index_data_list[0][0])
-					for i in range(sheet_index_list_len):
-						sheet_index = sheet_index_list[i]
-						sheet_index_data = sheet_index_data_list[i]
-						sheet_title_bar = self.__read_sheet_title_bar(sheet_index)
-						sheet_index_data_len = len(sheet_index_data)
-						sheet_title_bar_len = len(sheet_title_bar)
-						assert sheet_index_data_len == sheet_title_bar_len, "The list lengths are NOT identical, sheet_index_data_len: %d, sheet_title_bar_len: %d" % (sheet_index_list_len, sheet_title_bar_len)
-						# import pdb; pdb.set_trace()
-						print "* %s" % self.SHEET_METADATA_LIST[sheet_index]["description"].decode("utf8")
-						print "%s" % ",".join(["%s[%s]" % (sheet_title_bar[j], sheet_index_data[j]) for j in range(1, sheet_index_data_len)])
-				else:
-					print "=== %s(%s) ===" % (stock_number, sheet_index_data_list[0])
-					print "%s" % (u",".join([self.SHEET_METADATA_LIST[index]["description"].decode("utf8") for index in sheet_index_list]))
-		if no_data: print "*** No Data ***"
+		self.xcfg['stock_list'] = self.xcfg['stock_list'].split(",")
+		self.__search_stock_sheets()
 
 
 	def search_buy(self):
+		# import pdb; pdb.set_trace()
 		sheet_occurrence_dict, sheet_occurrence_extra_dict = self.__find_sheet_occurrence(lambda x: self.SHEET_METADATA_LIST[x]["direction"] == '-', lambda x: x[0])
 		filtered_sheet_occurrence_dict = dict(filter(lambda x: len(x[1]) >= self.xcfg["buy_sheet_threshold"], sheet_occurrence_dict.items()))
 		filtered_sheet_occurrence_ordereddict = OrderedDict(sorted(filtered_sheet_occurrence_dict.items(), key=lambda x: x[1]))
-		for stock_number, sheet_index_list in filtered_sheet_occurrence_ordereddict.items():
-			print "=== %s(%s) ===\n%s" % (stock_number, sheet_occurrence_extra_dict[stock_number], u",".join([self.SHEET_METADATA_LIST[index]["description"].decode("utf8") for index in sheet_index_list]))
+		for stock_number, sheet_name_list in filtered_sheet_occurrence_ordereddict.items():
+			print "=== %s(%s) ===" % (stock_number, sheet_occurrence_extra_dict[stock_number])
+			print "%s" % (u",".join([self.SHEET_METADATA_LIST[index]["description"] for index in sheet_name_list]))
+
+
+	@property
+	def StockList(self):
+		return self.xcfg["stock_list"]
+
+
+	@StockList.setter
+	def StockList(self, stock_list):
+		self.xcfg["stock_list"] = stock_list
 
 
 if __name__ == "__main__":
 	
 	help_str_list = [
-		"Search sheet index for each stock from the file",
-		"Search sheet index for each stock",
+		"Search sheet for each stock from the file",
+		"Search sheet for each stock",
 		"Search stocks which institutional investors/large trader buy",
 	]
 	help_str_list_len = len(help_str_list)
@@ -355,23 +411,25 @@ if __name__ == "__main__":
 	>>> parser.add_argument('--baz', action='store_false')
     '''
 	parser.add_argument('-m', '--analysis_method', required=False, help='The method for chip analysis. Default: 0')	
-	parser.add_argument('-d', '--show_detail', required=False, action='store_true', help='Show detailed data for each stock')
-	parser.add_argument('-f', '--search_sheet_filepath', required=False, help='The filepath of stock list for searching for sheet')
-	parser.add_argument('-l', '--search_sheet_list', required=False, help='The list string of stock list for searching for sheet. Ex: 2330,2317,2454,2308')
+	parser.add_argument('-s', '--show_detail', required=False, action='store_true', help='Show detailed data for each stock')
+	parser.add_argument('-f', '--stock_list_filepath', required=False, help='The filepath of stock list for chip analysis')
+	parser.add_argument('-l', '--stock_list', required=False, help='The list string of stock list for chip analysis. Ex: 2330,2317,2454,2308')
+	parser.add_argument('-i', '--sheet_name_list', required=False, help='The sheet index for searching')
 	parser.add_argument('-b', '--buy_sheet_threshold', required=False, help='The threshold of the sheet count that institutional investors/large trader buy')
-
-# 	# parser.add_argument('-d', '--disable_check_time', required=False, action='store_true', help='No need to check time for collecting data')
-# 	parser.add_argument('-o', '--one_shot_query', required=False, action='store_true', help='Collect data immediately')
-# 	parser.add_argument('-s', '--start_time', required=False, help='The start time of collecting data. Format: HH:mm')
-# 	parser.add_argument('-e', '--end_time', required=False, help='The end_time of collecting data. Format: HH:mm')
+	parser.add_argument('-d', '--select_sheet_description_list', required=False, help='Select the sheet description for searching')
+	parser.add_argument('--select_sheet_category_consecutive_buy', required=False, action='store_true', help='Select the sheet category: consecutive_buy')
 	args = parser.parse_args()
 	# import pdb; pdb.set_trace()
+
 	cfg = {}
 	cfg['analysis_method'] = int(args.analysis_method) if args.analysis_method is not None else 0
 	if args.show_detail: cfg['show_detail'] = True
-	if args.search_sheet_filepath is not None: cfg['search_sheet_filepath'] = args.search_sheet_filepath
-	if args.search_sheet_list is not None: cfg['search_sheet_list'] = args.search_sheet_list
+	if args.stock_list_filepath is not None: cfg['stock_list_filepath'] = args.stock_list_filepath
+	if args.stock_list is not None: cfg['stock_list'] = args.stock_list
+	if args.sheet_name_list is not None: cfg['sheet_name_list'] = args.sheet_name_list
 	if args.buy_sheet_threshold is not None: cfg['buy_sheet_threshold'] = int(args.buy_sheet_threshold)
+	if args.select_sheet_description_list is not None: cfg['select_sheet_description_list'] = args.select_sheet_description_list
+	if args.select_sheet_category_consecutive_buy: cfg['sheet_category'] = "consecutive_buy"
 		
 	# import pdb; pdb.set_trace()
 	with StockChipAnalysis(cfg) as obj:
@@ -380,8 +438,6 @@ if __name__ == "__main__":
 		elif cfg['analysis_method'] == 1:
 			obj.search_sheets()
 		elif cfg['analysis_method'] == 2:
-			obj.search_buy()
+			obj.search_buy() 
 		else:
 			raise ValueError("Analysis Method Index should be in the range [0, %d)" % help_str_list_len)
-
-
