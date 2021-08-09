@@ -107,11 +107,12 @@ class StockChipAnalysis(object):
 		},
 	}
 	DEFAULT_SHEET_NAME_LIST = [u"焦點股", u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計", u"外資買最多股", u"外資賣最多股", u"投信買最多股", u"投信賣最多股", u"主力買最多股", u"主力賣最多股", u"籌碼排行-買超金額", u"籌碼排行-賣超金額", u"買超異常", u"賣超異常",]
-	SHEET_CATEGORY_DICT = {
-		"consecutive_buy": [u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
-	}
-
-
+	SHEET_SET_LIST = [
+		[u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
+	]
+	DEFAULT_CONSECUTIVE_OVER_BUY_DAYS = 3
+	CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEET_SET = [u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
+	CHECK_CONSECUTIVE_OVER_BUY_DAYS_FIELD_NAME_KEY = u"買超累計天數"
 	@classmethod
 	def __is_string(cls, value):
 		is_string = False
@@ -147,45 +148,31 @@ class StockChipAnalysis(object):
 		return stock_list
 
 
+	@classmethod
+	def list_sheet_set(cls):
+		for index, sheet_set in enumerate(cls.SHEET_SET_LIST):
+			print "%d: %s" % (index, ",".join(sheet_set))
+
+
 	def __init__(self, cfg):
 		self.xcfg = {
 			"show_detail": False,
 			"source_filepath": os.path.join(self.DEFAULT_SOURCE_FOLDERPATH, self.DEFAULT_SOURCE_FILENAME),
 			"stock_list_filepath": os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.DEFAULT_CHIP_ANALYSIS_STOCK_LIST_FILENAME),
 			"stock_list": None,
-			# "buy_sheet_threshold": self.DEFAULT_BUY_SHEET_THRESHOLD,
 			"sheet_name_list": None,
-			"sheet_category": None,
+			"stock_set_category": -1,
+			"consecutive_over_buy_days": self.DEFAULT_CONSECUTIVE_OVER_BUY_DAYS,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
-		if cfg.has_key("sheet_category"):
-			if cfg.has_key("sheet_name_list"):
-				print "WARNING: The 'sheet_category' setting overwrite the 'sheet_name_list' one"
-			if cfg.has_key("select_sheet_description_list"):
-				print "WARNING: The 'sheet_category' setting overwrite the 'select_sheet_description_list' one"
-			if cfg.has_key("buy_sheet_threshold"):
-				print "WARNING: The 'sheet_category' setting overwrite the 'buy_sheet_threshold' one"
-			self.xcfg["sheet_name_list"] = []
-			for sheet_description in self.SHEET_CATEGORY_DICT[self.xcfg["sheet_category"]]:
-				sheet_index = self.__get_sheet_index_by_description(sheet_description)
-				if sheet_index == -1:
-					raise RuntimeError("Unknown sheet description: %s" % sheet_description)
-				self.xcfg["sheet_name_list"].append(sheet_index)		
-			self.xcfg["buy_sheet_threshold"] = len(self.SHEET_CATEGORY_DICT[self.xcfg["sheet_category"]])
-		else:
-			if cfg.has_key("select_sheet_description_list"):
-				if cfg.has_key("sheet_name_list"):
-					print "WARNING: The 'select_sheet_description_list' setting overwrite the 'sheet_name_list' one"
-				self.xcfg["sheet_name_list"] = []
-				for sheet_description in self.xcfg["select_sheet_description_list"]:
-					sheet_index = self.__get_sheet_index_by_description(sheet_description)
-					if sheet_index == -1:
-						raise RuntimeError("Unknown sheet description: %s" % sheet_description)
-					self.xcfg["sheet_name_list"].append(sheet_index)
+		if cfg["stock_set_category"] != -1:
+			if cfg["sheet_name_list"] is not None:
+				print "WARNING: The 'stock_set_category' setting overwrite the 'sheet_name_list' one"
+			self.xcfg["sheet_name_list"] = self.SHEET_SET_LIST[self.xcfg["stock_set_category"]]
 
 		self.workbook = None
-		self.sheet_title_bar_list = None
+		self.sheet_title_bar_dict = {}
 
 
 	def __enter__(self):
@@ -200,6 +187,25 @@ class StockChipAnalysis(object):
 			del self.workbook
 			self.workbook = None
 		return False
+
+
+	def __read_sheet_title_bar(self, sheet_name):
+		# import pdb; pdb.set_trace()
+		if not self.sheet_title_bar_dict.has_key(sheet_name):
+			sheet_metadata = self.SHEET_METADATA_DICT[sheet_name]
+			worksheet = self.workbook.sheet_by_name(sheet_name)
+			title_bar_list = [u"商品",]
+			column_start_index = None
+			if sheet_metadata["key_mode"] == 0:
+				column_start_index = 2
+			elif sheet_metadata["key_mode"] == 1:
+				column_start_index = 1
+			else:
+				raise ValueError("Unknown key mode: %d" % sheet_metadata["key_mode"]) 
+			for column_index in range(column_start_index, worksheet.ncols):
+				title_bar_list.append(worksheet.cell_value(0, column_index))
+			self.sheet_title_bar_dict[sheet_name] = title_bar_list
+		return self.sheet_title_bar_dict[sheet_name]
 
 
 	def __read_sheet_data(self, sheet_name):
@@ -234,24 +240,24 @@ class StockChipAnalysis(object):
 				data_dict[stock_number].append(worksheet.cell_value(row_index, column_index))
 			row_index += 1
 			# print "%d -- %s" % (row_index, stock_number)
+		if self.xcfg["consecutive_over_buy_days"] > 0:
+			if sheet_name in self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEET_SET:
+				data_dict = self.__filter_consecutive_over_buy_days(sheet_name, data_dict)
 		return data_dict
 
 
-	def __read_sheet_title_bar(self, sheet_name):
+	def __filter_consecutive_over_buy_days(self, sheet_name, data_dict):
+		title_bar_list = self.__read_sheet_title_bar(sheet_name)
+		found = False
+		found_index = -1
+		for index, title_bar in enumerate(title_bar_list):
+			if re.search(self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_FIELD_NAME_KEY, title_bar):
+				found = True
+				found_index = index
+				break
+		assert found, "The %s is NOT found" % self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_FIELD_NAME_KEY
 		# import pdb; pdb.set_trace()
-		sheet_metadata = self.SHEET_METADATA_DICT[sheet_name]
-		worksheet = self.workbook.sheet_by_name(sheet_name)
-		title_bar_list = [u"商品",]
-		column_start_index = None
-		if sheet_metadata["key_mode"] == 0:
-			column_start_index = 2
-		elif sheet_metadata["key_mode"] == 1:
-			column_start_index = 1
-		else:
-			raise ValueError("Unknown key mode: %d" % sheet_metadata["key_mode"]) 
-		for column_index in range(column_start_index, worksheet.ncols):
-			title_bar_list.append(worksheet.cell_value(0, column_index))
-		return title_bar_list
+		return dict(filter(lambda x: int(x[1][found_index]) >= self.xcfg["consecutive_over_buy_days"], data_dict.items()))
 
 
 	def __collect_sheet_all_data(self, sheet_data_func_ptr=None):
@@ -315,6 +321,8 @@ class StockChipAnalysis(object):
 		# import pdb; pdb.set_trace()
 		sheet_data_func_ptr = (lambda x: x) if self.xcfg["show_detail"] else (lambda x: x[0])
 		sheet_data_collection_dict = self.__collect_sheet_data(sheet_data_func_ptr)
+		if self.xcfg["stock_list"] is None:
+			self.xcfg["stock_list"] = sheet_data_collection_dict.keys()
 		no_data = True
 		for stock_number in self.xcfg["stock_list"]:
 			if not sheet_data_collection_dict.has_key(stock_number):
@@ -349,21 +357,25 @@ class StockChipAnalysis(object):
 		self.__search_stock_sheets()
 
 
-	def search_sheets(self):
-		if self.xcfg['stock_list'] is None:
-			raise RuntimeError("The search target list should NOT be None")
-		self.xcfg['stock_list'] = self.xcfg['stock_list'].split(",")
+	def search_sheets(self, search_whole=False):
+		if search_whole:
+			if self.xcfg['stock_list'] is not None:
+				raise RuntimeError("The stock list should be None")
+		else:
+			if self.xcfg['stock_list'] is None:
+				raise RuntimeError("The stock list should NOT be None")
+			self.xcfg['stock_list'] = self.xcfg['stock_list'].split(",")
 		self.__search_stock_sheets()
 
 
-	def search_buy(self):
-		# import pdb; pdb.set_trace()
-		sheet_occurrence_dict, sheet_occurrence_extra_dict = self.__find_sheet_occurrence(lambda x: self.SHEET_METADATA_LIST[x]["direction"] == '-', lambda x: x[0])
-		filtered_sheet_occurrence_dict = dict(filter(lambda x: len(x[1]) >= self.xcfg["buy_sheet_threshold"], sheet_occurrence_dict.items()))
-		filtered_sheet_occurrence_ordereddict = OrderedDict(sorted(filtered_sheet_occurrence_dict.items(), key=lambda x: x[1]))
-		for stock_number, sheet_name_list in filtered_sheet_occurrence_ordereddict.items():
-			print "=== %s(%s) ===" % (stock_number, sheet_occurrence_extra_dict[stock_number])
-			print "%s" % (u",".join([self.SHEET_METADATA_LIST[index]["description"] for index in sheet_name_list]))
+	# def search_buy(self):
+	# 	# import pdb; pdb.set_trace()
+	# 	sheet_occurrence_dict, sheet_occurrence_extra_dict = self.__find_sheet_occurrence(lambda x: self.SHEET_METADATA_LIST[x]["direction"] == '-', lambda x: x[0])
+	# 	filtered_sheet_occurrence_dict = dict(filter(lambda x: len(x[1]) >= self.xcfg["buy_sheet_threshold"], sheet_occurrence_dict.items()))
+	# 	filtered_sheet_occurrence_ordereddict = OrderedDict(sorted(filtered_sheet_occurrence_dict.items(), key=lambda x: x[1]))
+	# 	for stock_number, sheet_name_list in filtered_sheet_occurrence_ordereddict.items():
+	# 		print "=== %s(%s) ===" % (stock_number, sheet_occurrence_extra_dict[stock_number])
+	# 		print "%s" % (u",".join([self.SHEET_METADATA_LIST[index]["description"] for index in sheet_name_list]))
 
 
 	@property
@@ -378,17 +390,6 @@ class StockChipAnalysis(object):
 
 if __name__ == "__main__":
 	
-	help_str_list = [
-		"Search sheet for each stock from the file",
-		"Search sheet for each stock",
-		"Search stocks which institutional investors/large trader buy",
-	]
-	help_str_list_len = len(help_str_list)
-	print "************ Analysis Method ************"
-	for index, help_str in enumerate(help_str_list):
-		print "%d  %s" % (index, help_str)
-	print "*****************************************"
-
 	parser = argparse.ArgumentParser(description='Print help')
 	'''
 	參數基本上分兩種，一種是位置參數 (positional argument)，另一種就是選擇性參數 (optional argument)
@@ -410,26 +411,39 @@ if __name__ == "__main__":
 	>>> parser.add_argument('--bar', action='store_false')
 	>>> parser.add_argument('--baz', action='store_false')
     '''
+	parser.add_argument('-e', '--list_analysis_method', required=False, action='store_true', help='List each analysis method and exit')
+	parser.add_argument('-i', '--list_stock_set_category', required=False, action='store_true', help='List each stock set and exit')
 	parser.add_argument('-m', '--analysis_method', required=False, help='The method for chip analysis. Default: 0')	
 	parser.add_argument('-s', '--show_detail', required=False, action='store_true', help='Show detailed data for each stock')
 	parser.add_argument('-f', '--stock_list_filepath', required=False, help='The filepath of stock list for chip analysis')
 	parser.add_argument('-l', '--stock_list', required=False, help='The list string of stock list for chip analysis. Ex: 2330,2317,2454,2308')
-	parser.add_argument('-i', '--sheet_name_list', required=False, help='The sheet index for searching')
-	parser.add_argument('-b', '--buy_sheet_threshold', required=False, help='The threshold of the sheet count that institutional investors/large trader buy')
-	parser.add_argument('-d', '--select_sheet_description_list', required=False, help='Select the sheet description for searching')
-	parser.add_argument('--select_sheet_category_consecutive_buy', required=False, action='store_true', help='Select the sheet category: consecutive_buy')
+	parser.add_argument('-c', '--stock_set_category', required=False, help='The category for stock set. Default: 0')	
 	args = parser.parse_args()
 	# import pdb; pdb.set_trace()
+
+	if args.list_analysis_method:
+		help_str_list = [
+			"Search sheet for the specific stocks from the file",
+			"Search sheet for the specific stocks",
+			"Search sheet for the whole stocks",
+		]
+		help_str_list_len = len(help_str_list)
+		print "************ Analysis Method ************"
+		for index, help_str in enumerate(help_str_list):
+			print "%d  %s" % (index, help_str)
+		print "*****************************************"
+		sys.exit(0)
+	if args.list_stock_set_category:
+		StockChipAnalysis.list_sheet_set()
+		sys.exit(0)
+
 
 	cfg = {}
 	cfg['analysis_method'] = int(args.analysis_method) if args.analysis_method is not None else 0
 	if args.show_detail: cfg['show_detail'] = True
 	if args.stock_list_filepath is not None: cfg['stock_list_filepath'] = args.stock_list_filepath
 	if args.stock_list is not None: cfg['stock_list'] = args.stock_list
-	if args.sheet_name_list is not None: cfg['sheet_name_list'] = args.sheet_name_list
-	if args.buy_sheet_threshold is not None: cfg['buy_sheet_threshold'] = int(args.buy_sheet_threshold)
-	if args.select_sheet_description_list is not None: cfg['select_sheet_description_list'] = args.select_sheet_description_list
-	if args.select_sheet_category_consecutive_buy: cfg['sheet_category'] = "consecutive_buy"
+	cfg['stock_set_category'] = int(args.stock_set_category) if args.stock_set_category is not None else -1
 		
 	# import pdb; pdb.set_trace()
 	with StockChipAnalysis(cfg) as obj:
@@ -438,6 +452,6 @@ if __name__ == "__main__":
 		elif cfg['analysis_method'] == 1:
 			obj.search_sheets()
 		elif cfg['analysis_method'] == 2:
-			obj.search_buy() 
+			obj.search_sheets(True)
 		else:
 			raise ValueError("Analysis Method Index should be in the range [0, %d)" % help_str_list_len)
