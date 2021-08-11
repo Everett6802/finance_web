@@ -10,6 +10,7 @@ Question: How to Solve xlrd.biffh.XLRDError: Excel xlsx file; not supported ?
 Answer : The latest version of xlrd(2.01) only supports .xls files. Installing the older version 1.2.0 to open .xlsx files.
 '''
 import xlrd
+import xlsxwriter
 import argparse
 from collections import OrderedDict
 
@@ -20,6 +21,7 @@ class StockChipAnalysis(object):
 	DEFAULT_SOURCE_FILENAME = "stock_chip_analysis.xlsm"
 	DEFAULT_CONFIG_FOLDERPATH =  "C:\Users\Price\source"
 	DEFAULT_CHIP_ANALYSIS_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
+	DEFAULT_OUTPUT_FILENAME = "chip_analysis_report.xlsx"
 	SHEET_METADATA_DICT = {
 		u"即時指數": { # Dummy
 			"is_dummy": True,
@@ -125,15 +127,15 @@ class StockChipAnalysis(object):
 
 	@classmethod
 	def __check_file_exist(cls, filepath):
-	    check_exist = True
-	    try:
-	        os.stat(filepath)
-	    except OSError as exception:
-	        if exception.errno != errno.ENOENT:
-	            print "%s: %s" % (errno.errorcode[exception.errno], os.strerror(exception.errno))
-	            raise
-	        check_exist = False
-	    return check_exist
+		check_exist = True
+		try:
+			os.stat(filepath)
+		except OSError as exception:
+			if exception.errno != errno.ENOENT:
+				print "%s: %s" % (errno.errorcode[exception.errno], os.strerror(exception.errno))
+				raise
+			check_exist = False
+		return check_exist
 
 
 	@classmethod
@@ -157,31 +159,45 @@ class StockChipAnalysis(object):
 	def __init__(self, cfg):
 		self.xcfg = {
 			"show_detail": False,
+			"generate_report": False,
 			"source_filepath": os.path.join(self.DEFAULT_SOURCE_FOLDERPATH, self.DEFAULT_SOURCE_FILENAME),
 			"stock_list_filepath": os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.DEFAULT_CHIP_ANALYSIS_STOCK_LIST_FILENAME),
 			"stock_list": None,
 			"sheet_name_list": None,
 			"stock_set_category": -1,
 			"consecutive_over_buy_days": self.DEFAULT_CONSECUTIVE_OVER_BUY_DAYS,
+			"stock_output_filepath": os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.DEFAULT_OUTPUT_FILENAME),
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
-		if cfg["stock_set_category"] != -1:
-			if cfg["sheet_name_list"] is not None:
+		if self.xcfg["generate_report"]:
+			if not self.xcfg["show_detail"]:
+				print "WARNING: The 'show_detail' parameter is enabled while the 'generate_report' one is true"
+				self.xcfg["show_detail"] = True
+
+		if self.xcfg["stock_set_category"] != -1:
+			if self.xcfg["sheet_name_list"] is not None:
 				print "WARNING: The 'stock_set_category' setting overwrite the 'sheet_name_list' one"
 			self.xcfg["sheet_name_list"] = self.SHEET_SET_LIST[self.xcfg["stock_set_category"]]
 
 		self.workbook = None
+		self.output_workbook = None
 		self.sheet_title_bar_dict = {}
 
 
 	def __enter__(self):
 		# Open the workbook
 		self.workbook = xlrd.open_workbook(self.xcfg["source_filepath"])
+		if self.xcfg["generate_report"]:
+			self.output_workbook = xlsxwriter.Workbook(self.xcfg["stock_output_filepath"])
 		return self
 
 
 	def __exit__(self, type, msg, traceback):
+		if self.output_workbook is not None:
+			self.output_workbook.close()
+			del self.output_workbook
+			self.output_workbook = None
 		if self.workbook is not None:
 			self.workbook.release_resources()
 			del self.workbook
@@ -295,26 +311,26 @@ class StockChipAnalysis(object):
 		return sheet_data_collection_dict
 
 
-	def __find_sheet_occurrence(self, ignore_sheet_func_ptr=None, sheet_data_func_ptr=None):
-		stock_number_sheet_dict = {}
-		stock_number_extra_dict = {}
-		# import pdb; pdb.set_trace()
-		if self.xcfg["sheet_name_list"] is None:
-			self.xcfg["sheet_name_list"] = self.DEFAULT_SHEET_NAME_LIST
-		for sheet_index in self.xcfg["sheet_name_list"]:
-			if ignore_sheet_func_ptr is not None and ignore_sheet_func_ptr(sheet_index):
-				continue
-			data_dict = self.__read_sheet_data(sheet_index)
-			for stock_number, stock_data in data_dict.items():
-				if stock_number_sheet_dict.has_key(stock_number):
-					# stock_number_sheet_dict[stock_number] = stock_number_sheet_dict[stock_number] + 1
-					stock_number_sheet_dict[stock_number].append(sheet_index)					
-				else:
-					# stock_number_sheet_dict[stock_number] = 1
-					stock_number_sheet_dict[stock_number] = [sheet_index,]
-					if sheet_data_func_ptr is not None:
-						stock_number_extra_dict[stock_number] = sheet_data_func_ptr(stock_data)
-		return stock_number_sheet_dict, stock_number_extra_dict
+	# def __find_sheet_occurrence(self, ignore_sheet_func_ptr=None, sheet_data_func_ptr=None):
+	# 	stock_number_sheet_dict = {}
+	# 	stock_number_extra_dict = {}
+	# 	# import pdb; pdb.set_trace()
+	# 	if self.xcfg["sheet_name_list"] is None:
+	# 		self.xcfg["sheet_name_list"] = self.DEFAULT_SHEET_NAME_LIST
+	# 	for sheet_index in self.xcfg["sheet_name_list"]:
+	# 		if ignore_sheet_func_ptr is not None and ignore_sheet_func_ptr(sheet_index):
+	# 			continue
+	# 		data_dict = self.__read_sheet_data(sheet_index)
+	# 		for stock_number, stock_data in data_dict.items():
+	# 			if stock_number_sheet_dict.has_key(stock_number):
+	# 				# stock_number_sheet_dict[stock_number] = stock_number_sheet_dict[stock_number] + 1
+	# 				stock_number_sheet_dict[stock_number].append(sheet_index)					
+	# 			else:
+	# 				# stock_number_sheet_dict[stock_number] = 1
+	# 				stock_number_sheet_dict[stock_number] = [sheet_index,]
+	# 				if sheet_data_func_ptr is not None:
+	# 					stock_number_extra_dict[stock_number] = sheet_data_func_ptr(stock_data)
+	# 	return stock_number_sheet_dict, stock_number_extra_dict
 
 
 	def __search_stock_sheets(self):
@@ -324,6 +340,12 @@ class StockChipAnalysis(object):
 		if self.xcfg["stock_list"] is None:
 			self.xcfg["stock_list"] = sheet_data_collection_dict.keys()
 		no_data = True
+
+		output_overview_worksheet = None
+		output_overview_row = 0
+		if self.xcfg["generate_report"]:
+			output_overview_worksheet = self.output_workbook.add_worksheet("Overview")
+					
 		for stock_number in self.xcfg["stock_list"]:
 			if not sheet_data_collection_dict.has_key(stock_number):
 				continue
@@ -332,6 +354,15 @@ class StockChipAnalysis(object):
 			if self.xcfg["show_detail"]:
 				stock_name = stock_sheet_data_collection_dict.values()[0][0]
 				print "=== %s(%s) ===" % (stock_number, stock_name)
+				if self.xcfg["generate_report"]:
+# For overview sheet
+					output_overview_worksheet.write(output_overview_row, 0,  "%s(%s)" % (stock_number, stock_name))
+					for output_overview_col, sheet_name in enumerate(stock_sheet_data_collection_dict.keys()):
+						output_overview_worksheet.write(output_overview_row + 1, output_overview_col,  sheet_name)
+					output_overview_row += 3
+# For detailed sheet
+					worksheet = self.output_workbook.add_worksheet("%s(%s)" % (stock_number, stock_name))
+					output_row = 0
 				for sheet_name, sheet_data_list in stock_sheet_data_collection_dict.items():
 					sheet_title_bar_list = self.__read_sheet_title_bar(sheet_name)
 					sheet_data_list_len = len(sheet_data_list)
@@ -339,11 +370,22 @@ class StockChipAnalysis(object):
 					assert sheet_data_list_len == sheet_title_bar_list_len, "The list lengths are NOT identical, sheet_data_list_len: %d, sheet_title_bar_list_len: %d" % (sheet_data_list_len, sheet_title_bar_list_len)
 					print "* %s" % sheet_name
 					print "%s" % ",".join(["%s[%s]" % elem for elem in zip(sheet_title_bar_list[1:], sheet_data_list[1:])])
+					if self.xcfg["generate_report"]:
+# For detailed sheet
+						worksheet.write(output_row, 0,  sheet_name)
+						for output_col, output_data in enumerate(zip(sheet_title_bar_list[1:], sheet_data_list[1:])):
+							sheet_title_bar, sheet_data = output_data
+							worksheet.write(output_row + 1, output_col,  sheet_title_bar)
+							worksheet.write(output_row + 2, output_col,  sheet_data)
+						output_row += 4
 			else:
 				stock_name = stock_sheet_data_collection_dict.values()[0]
 				print "=== %s(%s) ===" % (stock_number, stock_name)
 				print "%s" % (u",".join([stock_sheet_data_key for stock_sheet_data_key in stock_sheet_data_collection_dict.keys()]))
 		if no_data: print "*** No Data ***"	
+		if self.xcfg["generate_report"]:
+			if no_data:
+				worksheet = workbook.add_worksheet("NoData")
 
 
 	def search_sheets_from_file(self):
@@ -410,16 +452,16 @@ if __name__ == "__main__":
 	>>> parser.add_argument('--foo', action='store_true')
 	>>> parser.add_argument('--bar', action='store_false')
 	>>> parser.add_argument('--baz', action='store_false')
-    '''
+	'''
 	parser.add_argument('-e', '--list_analysis_method', required=False, action='store_true', help='List each analysis method and exit')
 	parser.add_argument('-i', '--list_stock_set_category', required=False, action='store_true', help='List each stock set and exit')
 	parser.add_argument('-m', '--analysis_method', required=False, help='The method for chip analysis. Default: 0')	
 	parser.add_argument('-s', '--show_detail', required=False, action='store_true', help='Show detailed data for each stock')
+	parser.add_argument('-o', '--generate_report', required=False, action='store_true', help='Generate the report of the detailed data for each stock to the XLS file.')
 	parser.add_argument('-f', '--stock_list_filepath', required=False, help='The filepath of stock list for chip analysis')
 	parser.add_argument('-l', '--stock_list', required=False, help='The list string of stock list for chip analysis. Ex: 2330,2317,2454,2308')
 	parser.add_argument('-c', '--stock_set_category', required=False, help='The category for stock set. Default: 0')	
 	args = parser.parse_args()
-	# import pdb; pdb.set_trace()
 
 	if args.list_analysis_method:
 		help_str_list = [
@@ -437,10 +479,11 @@ if __name__ == "__main__":
 		StockChipAnalysis.list_sheet_set()
 		sys.exit(0)
 
-
+	# import pdb; pdb.set_trace()
 	cfg = {}
 	cfg['analysis_method'] = int(args.analysis_method) if args.analysis_method is not None else 0
 	if args.show_detail: cfg['show_detail'] = True
+	if args.generate_report: cfg['generate_report'] = True
 	if args.stock_list_filepath is not None: cfg['stock_list_filepath'] = args.stock_list_filepath
 	if args.stock_list is not None: cfg['stock_list'] = args.stock_list
 	cfg['stock_set_category'] = int(args.stock_set_category) if args.stock_set_category is not None else -1
@@ -454,4 +497,4 @@ if __name__ == "__main__":
 		elif cfg['analysis_method'] == 2:
 			obj.search_sheets(True)
 		else:
-			raise ValueError("Analysis Method Index should be in the range [0, %d)" % help_str_list_len)
+			raise ValueError("Incorrect Analysis Method Index")
