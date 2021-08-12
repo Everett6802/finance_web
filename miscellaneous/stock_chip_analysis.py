@@ -20,8 +20,8 @@ class StockChipAnalysis(object):
 	DEFAULT_SOURCE_FOLDERPATH =  "C:\Users\Price\Downloads" # os.getcwd()
 	DEFAULT_SOURCE_FILENAME = "stock_chip_analysis.xlsm"
 	DEFAULT_CONFIG_FOLDERPATH =  "C:\Users\Price\source"
-	DEFAULT_CHIP_ANALYSIS_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
-	DEFAULT_OUTPUT_FILENAME = "chip_analysis_report.xlsx"
+	DEFAULT_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
+	DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
 	SHEET_METADATA_DICT = {
 		u"即時指數": { # Dummy
 			"is_dummy": True,
@@ -111,6 +111,7 @@ class StockChipAnalysis(object):
 	DEFAULT_SHEET_NAME_LIST = [u"焦點股", u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計", u"外資買最多股", u"外資賣最多股", u"投信買最多股", u"投信賣最多股", u"主力買最多股", u"主力賣最多股", u"籌碼排行-買超金額", u"籌碼排行-賣超金額", u"買超異常", u"賣超異常",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
+		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
 	]
 	DEFAULT_CONSECUTIVE_OVER_BUY_DAYS = 3
 	CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEET_SET = [u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
@@ -160,16 +161,19 @@ class StockChipAnalysis(object):
 		self.xcfg = {
 			"show_detail": False,
 			"generate_report": False,
-			"source_filepath": os.path.join(self.DEFAULT_SOURCE_FOLDERPATH, self.DEFAULT_SOURCE_FILENAME),
-			"stock_list_filepath": os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.DEFAULT_CHIP_ANALYSIS_STOCK_LIST_FILENAME),
+			"source_filename": self.DEFAULT_SOURCE_FILENAME,
+			"stock_list_filename": self.DEFAULT_STOCK_LIST_FILENAME,
+			"report_filename": self.DEFAULT_REPORT_FILENAME,
 			"stock_list": None,
 			"sheet_name_list": None,
 			"stock_set_category": -1,
 			"consecutive_over_buy_days": self.DEFAULT_CONSECUTIVE_OVER_BUY_DAYS,
-			"stock_output_filepath": os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.DEFAULT_OUTPUT_FILENAME),
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
+		self.xcfg["source_filepath"] = os.path.join(self.DEFAULT_SOURCE_FOLDERPATH, self.xcfg["source_filename"])
+		self.xcfg["stock_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["stock_list_filename"])
+		self.xcfg["report_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["report_filename"])
 		if self.xcfg["generate_report"]:
 			if not self.xcfg["show_detail"]:
 				print "WARNING: The 'show_detail' parameter is enabled while the 'generate_report' one is true"
@@ -189,7 +193,7 @@ class StockChipAnalysis(object):
 		# Open the workbook
 		self.workbook = xlrd.open_workbook(self.xcfg["source_filepath"])
 		if self.xcfg["generate_report"]:
-			self.output_workbook = xlsxwriter.Workbook(self.xcfg["stock_output_filepath"])
+			self.output_workbook = xlsxwriter.Workbook(self.xcfg["report_filepath"])
 		return self
 
 
@@ -349,6 +353,8 @@ class StockChipAnalysis(object):
 		for stock_number in self.xcfg["stock_list"]:
 			if not sheet_data_collection_dict.has_key(stock_number):
 				continue
+			# if re.search("6741", stock_number):
+			# 	import pdb; pdb.set_trace()
 			no_data = False
 			stock_sheet_data_collection_dict = sheet_data_collection_dict[stock_number]
 			if self.xcfg["show_detail"]:
@@ -361,7 +367,12 @@ class StockChipAnalysis(object):
 						output_overview_worksheet.write(output_overview_row + 1, output_overview_col,  sheet_name)
 					output_overview_row += 3
 # For detailed sheet
-					worksheet = self.output_workbook.add_worksheet("%s(%s)" % (stock_number, stock_name))
+					try:
+						worksheet = self.output_workbook.add_worksheet("%s(%s)" % (stock_number, stock_name))
+					except xlsxwriter.exceptions.InvalidWorksheetName:
+						import pdb; pdb.set_trace()
+						if re.match("6741", stock_number):
+							worksheet = self.output_workbook.add_worksheet("%s(%s)" % (stock_number, stock_name.replace("*","")))
 					output_row = 0
 				for sheet_name, sheet_data_list in stock_sheet_data_collection_dict.items():
 					sheet_title_bar_list = self.__read_sheet_title_bar(sheet_name)
@@ -456,10 +467,12 @@ if __name__ == "__main__":
 	parser.add_argument('-e', '--list_analysis_method', required=False, action='store_true', help='List each analysis method and exit')
 	parser.add_argument('-i', '--list_stock_set_category', required=False, action='store_true', help='List each stock set and exit')
 	parser.add_argument('-m', '--analysis_method', required=False, help='The method for chip analysis. Default: 0')	
-	parser.add_argument('-s', '--show_detail', required=False, action='store_true', help='Show detailed data for each stock')
-	parser.add_argument('-o', '--generate_report', required=False, action='store_true', help='Generate the report of the detailed data for each stock to the XLS file.')
-	parser.add_argument('-f', '--stock_list_filepath', required=False, help='The filepath of stock list for chip analysis')
+	parser.add_argument('-d', '--show_detail', required=False, action='store_true', help='Show detailed data for each stock')
+	parser.add_argument('-g', '--generate_report', required=False, action='store_true', help='Generate the report of the detailed data for each stock to the XLS file.')
+	parser.add_argument('-r', '--report_filename', required=False, help='The filename of chip analysis report')
+	parser.add_argument('-t', '--stock_list_filename', required=False, help='The filename of stock list for chip analysis')
 	parser.add_argument('-l', '--stock_list', required=False, help='The list string of stock list for chip analysis. Ex: 2330,2317,2454,2308')
+	parser.add_argument('-s', '--source_filename', required=False, help='The filename of chip analysis data source')
 	parser.add_argument('-c', '--stock_set_category', required=False, help='The category for stock set. Default: 0')	
 	args = parser.parse_args()
 
@@ -484,8 +497,10 @@ if __name__ == "__main__":
 	cfg['analysis_method'] = int(args.analysis_method) if args.analysis_method is not None else 0
 	if args.show_detail: cfg['show_detail'] = True
 	if args.generate_report: cfg['generate_report'] = True
-	if args.stock_list_filepath is not None: cfg['stock_list_filepath'] = args.stock_list_filepath
+	if args.report_filename is not None: cfg['report_filename'] = args.report_filename
+	if args.stock_list_filename is not None: cfg['stock_list_filename'] = args.stock_list_filename
 	if args.stock_list is not None: cfg['stock_list'] = args.stock_list
+	if args.source_filename is not None: cfg['source_filename'] = args.source_filename
 	cfg['stock_set_category'] = int(args.stock_set_category) if args.stock_set_category is not None else -1
 		
 	# import pdb; pdb.set_trace()
