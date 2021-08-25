@@ -12,7 +12,8 @@ Answer : The latest version of xlrd(2.01) only supports .xls files. Installing t
 import xlrd
 import xlsxwriter
 import argparse
-from collections import OrderedDict
+# from collections import OrderedDict
+# from ..server.common import mongodb_client as MONGODB
 
 
 class StockChipAnalysis(object):
@@ -24,27 +25,27 @@ class StockChipAnalysis(object):
 	DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
 	DEFAULT_SEARCH_RESULT_FILENAME = "search_result_stock_list.txt"
 	SHEET_METADATA_DICT = {
-		u"即時指數": { # Dummy
-			"is_dummy": True,
-		},
-		u"主要指數": { # Dummy
-			"is_dummy": True,
-		},
-		u"外匯市場": { # Dummy
-			"is_dummy": True,
-		},
-		u"商品市場": { # Dummy
-			"is_dummy": True,
-		},
-		u"商品行情": { # Dummy
-			"is_dummy": True,
-		},
-		u"資金流向": { # Dummy
-			"is_dummy": True,
-		},
-		u"大盤籌碼多空勢力": { # Dummy
-			"is_dummy": True,
-		},
+		# u"即時指數": { # Dummy
+		# 	"is_dummy": True,
+		# },
+		# u"主要指數": { # Dummy
+		# 	"is_dummy": True,
+		# },
+		# u"外匯市場": { # Dummy
+		# 	"is_dummy": True,
+		# },
+		# u"商品市場": { # Dummy
+		# 	"is_dummy": True,
+		# },
+		# u"商品行情": { # Dummy
+		# 	"is_dummy": True,
+		# },
+		# u"資金流向": { # Dummy
+		# 	"is_dummy": True,
+		# },
+		# u"大盤籌碼多空勢力": { # Dummy
+		# 	"is_dummy": True,
+		# },
 		u"焦點股": { 
 			"key_mode": 0, # 1476.TW
 		},
@@ -118,6 +119,9 @@ class StockChipAnalysis(object):
 	DEFAULT_CONSECUTIVE_OVER_BUY_DAYS = 3
 	CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEET_SET = [u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
 	CHECK_CONSECUTIVE_OVER_BUY_DAYS_FIELD_NAME_KEY = u"買超累計天數"
+
+	WEIGHTED_STOCK_LIST = ["2330", "2317", "2454", "2308", "0050", ]
+	DEFENSE_STOCK_LIST = ["2412", "3045", "4904", "2801", "2809", "2812", "2823", "2834", "2880", "2881", "2882", "2883", "2884", "2885", "2886", "2887", "2888", "2889", "2890", "2891", "2892", "5776", "5880", ]
 	@classmethod
 	def __is_string(cls, value):
 		is_string = False
@@ -225,6 +229,7 @@ class StockChipAnalysis(object):
 	def __print_string(self, outpug_str):
 		if self.xcfg["quiet"]: return
 		print outpug_str
+
 
 	def __read_sheet_title_bar(self, sheet_name):
 		# import pdb; pdb.set_trace()
@@ -407,6 +412,21 @@ class StockChipAnalysis(object):
 				worksheet = self.report_workbook.add_worksheet("NoData")
 
 
+	def __buy_sell_statistics(self, stock_list):
+		buy_count = 0
+		sell_count = 0
+		sheet_name_list = dict(filter(lambda x: x[1].has_key("direction"), self.SHEET_METADATA_DICT.items())).keys()
+		# import pdb; pdb.set_trace()
+		for sheet_name in sheet_name_list:
+			data_dict = self.__read_sheet_data(sheet_name)
+			count = len(filter(lambda x: x in stock_list, data_dict.keys()))
+			if self.SHEET_METADATA_DICT[sheet_name]["direction"] == "+":
+				buy_count += count
+			else:
+				sell_count += count
+		return buy_count, sell_count
+
+
 	def search_sheets_from_file(self):
 		# import pdb; pdb.set_trace()
 		if not self.__check_file_exist(self.xcfg['stock_list_filepath']):
@@ -427,6 +447,13 @@ class StockChipAnalysis(object):
 				raise RuntimeError("The stock list should NOT be None")
 			self.xcfg['stock_list'] = self.xcfg['stock_list'].split(",")
 		self.__search_stock_sheets()
+
+
+	def evaluate_bull_bear(self):
+		buy_count, sell_count = self.__buy_sell_statistics(self.WEIGHTED_STOCK_LIST)
+		print "Weighted Stock, buy: %d, sell: %d" % (buy_count, sell_count)
+		buy_count, sell_count = self.__buy_sell_statistics(self.DEFENSE_STOCK_LIST)
+		print "Defense Stock, buy: %d, sell: %d" % (buy_count, sell_count)
 
 
 	@property
@@ -489,6 +516,7 @@ if __name__ == "__main__":
 			"Search sheet for the specific stocks from the file",
 			"Search sheet for the specific stocks",
 			"Search sheet for the whole stocks",
+			"Evaluate the TAIEX bull or bear",
 		]
 		help_str_list_len = len(help_str_list)
 		print "************ Analysis Method ************"
@@ -544,5 +572,7 @@ if __name__ == "__main__":
 			obj.search_sheets()
 		elif cfg['analysis_method'] == 2:
 			obj.search_sheets(True)
+		elif cfg['analysis_method'] == 3:
+			obj.evaluate_bull_bear()
 		else:
 			raise ValueError("Incorrect Analysis Method Index")
