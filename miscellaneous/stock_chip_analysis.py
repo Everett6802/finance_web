@@ -12,6 +12,7 @@ Answer : The latest version of xlrd(2.01) only supports .xls files. Installing t
 import xlrd
 import xlsxwriter
 import argparse
+from collections import OrderedDict
 # from collections import OrderedDict
 # from ..server.common import mongodb_client as MONGODB
 
@@ -178,6 +179,7 @@ class StockChipAnalysis(object):
 			"search_result_filename": self.DEFAULT_SEARCH_RESULT_FILENAME,
 			"output_search_result": False,
 			"quiet": False,
+			"sort": False,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -349,13 +351,42 @@ class StockChipAnalysis(object):
 		return dict(filter(lambda x: len(x[1].keys()) == sheet_occurrence_thres, sheet_data_collection_dict.items()))
 
 
+	def __sort_by_direction(self, sheet_data_collection_dict):
+		stock_direction_statistics_list = []
+		for stock_number, stock_sheet_data_collection_dict in sheet_data_collection_dict.items():
+			# import pdb; pdb.set_trace()
+			count = 0
+			for sheet_name, _ in stock_sheet_data_collection_dict.items():
+				if not self.SHEET_METADATA_DICT[sheet_name].has_key("direction"):
+					continue
+				if self.SHEET_METADATA_DICT[sheet_name]["direction"] == "+":
+					count += 1
+				elif self.SHEET_METADATA_DICT[sheet_name]["direction"] == "-":
+					count -= 1
+			stock_direction_statistics_list.append((stock_number, count))
+		# import pdb; pdb.set_trace()
+		stock_direction_statistics_list.sort(key=lambda x: x[1], reverse=True)
+		sheet_data_collection_ordereddict = OrderedDict()
+		for stock_number, _ in stock_direction_statistics_list:
+			sheet_data_collection_ordereddict[stock_number] = sheet_data_collection_dict[stock_number]
+		return sheet_data_collection_ordereddict
+
+
 	def __search_stock_sheets(self):
 		sheet_data_func_ptr = (lambda x: x) if self.xcfg["show_detail"] else (lambda x: x[0])
 		sheet_data_collection_dict = self.__collect_sheet_data(sheet_data_func_ptr)
 		if self.xcfg["need_all_sheet"]:
 			sheet_data_collection_dict = self.__filter_by_sheet_occurrence(sheet_data_collection_dict)
+		# import pdb; pdb.set_trace()
+		if self.xcfg["sort"]:
+			sheet_data_collection_dict = self.__sort_by_direction(sheet_data_collection_dict)
 		if self.xcfg["stock_list"] is None:
 			self.xcfg["stock_list"] = sheet_data_collection_dict.keys()
+		else:
+			if self.xcfg["sort"]:
+				new_stock_list = filter(lambda x: x in self.xcfg["stock_list"], sheet_data_collection_dict.keys())
+				self.xcfg["stock_list"] = new_stock_list
+
 		no_data = True
 
 		output_overview_worksheet = None
@@ -503,12 +534,13 @@ if __name__ == "__main__":
 	parser.add_argument('-r', '--report_filename', required=False, help='The filename of chip analysis report')
 	parser.add_argument('-t', '--stock_list_filename', required=False, help='The filename of stock list for chip analysis')
 	parser.add_argument('-l', '--stock_list', required=False, help='The list string of stock list for chip analysis. Ex: 2330,2317,2454,2308')
-	parser.add_argument('-s', '--source_filename', required=False, help='The filename of chip analysis data source')
+	parser.add_argument('-u', '--source_filename', required=False, help='The filename of chip analysis data source')
 	parser.add_argument('-c', '--sheet_set_category', required=False, help='The category for sheet set. Default: 0')	
 	parser.add_argument('-n', '--need_all_sheet', required=False, action='store_true', help='The stock should be found in all sheets in the sheet name list')
 	parser.add_argument('-a', '--search_result_filename', required=False, help='The filename of stock list for search result')
 	parser.add_argument('-o', '--output_search_result', required=False, action='store_true', help='Ouput the search result')
 	parser.add_argument('-q', '--quiet', required=False, action='store_true', help="Don't print string on the screen")
+	parser.add_argument('-s', '--sort', required=False, action='store_true', help="Show the data in order")
 	args = parser.parse_args()
 
 	if args.list_analysis_method:
@@ -562,7 +594,8 @@ if __name__ == "__main__":
 	if args.report_filename is not None: cfg['report_filename'] = args.report_filename
 	if args.search_result_filename is not None: cfg['search_result_filename'] = args.search_result_filename
 	if args.output_search_result: cfg['output_search_result'] = True
-	if args.quiet: cfg['quiet'] = True	
+	if args.quiet: cfg['quiet'] = True
+	if args.sort: cfg['sort'] = True
 		
 	# import pdb; pdb.set_trace()
 	with StockChipAnalysis(cfg) as obj:
