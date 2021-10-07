@@ -12,9 +12,9 @@ Answer : The latest version of xlrd(2.01) only supports .xls files. Installing t
 import xlrd
 import xlsxwriter
 import argparse
+from datetime import datetime
+from pymongo import MongoClient
 from collections import OrderedDict
-# from collections import OrderedDict
-# from ..server.common import mongodb_client as MONGODB
 
 
 class StockChipAnalysis(object):
@@ -123,6 +123,10 @@ class StockChipAnalysis(object):
 
 	WEIGHTED_STOCK_LIST = ["2330", "2317", "2454", "2308", "0050", ]
 	DEFENSE_STOCK_LIST = ["2412", "3045", "4904", "2801", "2809", "2812", "2823", "2834", "2880", "2881", "2882", "2883", "2884", "2885", "2886", "2887", "2888", "2889", "2890", "2891", "2892", "5776", "5880", ]
+
+	DEFAULT_DB_NAME = "StockChipAnalysis"
+	DEFAULT_DB_DATETIME_STRING_FORMAT = "%Y-%m-%d"
+
 	@classmethod
 	def __is_string(cls, value):
 		is_string = False
@@ -180,6 +184,8 @@ class StockChipAnalysis(object):
 			"output_search_result": False,
 			"quiet": False,
 			"sort": False,
+			"sort_limit": None,
+			"db_host": "localhost",
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -201,6 +207,8 @@ class StockChipAnalysis(object):
 		self.report_workbook = None
 		self.search_result_txtfile = None
 		self.sheet_title_bar_dict = {}
+		self.db_client = None
+		self.db_handle = None
 
 
 	def __enter__(self):
@@ -210,10 +218,18 @@ class StockChipAnalysis(object):
 			self.report_workbook = xlsxwriter.Workbook(self.xcfg["report_filepath"])
 		if self.xcfg["output_search_result"]:
 			self.search_result_txtfile = open(self.xcfg["search_result_filepath"], "w")
+
+		self.db_client = MongoClient('mongodb://%s:27017' % self.xcfg["db_host"])
+		self.db_handle = self.db_client[self.DEFAULT_DB_NAME]
+
 		return self
 
 
 	def __exit__(self, type, msg, traceback):
+		if self.db_client is not None:
+			self.db_handle = None
+			self.db_client.close()
+			self.db_client = None
 		if self.search_result_txtfile is not None:
 			self.search_result_txtfile.close()
 			self.search_result_txtfile = None
@@ -253,6 +269,7 @@ class StockChipAnalysis(object):
 
 
 	def __read_sheet_data(self, sheet_name):
+		# import pdb; pdb.set_trace()
 		sheet_metadata = self.SHEET_METADATA_DICT[sheet_name]
 		# print u"Read sheet: %s" % sheet_metadata["description"].decode("utf8")
 		assert self.workbook is not None, "self.workbook should NOT be None"
@@ -268,12 +285,17 @@ class StockChipAnalysis(object):
 				# print "Total rows: %d" % row_index
 				break
 			stock_number = None
+			# print "key_str: %s" % key_str
 			if sheet_metadata["key_mode"] == 0:
 				mobj = re.match("([\d]{4})\.TW", key_str)
+				if mobj is None:
+					raise ValueError("Incorrect format1: %s" % key_str)
 				stock_number = mobj.group(1)
 				data_dict[stock_number] = []
 			elif sheet_metadata["key_mode"] == 1:
 				mobj = re.match("(.+)\(([\d]{4}[\d]?[\w]?)\)", key_str)
+				if mobj is None:
+					raise ValueError("Incorrect format2: %s" % key_str)
 				stock_number = mobj.group(2)
 				data_dict[stock_number] = [mobj.group(1),]
 			else:
@@ -364,8 +386,10 @@ class StockChipAnalysis(object):
 				elif self.SHEET_METADATA_DICT[sheet_name]["direction"] == "-":
 					count -= 1
 			stock_direction_statistics_list.append((stock_number, count))
-		# import pdb; pdb.set_trace()
 		stock_direction_statistics_list.sort(key=lambda x: x[1], reverse=True)
+		# import pdb; pdb.set_trace()
+		if self.xcfg["sort_limit"] is not None:
+			stock_direction_statistics_list = stock_direction_statistics_list[:self.xcfg["sort_limit"]]
 		sheet_data_collection_ordereddict = OrderedDict()
 		for stock_number, _ in stock_direction_statistics_list:
 			sheet_data_collection_ordereddict[stock_number] = sheet_data_collection_dict[stock_number]
@@ -458,6 +482,36 @@ class StockChipAnalysis(object):
 		return buy_count, sell_count
 
 
+	def __insert_db(self, sheet_data_collection_dict, created_date=None):
+		assert self.db_handle is not None, "self.db_handle should NOT be None"
+		# import pdb; pdb.set_trace()
+		if created_date is None:
+			now = datetime.now()
+			created_date = datetime(now.year, now.month, now.day)
+		else:
+			if type(created_date) is str:
+				created_date = datetime.strptime(str(data["created_at"]), self.DEFAULT_DB_DATETIME_STRING_FORMAT)
+		db_sheet_data_collection_dict = {}
+		for stock_number, stock_sheet_data_collection_dict in sheet_data_collection_dict.items():
+			for sheet_name, stock_sheet_data_collection in stock_sheet_data_collection_dict.items():
+				if not db_sheet_data_collection_dict.has_key(sheet_name):
+					db_sheet_data_collection_dict.has_key[sheet_name] = {
+						"created_date": created_date,
+						"data": {},
+					}
+				db_sheet_data_collection_dict.has_key[sheet_name]["data"][stock_number] = stock_sheet_data_collection
+		# import pdb; pdb.set_trace()
+		for db_sheet_name, db_sheet_data_collection in db_sheet_data_collection_dict.items():
+			db_collection_handle = self.db_handle[db_sheet_name]
+			sdb_collection_handle.insert(db_sheet_data_collection)
+
+
+	def update_database(self):
+		self.xcfg["consecutive_over_buy_days"] = 0
+		sheet_data_collection_dict = self.__collect_sheet_all_data(sheet_data_func_ptr)
+		self.__insert_db(sheet_data_collection_dict)
+
+
 	def search_sheets_from_file(self):
 		# import pdb; pdb.set_trace()
 		if not self.__check_file_exist(self.xcfg['stock_list_filepath']):
@@ -541,6 +595,8 @@ if __name__ == "__main__":
 	parser.add_argument('-o', '--output_search_result', required=False, action='store_true', help='Ouput the search result')
 	parser.add_argument('-q', '--quiet', required=False, action='store_true', help="Don't print string on the screen")
 	parser.add_argument('-s', '--sort', required=False, action='store_true', help="Show the data in order")
+	parser.add_argument('-f', '--sort_limit', required=False, help="Limit the sorted data")
+	# parser.add_argument('-f', '--update_datebase', required=False, help="Limit the sorted data")
 	args = parser.parse_args()
 
 	if args.list_analysis_method:
@@ -560,10 +616,11 @@ if __name__ == "__main__":
 		StockChipAnalysis.list_sheet_set()
 		sys.exit(0)
 	if args.create_report_by_sheet_set_category:
+		search_result_filename = "tmp1.txt"
 		cfg_step1 = {
 			"sheet_set_category": int(args.create_report_by_sheet_set_category),
 			"need_all_sheet": True,
-			"search_result_filename": "tmp1.txt",
+			"search_result_filename": search_result_filename,
 			"output_search_result": True,
 			"quiet": True,
 		}
@@ -571,7 +628,7 @@ if __name__ == "__main__":
 			obj_step1.search_sheets(True)
 		cfg_step2 = {
 			"generate_report": True,
-			"stock_list_filename": "tmp1.txt",
+			"stock_list_filename": search_result_filename,
 			"quiet": True,
 		}
 		with StockChipAnalysis(cfg_step2) as obj_step2: 
@@ -596,6 +653,7 @@ if __name__ == "__main__":
 	if args.output_search_result: cfg['output_search_result'] = True
 	if args.quiet: cfg['quiet'] = True
 	if args.sort: cfg['sort'] = True
+	if args.sort_limit is not None: cfg['sort_limit'] = int(args.sort_limit)
 		
 	# import pdb; pdb.set_trace()
 	with StockChipAnalysis(cfg) as obj:
