@@ -19,9 +19,9 @@ from collections import OrderedDict
 
 class StockChipAnalysis(object):
 
-	DEFAULT_SOURCE_FOLDERPATH =  "C:\Users\Price\Downloads" # os.getcwd()
+	DEFAULT_SOURCE_FOLDERPATH =  "C:\\Users\\%s\\Downloads" % os.getlogin()
 	DEFAULT_SOURCE_FILENAME = "stock_chip_analysis.xlsm"
-	DEFAULT_CONFIG_FOLDERPATH =  "C:\Users\Price\source"
+	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s\\source" % os.getlogin()
 	DEFAULT_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
 	DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
 	DEFAULT_SEARCH_RESULT_FILENAME = "search_result_stock_list.txt"
@@ -144,7 +144,7 @@ class StockChipAnalysis(object):
 			os.stat(filepath)
 		except OSError as exception:
 			if exception.errno != errno.ENOENT:
-				print "%s: %s" % (errno.errorcode[exception.errno], os.strerror(exception.errno))
+				print ("%s: %s" % (errno.errorcode[exception.errno], os.strerror(exception.errno)))
 				raise
 			check_exist = False
 		return check_exist
@@ -165,7 +165,7 @@ class StockChipAnalysis(object):
 	@classmethod
 	def list_sheet_set(cls):
 		for index, sheet_set in enumerate(cls.SHEET_SET_LIST):
-			print "%d: %s" % (index, ",".join(sheet_set))
+			print ("%d: %s" % (index, ",".join(sheet_set)))
 
 
 	def __init__(self, cfg):
@@ -195,12 +195,12 @@ class StockChipAnalysis(object):
 		self.xcfg["search_result_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["search_result_filename"])
 		if self.xcfg["generate_report"]:
 			if not self.xcfg["show_detail"]:
-				print "WARNING: The 'show_detail' parameter is enabled while the 'generate_report' one is true"
+				print ("WARNING: The 'show_detail' parameter is enabled while the 'generate_report' one is true")
 				self.xcfg["show_detail"] = True
 
 		if self.xcfg["sheet_set_category"] != -1:
 			if self.xcfg["sheet_name_list"] is not None:
-				print "WARNING: The 'sheet_set_category' setting overwrite the 'sheet_name_list' one"
+				print ("WARNING: The 'sheet_set_category' setting overwrite the 'sheet_name_list' one")
 			self.xcfg["sheet_name_list"] = self.SHEET_SET_LIST[self.xcfg["sheet_set_category"]]
 
 		self.workbook = None
@@ -246,7 +246,7 @@ class StockChipAnalysis(object):
 
 	def __print_string(self, outpug_str):
 		if self.xcfg["quiet"]: return
-		print outpug_str
+		print (outpug_str)
 
 
 	def __read_sheet_title_bar(self, sheet_name):
@@ -536,9 +536,9 @@ class StockChipAnalysis(object):
 
 	def evaluate_bull_bear(self):
 		buy_count, sell_count = self.__buy_sell_statistics(self.WEIGHTED_STOCK_LIST)
-		print "Weighted Stock, buy: %d, sell: %d" % (buy_count, sell_count)
+		print ("Weighted Stock, buy: %d, sell: %d" % (buy_count, sell_count))
 		buy_count, sell_count = self.__buy_sell_statistics(self.DEFENSE_STOCK_LIST)
-		print "Defense Stock, buy: %d, sell: %d" % (buy_count, sell_count)
+		print ("Defense Stock, buy: %d, sell: %d" % (buy_count, sell_count))
 
 
 	@property
@@ -607,10 +607,10 @@ if __name__ == "__main__":
 			"Evaluate the TAIEX bull or bear",
 		]
 		help_str_list_len = len(help_str_list)
-		print "************ Analysis Method ************"
+		print ("************ Analysis Method ************")
 		for index, help_str in enumerate(help_str_list):
-			print "%d  %s" % (index, help_str)
-		print "*****************************************"
+			print ("%d  %s" % (index, help_str))
+		print ("*****************************************")
 		sys.exit(0)
 	if args.list_sheet_set_category:
 		StockChipAnalysis.list_sheet_set()
