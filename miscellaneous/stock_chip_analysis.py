@@ -47,9 +47,9 @@ class StockChipAnalysis(object):
 		# u"大盤籌碼多空勢力": { # Dummy
 		# 	"is_dummy": True,
 		# },
-		u"焦點股": { 
-			"key_mode": 0, # 1476.TW
-		},
+		# u"焦點股": { 
+		# 	"key_mode": 0, # 1476.TW
+		# },
 		u"法人共同買超累計": {
 			"key_mode": 0, # 1476.TW
 			"direction": "+",
@@ -94,14 +94,6 @@ class StockChipAnalysis(object):
 			"key_mode": 1, # 陽明(2609)
 			"direction": "-",
 		},
-		u"籌碼排行-買超金額": {
-			"key_mode": 1, # 陽明(2609)
-			"direction": "+",
-		},
-		u"籌碼排行-賣超金額": {
-			"key_mode": 1, # 陽明(2609)
-			"direction": "-",
-		},
 		u"買超異常": {
 			"key_mode": 1, # 陽明(2609)
 			"direction": "+",
@@ -110,8 +102,24 @@ class StockChipAnalysis(object):
 			"key_mode": 1, # 陽明(2609)
 			"direction": "-",
 		},
+		u"券商買最多股": {
+			"key_mode": 1, # 陽明(2609)
+			"direction": "+",
+		},
+		u"券商賣最多股": {
+			"key_mode": 1, # 陽明(2609)
+			"direction": "-",
+		},
+		u"買盤券商集中度增加股": {
+			"key_mode": 1, # 陽明(2609)
+			"direction": "+",
+		},
+		u"賣盤券商集中度增加股": {
+			"key_mode": 1, # 陽明(2609)
+			"direction": "-",
+		},
 	}
-	DEFAULT_SHEET_NAME_LIST = [u"焦點股", u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計", u"外資買最多股", u"外資賣最多股", u"投信買最多股", u"投信賣最多股", u"主力買最多股", u"主力賣最多股", u"籌碼排行-買超金額", u"籌碼排行-賣超金額", u"買超異常", u"賣超異常",]
+	DEFAULT_SHEET_NAME_LIST = [u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計", u"外資買最多股", u"外資賣最多股", u"投信買最多股", u"投信賣最多股", u"主力買最多股", u"主力賣最多股", u"買超異常", u"賣超異常", u"券商買最多股", u"券商賣最多股", u"買盤券商集中度增加股", u"賣盤券商集中度增加股",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
@@ -125,6 +133,8 @@ class StockChipAnalysis(object):
 	DEFENSE_STOCK_LIST = ["2412", "3045", "4904", "2801", "2809", "2812", "2823", "2834", "2880", "2881", "2882", "2883", "2884", "2885", "2886", "2887", "2888", "2889", "2890", "2891", "2892", "5776", "5880", ]
 
 	DEFAULT_DB_NAME = "StockChipAnalysis"
+	DEFAULT_DB_USERNAME = "root"
+	DEFAULT_DB_PASSWORD = "lab4man1"
 	DEFAULT_DB_DATETIME_STRING_FORMAT = "%Y-%m-%d"
 
 	@classmethod
@@ -186,6 +196,9 @@ class StockChipAnalysis(object):
 			"sort": False,
 			"sort_limit": None,
 			"db_host": "localhost",
+			"db_name": self.DEFAULT_DB_NAME,
+			"db_username": self.DEFAULT_DB_USERNAME,
+			"db_password": self.DEFAULT_DB_PASSWORD,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -219,7 +232,8 @@ class StockChipAnalysis(object):
 		if self.xcfg["output_search_result"]:
 			self.search_result_txtfile = open(self.xcfg["search_result_filepath"], "w")
 
-		self.db_client = MongoClient('mongodb://%s:27017' % self.xcfg["db_host"])
+# mongodb://root:lab4man1@localhost:27017/StockChipAnalysis
+		self.db_client = MongoClient('mongodb://%s:%s@%s:27017' % (self.xcfg["db_username"], self.xcfg["db_password"], self.xcfg["db_host"]))
 		self.db_handle = self.db_client[self.DEFAULT_DB_NAME]
 
 		return self
@@ -251,7 +265,9 @@ class StockChipAnalysis(object):
 
 	def __read_sheet_title_bar(self, sheet_name):
 		# import pdb; pdb.set_trace()
-		if not self.sheet_title_bar_dict.has_key(sheet_name):
+# has_key has been deprecated in Python 3.0
+		# if not self.sheet_title_bar_dict.has_key(sheet_name):
+		if sheet_name not in self.sheet_title_bar_dict:
 			sheet_metadata = self.SHEET_METADATA_DICT[sheet_name]
 			worksheet = self.workbook.sheet_by_name(sheet_name)
 			title_bar_list = [u"商品",]
@@ -333,7 +349,8 @@ class StockChipAnalysis(object):
 		for sheet_name in self.xcfg["sheet_name_list"]:
 			data_dict = self.__read_sheet_data(sheet_name)
 			for data_key, data_value in data_dict.items():
-				if not sheet_data_collection_dict.has_key(data_key):
+				# if not sheet_data_collection_dict.has_key(data_key):
+				if data_key not in sheet_data_collection_dict:
 					sheet_data_collection_dict[data_key] = {}
 				if sheet_data_func_ptr is not None:
 					 data_value = sheet_data_func_ptr(data_value)
@@ -347,13 +364,17 @@ class StockChipAnalysis(object):
 		sheet_data_collection_dict = {}
 		if self.xcfg["sheet_name_list"] is None:
 			self.xcfg["sheet_name_list"] = self.DEFAULT_SHEET_NAME_LIST
+		# import pdb; pdb.set_trace()
 		for sheet_name in self.xcfg["sheet_name_list"]:
 			data_dict = self.__read_sheet_data(sheet_name)
 			for stock in self.xcfg["stock_list"]:
-				if not data_dict.has_key(stock):
+# has_key has been deprecated in Python 3.0
+				# if not data_dict.has_key(stock):
+				if stock not in data_dict:
 					continue
 				stock_data = data_dict[stock]
-				if not sheet_data_collection_dict.has_key(stock):
+				# if not sheet_data_collection_dict.has_key(stock):
+				if stock not in sheet_data_collection_dict:
 					sheet_data_collection_dict[stock] = {}
 				if sheet_data_func_ptr is not None:
 					 stock_data = sheet_data_func_ptr(stock_data)
@@ -379,7 +400,8 @@ class StockChipAnalysis(object):
 			# import pdb; pdb.set_trace()
 			count = 0
 			for sheet_name, _ in stock_sheet_data_collection_dict.items():
-				if not self.SHEET_METADATA_DICT[sheet_name].has_key("direction"):
+				# if not self.SHEET_METADATA_DICT[sheet_name].has_key("direction"):
+				if "direction" not in self.SHEET_METADATA_DICT[sheet_name]:
 					continue
 				if self.SHEET_METADATA_DICT[sheet_name]["direction"] == "+":
 					count += 1
@@ -419,7 +441,8 @@ class StockChipAnalysis(object):
 			output_overview_worksheet = self.report_workbook.add_worksheet("Overview")
 					
 		for stock_number in self.xcfg["stock_list"]:
-			if not sheet_data_collection_dict.has_key(stock_number):
+			# if not sheet_data_collection_dict.has_key(stock_number):
+			if stock_number not in sheet_data_collection_dict:
 				continue
 			no_data = False
 			stock_sheet_data_collection_dict = sheet_data_collection_dict[stock_number]
@@ -456,7 +479,9 @@ class StockChipAnalysis(object):
 							worksheet.write(output_row + 2, output_col,  sheet_data)
 						output_row += 4
 			else:
-				stock_name = stock_sheet_data_collection_dict.values()[0]
+				# import pdb; pdb.set_trace()
+# For python 3, it's required to convert to list for the return value of the values function.
+				stock_name = list(stock_sheet_data_collection_dict.values())[0]
 				self.__print_string("=== %s(%s) ===" % (stock_number, stock_name))
 				self.__print_string("%s" % (u",".join([stock_sheet_data_key for stock_sheet_data_key in stock_sheet_data_collection_dict.keys()])))
 			if self.xcfg["output_search_result"]:
@@ -470,7 +495,7 @@ class StockChipAnalysis(object):
 	def __buy_sell_statistics(self, stock_list):
 		buy_count = 0
 		sell_count = 0
-		sheet_name_list = dict(filter(lambda x: x[1].has_key("direction"), self.SHEET_METADATA_DICT.items())).keys()
+		sheet_name_list = dict(filter(lambda x: "direction" in x[1], self.SHEET_METADATA_DICT.items())).keys()
 		# import pdb; pdb.set_trace()
 		for sheet_name in sheet_name_list:
 			data_dict = self.__read_sheet_data(sheet_name)
@@ -494,12 +519,12 @@ class StockChipAnalysis(object):
 		db_sheet_data_collection_dict = {}
 		for stock_number, stock_sheet_data_collection_dict in sheet_data_collection_dict.items():
 			for sheet_name, stock_sheet_data_collection in stock_sheet_data_collection_dict.items():
-				if not db_sheet_data_collection_dict.has_key(sheet_name):
-					db_sheet_data_collection_dict.has_key[sheet_name] = {
+				if sheet_name not in db_sheet_data_collection_dict:
+					db_sheet_data_collection_dict[sheet_name] = {
 						"created_date": created_date,
 						"data": {},
 					}
-				db_sheet_data_collection_dict.has_key[sheet_name]["data"][stock_number] = stock_sheet_data_collection
+				db_sheet_data_collection_dict[sheet_name]["data"][stock_number] = stock_sheet_data_collection
 		# import pdb; pdb.set_trace()
 		for db_sheet_name, db_sheet_data_collection in db_sheet_data_collection_dict.items():
 			db_collection_handle = self.db_handle[db_sheet_name]
