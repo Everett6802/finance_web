@@ -234,8 +234,8 @@ class StockChipAnalysis(object):
 
 # mongodb://root:lab4man1@localhost:27017/StockChipAnalysis
 		self.db_client = MongoClient('mongodb://%s:%s@%s:27017' % (self.xcfg["db_username"], self.xcfg["db_password"], self.xcfg["db_host"]))
-		self.db_handle = self.db_client[self.DEFAULT_DB_NAME]
-
+# Database (Database -> Collection -> Document)
+		self.db_handle = self.db_client[self.xcfg["db_name"]]
 		return self
 
 
@@ -284,7 +284,7 @@ class StockChipAnalysis(object):
 		return self.sheet_title_bar_dict[sheet_name]
 
 
-	def __read_sheet_data(self, sheet_name):
+	def __read_sheet_data(self, sheet_name, write_db=False):
 		# import pdb; pdb.set_trace()
 		sheet_metadata = self.SHEET_METADATA_DICT[sheet_name]
 		# print u"Read sheet: %s" % sheet_metadata["description"].decode("utf8")
@@ -510,30 +510,35 @@ class StockChipAnalysis(object):
 	def __insert_db(self, sheet_data_collection_dict, created_date=None):
 		assert self.db_handle is not None, "self.db_handle should NOT be None"
 		# import pdb; pdb.set_trace()
-		if created_date is None:
+		if created_date is None: 
 			now = datetime.now()
 			created_date = datetime(now.year, now.month, now.day)
 		else:
 			if type(created_date) is str:
-				created_date = datetime.strptime(str(data["created_at"]), self.DEFAULT_DB_DATETIME_STRING_FORMAT)
+				created_date = datetime.strptime(str(created_date), self.DEFAULT_DB_DATETIME_STRING_FORMAT)
+			else:
+				raise ValueError("Unsupported type of the created_date object: %s" % type(created_date))
 		db_sheet_data_collection_dict = {}
 		for stock_number, stock_sheet_data_collection_dict in sheet_data_collection_dict.items():
 			for sheet_name, stock_sheet_data_collection in stock_sheet_data_collection_dict.items():
 				if sheet_name not in db_sheet_data_collection_dict:
-					db_sheet_data_collection_dict[sheet_name] = {
-						"created_date": created_date,
-						"data": {},
-					}
-				db_sheet_data_collection_dict[sheet_name]["data"][stock_number] = stock_sheet_data_collection
+					db_sheet_data_collection_dict[sheet_name] = {}
+				db_sheet_data_collection_dict[sheet_name][stock_number] = stock_sheet_data_collection
 		# import pdb; pdb.set_trace()
 		for db_sheet_name, db_sheet_data_collection in db_sheet_data_collection_dict.items():
+# Collection			
 			db_collection_handle = self.db_handle[db_sheet_name]
-			sdb_collection_handle.insert(db_sheet_data_collection)
+			db_sheet_data_collection_dict = {
+				"created_date": created_date,
+				"data": db_sheet_data_collection,
+			}
+# Insert Document			
+			db_collection_handle.insert_one(db_sheet_data_collection_dict)
 
 
 	def update_database(self):
 		self.xcfg["consecutive_over_buy_days"] = 0
-		sheet_data_collection_dict = self.__collect_sheet_all_data(sheet_data_func_ptr)
+		sheet_data_collection_dict = self.__collect_sheet_all_data()
 		self.__insert_db(sheet_data_collection_dict)
 
 
@@ -606,6 +611,7 @@ if __name__ == "__main__":
 	'''
 	parser.add_argument('-e', '--list_analysis_method', required=False, action='store_true', help='List each analysis method and exit')
 	parser.add_argument('-i', '--list_sheet_set_category', required=False, action='store_true', help='List each stock set and exit')
+	parser.add_argument('--update_database', required=False, action='store_true', help='Update database and exit')
 	parser.add_argument('-p', '--create_report_by_sheet_set_category', required=False, help='Create a report by certain a sheet set category and exit')
 	parser.add_argument('-m', '--analysis_method', required=False, help='The method for chip analysis. Default: 0')	
 	parser.add_argument('-d', '--show_detail', required=False, action='store_true', help='Show detailed data for each stock')
@@ -639,6 +645,10 @@ if __name__ == "__main__":
 		sys.exit(0)
 	if args.list_sheet_set_category:
 		StockChipAnalysis.list_sheet_set()
+		sys.exit(0)
+	if args.update_database:
+		with StockChipAnalysis({}) as obj: 
+			obj.update_database()
 		sys.exit(0)
 	if args.create_report_by_sheet_set_category:
 		search_result_filename = "tmp1.txt"
