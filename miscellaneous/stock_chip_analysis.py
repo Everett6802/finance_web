@@ -55,19 +55,19 @@ class StockChipAnalysis(object):
 			"direction": "+",
 		},
 		u"主力買超天數累計": {
-			"key_mode": 0, # 1476.TW
+			"key_mode": 3, # 2504 國產
 			"direction": "+",
 		},
 		u"法人買超天數累計": {
-			"key_mode": 0, # 1476.TW
+			"key_mode": 3, # 2504 國產
 			"direction": "+",
 		},
 		u"外資買超天數累計": {
-			"key_mode": 0, # 1476.TW
+			"key_mode": 3, # 2504 國產
 			"direction": "+",
 		},
 		u"投信買超天數累計": {
-			"key_mode": 0, # 1476.TW
+			"key_mode": 3, # 2504 國產
 			"direction": "+",
 		},
 		u"外資買最多股": {
@@ -110,16 +110,17 @@ class StockChipAnalysis(object):
 			"key_mode": 1, # 陽明(2609)
 			"direction": "-",
 		},
-		u"買盤券商集中度增加股": {
-			"key_mode": 1, # 陽明(2609)
+		u"上市融資增加": {
+			"key_mode": 2, # 4736  泰博
 			"direction": "+",
 		},
-		u"賣盤券商集中度增加股": {
-			"key_mode": 1, # 陽明(2609)
+		u"上櫃融資增加": {
+			"key_mode": 2, # 4736  泰博
 			"direction": "-",
 		},
 	}
-	DEFAULT_SHEET_NAME_LIST = [u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計", u"外資買最多股", u"外資賣最多股", u"投信買最多股", u"投信賣最多股", u"主力買最多股", u"主力賣最多股", u"買超異常", u"賣超異常", u"券商買最多股", u"券商賣最多股", u"買盤券商集中度增加股", u"賣盤券商集中度增加股",]
+	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
+	DEFAULT_SHEET_NAME_LIST = [u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計", u"外資買最多股", u"外資賣最多股", u"投信買最多股", u"投信賣最多股", u"主力買最多股", u"主力賣最多股", u"買超異常", u"賣超異常", u"券商買最多股", u"券商賣最多股", u"上市融資增加", u"上櫃融資增加",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
@@ -233,9 +234,14 @@ class StockChipAnalysis(object):
 			self.search_result_txtfile = open(self.xcfg["search_result_filepath"], "w")
 
 # mongodb://root:lab4man1@localhost:27017/StockChipAnalysis
-		self.db_client = MongoClient('mongodb://%s:%s@%s:27017' % (self.xcfg["db_username"], self.xcfg["db_password"], self.xcfg["db_host"]))
+		# db_url = 'mongodb://%s:%s@%s:27017' % (self.xcfg["db_username"], self.xcfg["db_password"], self.xcfg["db_host"])
+		db_url = 'mongodb://%s:%s@%s:27017/%s' % (self.xcfg["db_username"], self.xcfg["db_password"], self.xcfg["db_host"], self.xcfg["db_name"])
+		# print ("DB URL: %s" % db_url)
+		self.db_client = MongoClient(db_url)
+		# self.db_client = MongoClient('mongodb://%s:27017' % (self.xcfg["db_host"]))
 # Database (Database -> Collection -> Document)
 		self.db_handle = self.db_client[self.xcfg["db_name"]]
+		# self.db_handle.authenticate(self.xcfg["db_username"], self.xcfg["db_password"])
 		return self
 
 
@@ -274,7 +280,7 @@ class StockChipAnalysis(object):
 			column_start_index = None
 			if sheet_metadata["key_mode"] == 0:
 				column_start_index = 2
-			elif sheet_metadata["key_mode"] == 1:
+			elif sheet_metadata["key_mode"] in [1, 2, 3,]:
 				column_start_index = 1
 			else:
 				raise ValueError("Unknown key mode: %d" % sheet_metadata["key_mode"]) 
@@ -287,7 +293,7 @@ class StockChipAnalysis(object):
 	def __read_sheet_data(self, sheet_name, write_db=False):
 		# import pdb; pdb.set_trace()
 		sheet_metadata = self.SHEET_METADATA_DICT[sheet_name]
-		# print u"Read sheet: %s" % sheet_metadata["description"].decode("utf8")
+		# print (u"Read sheet: %s" % sheet_name)
 		assert self.workbook is not None, "self.workbook should NOT be None"
 		worksheet = self.workbook.sheet_by_name(sheet_name)
 		# https://www.itread01.com/content/1549650266.html
@@ -300,6 +306,7 @@ class StockChipAnalysis(object):
 			except IndexError:
 				# print "Total rows: %d" % row_index
 				break
+			ignore_data = False
 			stock_number = None
 			# print "key_str: %s" % key_str
 			if sheet_metadata["key_mode"] == 0:
@@ -314,12 +321,26 @@ class StockChipAnalysis(object):
 					raise ValueError("Incorrect format2: %s" % key_str)
 				stock_number = mobj.group(2)
 				data_dict[stock_number] = [mobj.group(1),]
+			elif sheet_metadata["key_mode"] == 2:
+				mobj = re.match("([\d]{4})\s{2}(.+)", key_str)
+				if mobj is None:
+					ignore_data = True
+				else:
+					stock_number = mobj.group(1)
+					data_dict[stock_number] = [mobj.group(2),]
+			elif sheet_metadata["key_mode"] == 3:
+				mobj = re.match("([\d]{4})\s(.+)", key_str)
+				if mobj is None:
+					raise ValueError("Incorrect format3: %s" % key_str)
+				stock_number = mobj.group(1)
+				data_dict[stock_number] = [mobj.group(2),]
 			else:
 				raise ValueError("Unknown key mode: %d" % sheet_metadata["key_mode"])
-			if stock_number is None:
-				raise RuntimeError("Fail to parse the stock number")
-			for column_index in range(1, worksheet.ncols):
-				data_dict[stock_number].append(worksheet.cell_value(row_index, column_index))
+			# if stock_number is None:
+			#	raise RuntimeError("Fail to parse the stock number")
+			if not ignore_data:
+				for column_index in range(1, worksheet.ncols):
+					data_dict[stock_number].append(worksheet.cell_value(row_index, column_index))
 			row_index += 1
 			# print "%d -- %s" % (row_index, stock_number)
 		if self.xcfg["consecutive_over_buy_days"] > 0:
@@ -507,39 +528,94 @@ class StockChipAnalysis(object):
 		return buy_count, sell_count
 
 
-	def __insert_db(self, sheet_data_collection_dict, created_date=None):
+	def __get_db_date(self, db_date):
+		db_date_obj = None
+		if db_date is None: 
+			now = datetime.now()
+			db_date_obj = datetime(now.year, now.month, now.day)
+		else:
+			if type(db_date) is str:
+				db_date_obj = datetime.strptime(str(db_date), self.DEFAULT_DB_DATETIME_STRING_FORMAT)
+			else:
+				raise ValueError("Unsupported type of the db_date object: %s" % type(db_date))
+		return db_date_obj
+
+
+	def __insert_db(self, sheet_data_collection_dict, db_date=None):
 		assert self.db_handle is not None, "self.db_handle should NOT be None"
 		# import pdb; pdb.set_trace()
-		if created_date is None: 
-			now = datetime.now()
-			created_date = datetime(now.year, now.month, now.day)
-		else:
-			if type(created_date) is str:
-				created_date = datetime.strptime(str(created_date), self.DEFAULT_DB_DATETIME_STRING_FORMAT)
-			else:
-				raise ValueError("Unsupported type of the created_date object: %s" % type(created_date))
-		db_sheet_data_collection_dict = {}
+		db_date = self.__get_db_date(db_date)
+		insert_data_dict = {}
 		for stock_number, stock_sheet_data_collection_dict in sheet_data_collection_dict.items():
 			for sheet_name, stock_sheet_data_collection in stock_sheet_data_collection_dict.items():
-				if sheet_name not in db_sheet_data_collection_dict:
-					db_sheet_data_collection_dict[sheet_name] = {}
-				db_sheet_data_collection_dict[sheet_name][stock_number] = stock_sheet_data_collection
+				if sheet_name not in insert_data_dict:
+					insert_data_dict[sheet_name] = {}
+				insert_data_dict[sheet_name][stock_number] = stock_sheet_data_collection
 		# import pdb; pdb.set_trace()
-		for db_sheet_name, db_sheet_data_collection in db_sheet_data_collection_dict.items():
+		for db_sheet_name, db_sheet_data_collection in insert_data_dict.items():
 # Collection			
 			db_collection_handle = self.db_handle[db_sheet_name]
-			db_sheet_data_collection_dict = {
-				"created_date": created_date,
+			insert_data_dict = {
+				"created_date": db_date,
 				"data": db_sheet_data_collection,
 			}
-# Insert Document			
-			db_collection_handle.insert_one(db_sheet_data_collection_dict)
+			# import pdb; pdb.set_trace()
+# Insert Document
+			# print ("================= %s =================" % db_sheet_name)
+			# print (insert_data_dict)		
+			db_collection_handle.insert_one(insert_data_dict)
+
+
+	def __find_db(self, db_date=None):
+		assert self.db_handle is not None, "self.db_handle should NOT be None"
+		'''
+		Data format:
+		   {
+		      sheet_name1: {
+		         "company_no1": [value1, value2,...],
+		         "company_no2": [value1, value2,...],
+		         ...
+		      },
+		      sheet_name2: {
+		         "company_no1": [value1, value2,...],
+		         "company_no2": [value1, value2,...],
+		         ...
+		      },
+		      ...
+		   }
+		'''
+		# import pdb; pdb.set_trace()
+		db_date = self.__get_db_date(db_date)
+		find_criteria_dict = {
+			"created_date": db_date,
+		}
+		find_data_dict = {}
+		for db_sheet_name in self.ALL_SHEET_NAME_LIST:
+# Collection			
+			db_collection_handle = self.db_handle[db_sheet_name]
+			#import pdb; pdb.set_trace()
+# Find Document
+			search_res = db_collection_handle.find(find_criteria_dict)
+			search_res_cnt = search_res.count()
+			if search_res_cnt > 1:
+				raise ValueError("Incorrect data in %s: %d" % (db_sheet_name, search_res_cnt))
+			# print ("================= %s ================= %d " % (db_sheet_name, search_res_cnt))
+			if search_res_cnt == 0:
+				continue
+			for entry in search_res:
+				# print (entry["data"])
+				find_data_dict[db_sheet_name] = entry["data"]
+		for sheet_name, data_dict in find_data_dict.items():
+			print ("================= %s =================\n %s" % (sheet_name, data_dict))
+		return find_data_dict
 
 
 	def update_database(self):
 		self.xcfg["consecutive_over_buy_days"] = 0
 		sheet_data_collection_dict = self.__collect_sheet_all_data()
-		self.__insert_db(sheet_data_collection_dict)
+		self.__insert_db(sheet_data_collection_dict) 
+		# find_data_dict = self.__find_db()
+		# print (find_data_dict)
 
 
 	def search_sheets_from_file(self):
