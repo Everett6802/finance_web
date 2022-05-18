@@ -136,7 +136,7 @@ class StockChipAnalysis(object):
 	DEFAULT_DB_NAME = "StockChipAnalysis"
 	DEFAULT_DB_USERNAME = "root"
 	DEFAULT_DB_PASSWORD = "lab4man1"
-	DEFAULT_DB_DATETIME_STRING_FORMAT = "%Y-%m-%d"
+	DEFAULT_DB_DATE_STRING_FORMAT = "%Y-%m-%d"
 
 	@classmethod
 	def __is_string(cls, value):
@@ -200,6 +200,7 @@ class StockChipAnalysis(object):
 			"db_name": self.DEFAULT_DB_NAME,
 			"db_username": self.DEFAULT_DB_USERNAME,
 			"db_password": self.DEFAULT_DB_PASSWORD,
+			"data_date_in_database": None,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -528,23 +529,25 @@ class StockChipAnalysis(object):
 		return buy_count, sell_count
 
 
-	def __get_db_date(self, db_date):
-		db_date_obj = None
-		if db_date is None: 
+	def __get_data_date(self, data_date):
+		data_date_obj = None
+		if data_date is None: 
 			now = datetime.now()
-			db_date_obj = datetime(now.year, now.month, now.day)
+			data_date_obj = datetime(now.year, now.month, now.day)
 		else:
-			if type(db_date) is str:
-				db_date_obj = datetime.strptime(str(db_date), self.DEFAULT_DB_DATETIME_STRING_FORMAT)
+			if type(data_date) is str:
+				data_date_obj = datetime.strptime(str(data_date), self.DEFAULT_DB_DATE_STRING_FORMAT)
+			elif type(data_date) is datetime:
+				data_date_obj = data_date
 			else:
-				raise ValueError("Unsupported type of the db_date object: %s" % type(db_date))
-		return db_date_obj
+				raise ValueError("Unsupported type of the data_date object: %s" % type(data_date))
+		return data_date_obj
 
 
-	def __insert_db(self, sheet_data_collection_dict, db_date=None):
+	def __insert_db(self, sheet_data_collection_dict, data_date=None):
 		assert self.db_handle is not None, "self.db_handle should NOT be None"
 		# import pdb; pdb.set_trace()
-		db_date = self.__get_db_date(db_date)
+		data_date = self.__get_data_date(data_date)
 		insert_data_dict = {}
 		for stock_number, stock_sheet_data_collection_dict in sheet_data_collection_dict.items():
 			for sheet_name, stock_sheet_data_collection in stock_sheet_data_collection_dict.items():
@@ -556,7 +559,7 @@ class StockChipAnalysis(object):
 # Collection			
 			db_collection_handle = self.db_handle[db_sheet_name]
 			insert_data_dict = {
-				"created_date": db_date,
+				"created_date": data_date,
 				"data": db_sheet_data_collection,
 			}
 			# import pdb; pdb.set_trace()
@@ -566,7 +569,7 @@ class StockChipAnalysis(object):
 			db_collection_handle.insert_one(insert_data_dict)
 
 
-	def __find_db(self, db_date=None):
+	def __find_db(self, data_date=None, check_exist_only=False):
 		assert self.db_handle is not None, "self.db_handle should NOT be None"
 		'''
 		Data format:
@@ -585,9 +588,9 @@ class StockChipAnalysis(object):
 		   }
 		'''
 		# import pdb; pdb.set_trace()
-		db_date = self.__get_db_date(db_date)
+		data_date = self.__get_data_date(data_date)
 		find_criteria_dict = {
-			"created_date": db_date,
+			"created_date": data_date,
 		}
 		find_data_dict = {}
 		for db_sheet_name in self.ALL_SHEET_NAME_LIST:
@@ -596,26 +599,94 @@ class StockChipAnalysis(object):
 			#import pdb; pdb.set_trace()
 # Find Document
 			search_res = db_collection_handle.find(find_criteria_dict)
-			search_res_cnt = search_res.count()
+# Deprecated. The behaviour differed (estimated vs actual count) based on whether query criteria was provided
+			# search_res_cnt = search_res.count()  
+			search_res_cnt = db_collection_handle.count_documents(find_criteria_dict)
 			if search_res_cnt > 1:
 				raise ValueError("Incorrect data in %s: %d" % (db_sheet_name, search_res_cnt))
 			# print ("================= %s ================= %d " % (db_sheet_name, search_res_cnt))
-			if search_res_cnt == 0:
-				continue
-			for entry in search_res:
-				# print (entry["data"])
-				find_data_dict[db_sheet_name] = entry["data"]
-		for sheet_name, data_dict in find_data_dict.items():
-			print ("================= %s =================\n %s" % (sheet_name, data_dict))
+			if search_res_cnt != 0:
+				for entry in search_res:
+					# print (entry["data"])
+					find_data_dict[db_sheet_name] = entry["data"]
+				if check_exist_only:
+					break
+		# for sheet_name, data_dict in find_data_dict.items():
+		# 	print ("================= %s =================\n %s" % (sheet_name, data_dict))
 		return find_data_dict
+
+
+	def __check_db_data_exist(self, data_date=None):
+		find_data_dict = self.__find_db(data_date, check_exist_only=True)
+# Empty dictionaries evaluate to False in Python:
+		return bool(find_data_dict)
+
+
+	def __update_db(self, sheet_data_collection_dict, data_date=None):
+		assert self.db_handle is not None, "self.db_handle should NOT be None"
+		# import pdb; pdb.set_trace()
+		data_date = self.__get_data_date(data_date)
+		update_criteria_dict = {
+			"created_date": data_date,
+		}
+		update_data_dict = {}
+		for stock_number, stock_sheet_data_collection_dict in sheet_data_collection_dict.items():
+			for sheet_name, stock_sheet_data_collection in stock_sheet_data_collection_dict.items():
+				if sheet_name not in update_data_dict:
+					update_data_dict[sheet_name] = {}
+				update_data_dict[sheet_name][stock_number] = stock_sheet_data_collection
+		# import pdb; pdb.set_trace()
+		for db_sheet_name, db_sheet_data_collection in update_data_dict.items():
+# Collection			
+			db_collection_handle = self.db_handle[db_sheet_name]
+			update_data_dict = {
+				"$set": {
+					"data": db_sheet_data_collection,
+				}
+			}
+			# import pdb; pdb.set_trace()
+# Insert Document
+			# print ("================= %s =================" % db_sheet_name)
+			# print (insert_data_dict)		
+			db_collection_handle.update_one(update_criteria_dict, update_data_dict)
+
+
+	def __delete_db(self, data_date=None):
+		assert self.db_handle is not None, "self.db_handle should NOT be None"
+		# import pdb; pdb.set_trace()
+		data_date = self.__get_data_date(data_date)
+		delete_criteria_dict = {
+			"created_date": data_date,
+		}
+		for db_sheet_name in self.ALL_SHEET_NAME_LIST:
+# Collection			
+			db_collection_handle = self.db_handle[db_sheet_name]
+			# import pdb; pdb.set_trace()
+# Find Document
+			delete_res = db_collection_handle.delete_one(delete_criteria_dict)
+			# print ("================= %s =================\n %d Deleted" % (db_sheet_name, delete_res.deleted_count))
 
 
 	def update_database(self):
 		self.xcfg["consecutive_over_buy_days"] = 0
 		sheet_data_collection_dict = self.__collect_sheet_all_data()
-		self.__insert_db(sheet_data_collection_dict) 
-		# find_data_dict = self.__find_db()
-		# print (find_data_dict)
+		# import pdb; pdb.set_trace()
+		data_date = self.__get_data_date(self.xcfg["data_date_in_database"])
+		if self.__check_db_data_exist(data_date):
+			print ("Data on %s already exists. Update the database..." % data_date.strftime(self.DEFAULT_DB_DATE_STRING_FORMAT))
+			self.__update_db(sheet_data_collection_dict, data_date)
+		else:
+			print ("Insert Data on %s to the database..." % data_date.strftime(self.DEFAULT_DB_DATE_STRING_FORMAT))
+			self.__insert_db(sheet_data_collection_dict, data_date) 
+
+
+	def delete_database(self):
+		self.xcfg["consecutive_over_buy_days"] = 0
+		sheet_data_collection_dict = self.__collect_sheet_all_data()
+		data_date = self.__get_data_date(self.xcfg["data_date_in_database"])
+		# import pdb; pdb.set_trace()
+		print ("Delete Data on %s to the database..." % data_date.strftime(self.DEFAULT_DB_DATE_STRING_FORMAT))
+		self.__delete_db(data_date)
 
 
 	def search_sheets_from_file(self):
@@ -688,6 +759,8 @@ if __name__ == "__main__":
 	parser.add_argument('-e', '--list_analysis_method', required=False, action='store_true', help='List each analysis method and exit')
 	parser.add_argument('-i', '--list_sheet_set_category', required=False, action='store_true', help='List each stock set and exit')
 	parser.add_argument('--update_database', required=False, action='store_true', help='Update database and exit')
+	parser.add_argument('--delete_database', required=False, action='store_true', help='Delete database and exit')
+	parser.add_argument('--data_date_in_database', required=False, help='The date of the data in the database. Ex: 2022-05-18')
 	parser.add_argument('-p', '--create_report_by_sheet_set_category', required=False, help='Create a report by certain a sheet set category and exit')
 	parser.add_argument('-m', '--analysis_method', required=False, help='The method for chip analysis. Default: 0')	
 	parser.add_argument('-d', '--show_detail', required=False, action='store_true', help='Show detailed data for each stock')
@@ -695,7 +768,7 @@ if __name__ == "__main__":
 	parser.add_argument('-r', '--report_filename', required=False, help='The filename of chip analysis report')
 	parser.add_argument('-t', '--stock_list_filename', required=False, help='The filename of stock list for chip analysis')
 	parser.add_argument('-l', '--stock_list', required=False, help='The list string of stock list for chip analysis. Ex: 2330,2317,2454,2308')
-	parser.add_argument('-u', '--source_filename', required=False, help='The filename of chip analysis data source')
+	parser.add_argument('--source_filename', required=False, help='The filename of chip analysis data source')
 	parser.add_argument('-c', '--sheet_set_category', required=False, help='The category for sheet set. Default: 0')	
 	parser.add_argument('-n', '--need_all_sheet', required=False, action='store_true', help='The stock should be found in all sheets in the sheet name list')
 	parser.add_argument('-a', '--search_result_filename', required=False, help='The filename of stock list for search result')
@@ -722,10 +795,6 @@ if __name__ == "__main__":
 	if args.list_sheet_set_category:
 		StockChipAnalysis.list_sheet_set()
 		sys.exit(0)
-	if args.update_database:
-		with StockChipAnalysis({}) as obj: 
-			obj.update_database()
-		sys.exit(0)
 	if args.create_report_by_sheet_set_category:
 		search_result_filename = "tmp1.txt"
 		cfg_step1 = {
@@ -751,6 +820,7 @@ if __name__ == "__main__":
 	# import pdb; pdb.set_trace()
 	cfg = {}
 	cfg['analysis_method'] = int(args.analysis_method) if args.analysis_method is not None else 0
+	if args.data_date_in_database is not None: cfg['data_date_in_database'] = args.data_date_in_database
 	if args.show_detail: cfg['show_detail'] = True
 	if args.generate_report: cfg['generate_report'] = True
 	if args.report_filename is not None: cfg['report_filename'] = args.report_filename
@@ -765,10 +835,14 @@ if __name__ == "__main__":
 	if args.quiet: cfg['quiet'] = True
 	if args.sort: cfg['sort'] = True
 	if args.sort_limit is not None: cfg['sort_limit'] = int(args.sort_limit)
-		
+
 	# import pdb; pdb.set_trace()
 	with StockChipAnalysis(cfg) as obj:
-		if cfg['analysis_method'] == 0:
+		if args.update_database:
+			 obj.update_database()
+		elif args.delete_database:
+			obj.delete_database()
+		elif cfg['analysis_method'] == 0:
 			obj.search_sheets_from_file()
 		elif cfg['analysis_method'] == 1:
 			obj.search_sheets()
