@@ -127,7 +127,7 @@ class StockChipAnalysis(object):
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"外資買超天數累計", u"投信買超天數累計",],
 	]
-	DEFAULT_CONSECUTIVE_OVER_BUY_DAYS = 3
+	DEFAULT_CONSECUTIVE_OVER_BUY_DAYS = 0
 	CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEET_SET = [u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
 	CHECK_CONSECUTIVE_OVER_BUY_DAYS_FIELD_NAME_KEY = u"買超累計天數"
 
@@ -194,6 +194,153 @@ class StockChipAnalysis(object):
 			else:
 				raise ValueError("Unsupported type of the data_date object: %s" % type(data_date))
 		return data_date_obj
+
+
+	@classmethod
+	def __read_from_worksheet(cls, worksheet, sheet_metadata):
+		data_dict = {}
+		row_index = 1
+		while True:
+			try:
+				key_str = worksheet.cell_value(row_index, 0)
+			except IndexError as e:
+				# print ("Fail to read data [%s] in (%d, 0), due to: %s" % (sheet_name, row_index, str(e)))
+				break
+			ignore_data = False
+			stock_number = None
+			# print "key_str: %s" % key_str
+			if sheet_metadata["key_mode"] == 0:
+				# mobj = re.match("([\d]{4})\.TW", key_str)
+				mobj = re.match("([\d]{4})", str(int(key_str)))
+				if mobj is None:
+					raise ValueError("%s: Incorrect format1: %s" % (sheet_name, key_str))
+				stock_number = mobj.group(1)
+				data_dict[stock_number] = []
+			elif sheet_metadata["key_mode"] == 1:
+				# mobj = re.match("(.+)\(([\d]{4}[\d]?[\w]?)\)", key_str)
+				mobj = re.match("(.+)\(([\d]{4}[\d\w]{0,2}.*)\)", key_str)
+				# print ("%s: %s" % (sheet_name, key_str))
+				if mobj is None:
+					import pdb; pdb.set_trace()
+					raise ValueError("%s: Incorrect format2: %s" % (sheet_name, key_str))
+				stock_number = mobj.group(2)
+				data_dict[stock_number] = [mobj.group(1),]
+			elif sheet_metadata["key_mode"] == 2:
+				mobj = re.match("([\d]{4})\s{2}(.+)", key_str)
+				if mobj is None:
+					ignore_data = True
+				else:
+					stock_number = mobj.group(1)
+					data_dict[stock_number] = [mobj.group(2),]
+			elif sheet_metadata["key_mode"] == 3:
+				mobj = re.match("([\d]{4})\s(.+)", key_str)
+				if mobj is None:
+					raise ValueError("%s: Incorrect format3: %s" % (sheet_name, key_str))
+				stock_number = mobj.group(1)
+				data_dict[stock_number] = [mobj.group(2),]
+			else:
+				raise ValueError("Unknown key mode: %d" % sheet_metadata["key_mode"])
+			# if stock_number is None:
+			#	raise RuntimeError("Fail to parse the stock number")
+			if not ignore_data:
+				for column_index in range(1, worksheet.ncols):
+					data_dict[stock_number].append(worksheet.cell_value(row_index, column_index))
+			row_index += 1
+			# print "%d -- %s" % (row_index, stock_number)
+		return data_dict
+
+
+	@classmethod
+	def check_data_source_difference(cls, data_date_str=None):
+		# import pdb; pdb.set_trace()
+		data_date = cls.get_data_date(data_date_str)
+# data from XLS
+		source_filename = "%s@%s.xlsm" % (cls.DEFAULT_SOURCE_FILENAME, data_date.strftime(cls.DEFAULT_DB_DATE_STRING_FORMAT))
+		xls_filepath = os.path.join(cls.DEFAULT_SOURCE_FOLDERPATH, source_filename)
+		xls_workbook = xlrd.open_workbook(xls_filepath)
+# data from DB
+# mongodb://root:lab4man1@localhost:27017/StockChipAnalysis
+		db_url = 'mongodb://%s:%s@%s:27017/%s' % (cls.DEFAULT_DB_USERNAME, cls.DEFAULT_DB_PASSWORD, "localhost", cls.DEFAULT_DB_NAME)
+		db_client = MongoClient(db_url)
+		db_handle = db_client[cls.DEFAULT_DB_NAME]
+		db_criteria_dict = {
+			"created_date": data_date,
+		}
+
+		print (data_date.strftime(cls.DEFAULT_DB_DATE_STRING_FORMAT))
+		for sheet_name in cls.ALL_SHEET_NAME_LIST:
+			# import pdb; pdb.set_trace()
+			xls_worksheet = xls_workbook.sheet_by_name(sheet_name)
+			sheet_metadata = cls.SHEET_METADATA_DICT[sheet_name]
+			xls_data_dict = cls.__read_from_worksheet(xls_worksheet, sheet_metadata)
+			db_collection_handle = db_handle[sheet_name]
+			search_res = db_collection_handle.find(db_criteria_dict)
+			db_data_dict = search_res[0]["data"]
+			print (("=" * 10 + " %s " + "=" * 10) % sheet_name)
+			# print ("* XLS")
+			# print (xls_data_dict)
+			# print ("* DB")
+			# print (db_data_dict)
+			print ("Equal" if xls_data_dict == db_data_dict else "Not Equal")
+
+
+		if consecutive_over_buy_days is None:
+			consecutive_over_buy_days = self.xcfg["consecutive_over_buy_days"]
+		if consecutive_over_buy_days > 0:
+			if sheet_name in self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEET_SET:
+				data_dict = self.__filter_by_consecutive_over_buy_days(data_dict, sheet_name=sheet_name)
+		return data_dict
+
+
+		find_data_dict = {}
+		for db_sheet_name in self.ALL_SHEET_NAME_LIST:
+# Collection			
+			db_collection_handle = self.db_handle[db_sheet_name]
+			# import pdb; pdb.set_trace()
+# Find Document
+			search_res = db_collection_handle.find(find_criteria_dict)
+# Deprecated. The behaviour differed (estimated vs actual count) based on whether query criteria was provided
+			# search_res_cnt = search_res.count()  
+			search_res_cnt = db_collection_handle.count_documents(find_criteria_dict)
+			# if search_res_cnt > 1:
+			# 	raise ValueError("Incorrect data in %s: %d" % (db_sheet_name, search_res_cnt))
+			# print ("================= %s ================= %d " % (db_sheet_name, search_res_cnt))
+			stock_list_not_empty = (self.xcfg["stock_list"] is not None)
+			if search_res_cnt != 0:
+				if ret_date_first:
+					for entry in search_res:
+						'''
+						entry --
+						       |-'_id'
+						       |-'created_date'
+						       |-'data'
+						       |-'metadata'
+						'''
+						# print (entry["created_date"])
+						# print (entry["data"])
+						if entry["created_date"] not in find_data_dict:
+							find_data_dict[entry["created_date"]] = {} 
+						if data_for_analysis:
+							'''
+							find_data_dict -- created_date
+											       |-'data'
+											       |-'metadata'
+							'''
+							find_data_dict[entry["created_date"]]["data"] = {}
+							find_data_dict[entry["created_date"]]["metadata"] = entry["metadata"]
+							if self.xcfg["consecutive_over_buy_days"] > 0:
+								if db_sheet_name in self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEET_SET:
+									entry["data"] = self.__filter_by_consecutive_over_buy_days(entry["data"], title_bar_list=entry["metadata"][db_sheet_name])
+							for stock_number, stock_data in entry["data"].items():
+								if stock_list_not_empty and stock_number not in self.xcfg["stock_list"]:
+									continue
+								if stock_number not in find_data_dict[entry["created_date"]]["data"]:
+									find_data_dict[entry["created_date"]]["data"][stock_number] = {}
+								if sheet_data_func_ptr is not None:
+									 stock_data = sheet_data_func_ptr(stock_data)
+								find_data_dict[entry["created_date"]]["data"][stock_number][db_sheet_name] = stock_data
+						else:
+							find_data_dict[entry["created_date"]][db_sheet_name] = entry["data"]
 
 
 
@@ -336,7 +483,7 @@ class StockChipAnalysis(object):
 		return self.sheet_title_bar_dict[sheet_name]
 
 
-	def __read_sheet_data(self, sheet_name, write_db=False):
+	def __read_sheet_data(self, sheet_name, consecutive_over_buy_days=None):
 		# import pdb; pdb.set_trace()
 		sheet_metadata = self.SHEET_METADATA_DICT[sheet_name]
 		# print (u"Read sheet: %s" % sheet_name)
@@ -344,64 +491,21 @@ class StockChipAnalysis(object):
 		worksheet = self.__get_workbook().sheet_by_name(sheet_name)
 		# https://www.itread01.com/content/1549650266.html
 		# print worksheet.name,worksheet.nrows,worksheet.ncols    #Sheet1 6 4
-		data_dict = {}
-		row_index = 1
-		while True:
-			try:
-				key_str = worksheet.cell_value(row_index, 0)
-			except IndexError:
-				# print "Total rows: %d" % row_index
-				break
-			ignore_data = False
-			stock_number = None
-			# print "key_str: %s" % key_str
-			if sheet_metadata["key_mode"] == 0:
-				# mobj = re.match("([\d]{4})\.TW", key_str)
-				mobj = re.match("([\d]{4})", str(int(key_str)))
-				if mobj is None:
-					raise ValueError("%s: Incorrect format1: %s" % (sheet_name, key_str))
-				stock_number = mobj.group(1)
-				data_dict[stock_number] = []
-			elif sheet_metadata["key_mode"] == 1:
-				# mobj = re.match("(.+)\(([\d]{4}[\d]?[\w]?)\)", key_str)
-				mobj = re.match("(.+)\(([\d]{4}[\d\w]{0,2}.*)\)", key_str)
-				# print ("%s: %s" % (sheet_name, key_str))
-				if mobj is None:
-					import pdb; pdb.set_trace()
-					raise ValueError("%s: Incorrect format2: %s" % (sheet_name, key_str))
-				stock_number = mobj.group(2)
-				data_dict[stock_number] = [mobj.group(1),]
-			elif sheet_metadata["key_mode"] == 2:
-				mobj = re.match("([\d]{4})\s{2}(.+)", key_str)
-				if mobj is None:
-					ignore_data = True
-				else:
-					stock_number = mobj.group(1)
-					data_dict[stock_number] = [mobj.group(2),]
-			elif sheet_metadata["key_mode"] == 3:
-				mobj = re.match("([\d]{4})\s(.+)", key_str)
-				if mobj is None:
-					raise ValueError("%s: Incorrect format3: %s" % (sheet_name, key_str))
-				stock_number = mobj.group(1)
-				data_dict[stock_number] = [mobj.group(2),]
-			else:
-				raise ValueError("Unknown key mode: %d" % sheet_metadata["key_mode"])
-			# if stock_number is None:
-			#	raise RuntimeError("Fail to parse the stock number")
-			if not ignore_data:
-				for column_index in range(1, worksheet.ncols):
-					data_dict[stock_number].append(worksheet.cell_value(row_index, column_index))
-			row_index += 1
-			# print "%d -- %s" % (row_index, stock_number)
-		if self.xcfg["consecutive_over_buy_days"] > 0:
+# The data
+		data_dict = self.__read_from_worksheet(worksheet, sheet_metadata)
+
+		if consecutive_over_buy_days is None:
+			consecutive_over_buy_days = self.xcfg["consecutive_over_buy_days"]
+		if consecutive_over_buy_days > 0:
 			if sheet_name in self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEET_SET:
-				data_dict = self.__filter_by_consecutive_over_buy_days(sheet_name, data_dict)
+				data_dict = self.__filter_by_consecutive_over_buy_days(data_dict, sheet_name=sheet_name)
 		return data_dict
 
 
-	def __filter_by_consecutive_over_buy_days(self, sheet_name, data_dict):
+	def __filter_by_consecutive_over_buy_days(self, data_dict, sheet_name=None, title_bar_list=None):
 		# import pdb; pdb.set_trace()
-		title_bar_list = self.__read_sheet_title_bar(sheet_name)
+		if title_bar_list is None:
+			title_bar_list = self.__read_sheet_title_bar(sheet_name)
 		found = False
 		found_index = -1
 		for index, title_bar in enumerate(title_bar_list):
@@ -414,47 +518,64 @@ class StockChipAnalysis(object):
 		return dict(filter(lambda x: int(x[1][found_index]) >= self.xcfg["consecutive_over_buy_days"], data_dict.items()))
 
 
-	def __collect_sheet_all_data(self, sheet_data_func_ptr=None):
-		sheet_data_collection_dict = {}
-		if self.xcfg["sheet_name_list"] is None:
-			self.xcfg["sheet_name_list"] = self.DEFAULT_SHEET_NAME_LIST
-		for sheet_name in self.xcfg["sheet_name_list"]:
-			# print (sheet_name)
-			data_dict = self.__read_sheet_data(sheet_name)
-			for data_key, data_value in data_dict.items():
-				# if not sheet_data_collection_dict.has_key(data_key):
-				if data_key not in sheet_data_collection_dict:
-					sheet_data_collection_dict[data_key] = {}
-				if sheet_data_func_ptr is not None:
-					 data_value = sheet_data_func_ptr(data_value)
-				sheet_data_collection_dict[data_key][sheet_name] = data_value
-		return sheet_data_collection_dict
+# 	def __collect_sheet_all_data(self, sheet_data_func_ptr=None):
+# 		sheet_data_collection_dict = {}
+# 		if self.xcfg["sheet_name_list"] is None:
+# 			self.xcfg["sheet_name_list"] = self.DEFAULT_SHEET_NAME_LIST
+# 		sheet_data_collection_dict["metadata"] = {}
+# 		sheet_data_collection_dict["data"] = {}
+# 		for sheet_name in self.xcfg["sheet_name_list"]:
+# 			# print (sheet_name)
+# # metadata
+# 			sheet_title_bar_list = self.__read_sheet_title_bar(sheet_name)
+# 			sheet_data_collection_dict["metadata"][sheet_name] = sheet_title_bar_list
+# # data
+# 			data_dict = self.__read_sheet_data(sheet_name)
+# 			for data_key, data_value in data_dict.items():
+# 				# if not sheet_data_collection_dict.has_key(data_key):
+# 				if data_key not in sheet_data_collection_dict["data"]:
+# 					sheet_data_collection_dict["data"][data_key] = {}
+# 				if sheet_data_func_ptr is not None:
+# 					 data_value = sheet_data_func_ptr(data_value)
+# 				sheet_data_collection_dict["data"][data_key][sheet_name] = data_value
+# 		return sheet_data_collection_dict
 
 
-	def __collect_sheet_data(self, sheet_data_func_ptr=None):
-		if self.xcfg["stock_list"] is None:
-			return self.__collect_sheet_all_data(sheet_data_func_ptr)
+	def __collect_sheet_data(self, data_for_analysis=False, sheet_data_func_ptr=None):
+		# if self.xcfg["stock_list"] is None:
+		# 	return self.__collect_sheet_all_data(sheet_data_func_ptr)
 		sheet_data_collection_dict = {}
 		if self.xcfg["sheet_name_list"] is None:
 			self.xcfg["sheet_name_list"] = self.DEFAULT_SHEET_NAME_LIST
 		# import pdb; pdb.set_trace()
 		sheet_data_collection_dict["metadata"] = {}
+		sheet_data_collection_dict["data"] = {}
 		for sheet_name in self.xcfg["sheet_name_list"]:
-			data_dict = self.__read_sheet_data(sheet_name)
+# metadata
 			sheet_title_bar_list = self.__read_sheet_title_bar(sheet_name)
 			sheet_data_collection_dict["metadata"][sheet_name] = sheet_title_bar_list
-			for stock in self.xcfg["stock_list"]:
+# data
+			data_dict = self.__read_sheet_data(sheet_name)
+			stock_list = None
+			if self.xcfg["stock_list"] is None:
+				stock_list = data_dict.keys()
+			else:
 # has_key has been deprecated in Python 3.0
 				# if not data_dict.has_key(stock):
-				if stock not in data_dict:
-					continue
-				stock_data = data_dict[stock]
-				# if not sheet_data_collection_dict.has_key(stock):
-				if stock not in sheet_data_collection_dict:
-					sheet_data_collection_dict[stock] = {}
-				if sheet_data_func_ptr is not None:
-					 stock_data = sheet_data_func_ptr(stock_data)
-				sheet_data_collection_dict[stock][sheet_name] = stock_data
+				# stock_list = [stock for stock in self.xcfg["stock_list"] if stock in data_dict]
+				stock_list = list(set(self.xcfg["stock_list"]) | set(data_dict.keys()))
+			if data_for_analysis:
+# Find the stock list
+				for stock_number in stock_list:
+					# stock_data = data_dict[stock]
+					# if stock not in sheet_data_collection_dict["data"]:
+					# 	sheet_data_collection_dict["data"][stock] = {}
+					# # if sheet_data_func_ptr is not None:
+					# # 	 stock_data = sheet_data_func_ptr(stock_data)
+					# sheet_data_collection_dict["data"][stock][sheet_name] = stock_data
+					sheet_data_collection_dict["data"].setdefault(stock_number, {}).update({sheet_name: data_dict[stock_number]})
+			else:
+				sheet_data_collection_dict["data"][sheet_name] = dict(filter(lambda x: x[0] in stock_list, data_dict.items()))
 		# import pdb; pdb.set_trace()
 		return sheet_data_collection_dict
 
@@ -495,6 +616,58 @@ class StockChipAnalysis(object):
 		return sheet_data_collection_ordereddict
 
 
+	def check_data_source_difference(self, data_for_analysis=False):
+		# import pdb; pdb.set_trace()
+		sheet_data_func_ptr = (lambda x: x) if self.xcfg["show_detail"] else (lambda x: x[0])
+		db_sheet_data_collection_dict_history = self.__find_db(self.xcfg["database_date"], data_for_analysis=data_for_analysis, sheet_data_func_ptr=sheet_data_func_ptr)
+		# import pdb; pdb.set_trace()
+		xls_sheet_data_collection_dict = self.__collect_sheet_data(data_for_analysis=data_for_analysis, sheet_data_func_ptr=sheet_data_func_ptr)
+		xls_sheet_data_collection_dict_history = {self.get_data_date(self.xcfg["database_date"]): xls_sheet_data_collection_dict}
+		# print (db_sheet_data_collection_dict_history.values())
+		if data_for_analysis:
+			db_data_dict = {}
+			for item in db_sheet_data_collection_dict_history.values():
+				for stock, data in item["data"].items():
+					# print ("************ %s ************" % sheet_name)
+					# print (data)
+					db_data_dict[stock] = data
+			# print (xls_sheet_data_collection_dict_history.values())
+			print ("\n$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n")
+			xls_data_dict = {}
+			for item in xls_sheet_data_collection_dict_history.values():
+				for stock, data in item["data"].items():
+					# print ("************ %s ************" % sheet_name)
+					# print (data)
+					xls_data_dict[stock] = data
+			# import pdb; pdb.set_trace()
+			assert set(db_data_dict.keys()) == set(xls_data_dict.keys()), "The stock lists are NOT identical"
+			stock_list = db_data_dict.keys()
+			for stock in stock_list:
+				print("================== %s ==================" % stock)
+				print("Equal" if (db_data_dict[stock] == xls_data_dict[stock]) else "Not Equal")
+		else:
+			# import pdb; pdb.set_trace()
+			db_data_dict = {}
+			for item in db_sheet_data_collection_dict_history.values():
+				for sheet_name, data in item["data"].items():
+					# print ("************ %s ************" % sheet_name)
+					# print (data)
+					db_data_dict[sheet_name] = data
+			# print (xls_sheet_data_collection_dict_history.values())
+			print ("\n$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n")
+			# import pdb; pdb.set_trace()
+			xls_data_dict = {}
+			for item in xls_sheet_data_collection_dict_history.values():
+				for sheet_name, data in item["data"].items():
+					print ("************ %s ************" % sheet_name)
+					# print (data)
+					xls_data_dict[sheet_name] = data
+			# import pdb; pdb.set_trace()
+			for sheet_name in self.ALL_SHEET_NAME_LIST:
+				print("================== %s ==================" % sheet_name)
+				print("Equal" if (db_data_dict[sheet_name] == xls_data_dict[sheet_name]) else "Not Equal")
+
+
 	def __search_stock_sheets(self):
 		# import pdb; pdb.set_trace()
 		sheet_data_func_ptr = (lambda x: x) if self.xcfg["show_detail"] else (lambda x: x[0])
@@ -508,22 +681,25 @@ class StockChipAnalysis(object):
 				sheet_data_collection_dict_history = self.__find_db_range(self.xcfg["database_date_range_start"], self.xcfg["database_date_range_end"], ret_date_first=True, data_for_analysis=True, sheet_data_func_ptr=sheet_data_func_ptr)
 			else:
 				raise ValueError("Should select a date if the data source is from the databases")
-			# if self.xcfg["consecutive_over_buy_days"] > 0:
-			# 	if sheet_name in self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEET_SET:
-			# 		data_dict = self.__filter_by_consecutive_over_buy_days(sheet_name, data_dict)
 		else:
 # The data read from XLS is different from the one from DB 
 # if the consecutive_over_buy_day is NOT 0 (default: DEFAULT_CONSECUTIVE_OVER_BUY_DAYS)
 			sheet_data_collection_dict = self.__collect_sheet_data(sheet_data_func_ptr)
 			data_date = self.get_data_date()
 			sheet_data_collection_dict_history = {data_date: sheet_data_collection_dict}
-		# import pdb; pdb.set_trace()
+			'''
+			sheet_data_collection_dict_history -- created_date
+												       |-'data'
+												       |-'metadata'
+			'''
+		print (sheet_data_collection_dict_history.values())
+		import pdb; pdb.set_trace()
 		for data_date, sheet_data_collection_dict in sheet_data_collection_dict_history.items():
 			if self.xcfg["need_all_sheet"]:
-				sheet_data_collection_dict = self.__filter_by_sheet_occurrence(sheet_data_collection_dict)
+				sheet_data_collection_dict = self.__filter_by_sheet_occurrence(sheet_data_collection_dict["data"])
 			# import pdb; pdb.set_trace()
 			if self.xcfg["sort"]:
-				sheet_data_collection_dict = self.__sort_by_direction(sheet_data_collection_dict)
+				sheet_data_collection_dict["data"] = self.__sort_by_direction(sheet_data_collection_dict["data"])
 			stock_list = self.xcfg["stock_list"]
 			if stock_list is None:
 				stock_list = sheet_data_collection_dict.keys()
@@ -619,27 +795,12 @@ class StockChipAnalysis(object):
 		return buy_count, sell_count
 
 
-	def get_data_date(self, data_date=None):
-		data_date_obj = None
-		if data_date is None: 
-			now = datetime.now()
-			data_date_obj = datetime(now.year, now.month, now.day)
-		else:
-			if type(data_date) is str:
-				data_date_obj = datetime.strptime(str(data_date), self.DEFAULT_DB_DATE_STRING_FORMAT)
-			elif type(data_date) is datetime:
-				data_date_obj = data_date
-			else:
-				raise ValueError("Unsupported type of the data_date object: %s" % type(data_date))
-		return data_date_obj
-
-
 	def __insert_db(self, sheet_data_collection_dict, data_date=None):
 		assert self.db_handle is not None, "self.db_handle should NOT be None"
 		# import pdb; pdb.set_trace()
 		data_date = self.get_data_date(data_date)
 		insert_data_dict = {}
-		for stock_number, stock_sheet_data_collection_dict in sheet_data_collection_dict.items():
+		for stock_number, stock_sheet_data_collection_dict in sheet_data_collection_dict["data"].items():
 			for sheet_name, stock_sheet_data_collection in stock_sheet_data_collection_dict.items():
 				if sheet_name not in insert_data_dict:
 					insert_data_dict[sheet_name] = {}
@@ -651,6 +812,7 @@ class StockChipAnalysis(object):
 			insert_data_dict = {
 				"created_date": data_date,
 				"data": db_sheet_data_collection,
+				"metadata": sheet_data_collection_dict["metadata"],
 			}
 			# import pdb; pdb.set_trace()
 # Insert Document
@@ -660,6 +822,7 @@ class StockChipAnalysis(object):
 			# print (ret)
 
 # data_for_analysis/sheet_data_func_ptr only takes effect when ret_date_first is True
+# The metadata is only included when data_for_analysis is true
 	def __find_db_internal(self, find_criteria_dict, check_exist_only=False, ret_date_first=True, data_for_analysis=False, sheet_data_func_ptr=None):
 		assert self.db_handle is not None, "self.db_handle should NOT be None"
 		'''
@@ -681,6 +844,7 @@ class StockChipAnalysis(object):
 		# import pdb; pdb.set_trace()
 		find_data_dict = {}
 		for db_sheet_name in self.ALL_SHEET_NAME_LIST:
+			# print("DB sheet name: %s" % db_sheet_name)
 # Collection			
 			db_collection_handle = self.db_handle[db_sheet_name]
 			# import pdb; pdb.set_trace()
@@ -696,24 +860,45 @@ class StockChipAnalysis(object):
 			if search_res_cnt != 0:
 				if ret_date_first:
 					for entry in search_res:
+						'''
+						entry --
+						       |-'_id'
+						       |-'created_date'
+						       |-'data'
+						       |-'metadata'
+						'''
 						# print (entry["created_date"])
 						# print (entry["data"])
 						if entry["created_date"] not in find_data_dict:
 							find_data_dict[entry["created_date"]] = {} 
-						if data_for_analysis:
-							for stock_number, stock_data in entry["data"].items():
-								if stock_list_not_empty and stock_number not in self.xcfg["stock_list"]:
-									continue
-								if stock_number not in find_data_dict[entry["created_date"]]:
-									find_data_dict[entry["created_date"]][stock_number] = {}
-								if self.xcfg["consecutive_over_buy_days"] > 0:
-									if db_sheet_name in self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEET_SET:
-										data_dict = self.__filter_by_consecutive_over_buy_days(sheet_name, data_dict)
-								if sheet_data_func_ptr is not None:
-									 stock_data = sheet_data_func_ptr(stock_data)
-								find_data_dict[entry["created_date"]][stock_number][db_sheet_name] = stock_data
-						else:
-							find_data_dict[entry["created_date"]][db_sheet_name] = entry["data"]
+							find_data_dict[entry["created_date"]]["metadata"] = entry["metadata"]
+							find_data_dict[entry["created_date"]]["data"] = {}
+						'''
+						find_data_dict -- created_date
+											       |-'metadata'
+											       |-'data'
+						'''
+						# find_data_dict[entry["created_date"]]["metadata"][db_sheet_name] = entry["metadata"]
+						# if self.xcfg["consecutive_over_buy_days"] > 0:
+						# 	if db_sheet_name in self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEET_SET:
+						# 		entry["data"] = self.__filter_by_consecutive_over_buy_days(entry["data"], title_bar_list=entry["metadata"][db_sheet_name])
+						for stock_number, stock_data in entry["data"].items():
+							# if stock_list_not_empty and stock_number not in self.xcfg["stock_list"]:
+							# 	continue
+							if data_for_analysis:							
+								# if stock_number not in find_data_dict[entry["created_date"]]["data"]:
+								# 	find_data_dict[entry["created_date"]]["data"][stock_number] = {}
+								# if sheet_data_func_ptr is not None:
+								# 	 stock_data = sheet_data_func_ptr(stock_data)
+								# find_data_dict[entry["created_date"]]["data"][stock_number][db_sheet_name] = stock_data
+								find_data_dict[entry["created_date"]]["data"].setdefault(stock_number, {}).update({db_sheet_name: stock_data})
+							else:
+								# if sheet_data_func_ptr is not None:
+								# 	 stock_data = sheet_data_func_ptr(stock_data)
+								# find_data_dict[entry["created_date"]]["data"][db_sheet_name][stock_number] = stock_data
+								find_data_dict[entry["created_date"]]["data"].setdefault(db_sheet_name, {}).update({stock_number: stock_data})
+						# import pdb; pdb.set_trace()
+						# print(find_data_dict[entry["created_date"]]["data"].keys())
 				else:
 					find_data_dict[db_sheet_name] = {}
 					for entry in search_res:
@@ -728,7 +913,7 @@ class StockChipAnalysis(object):
 		return find_data_dict
 
 
-	def __find_db(self, data_date=None, check_exist_only=False, ret_date_first=False, data_for_analysis=False, sheet_data_func_ptr=None):
+	def __find_db(self, data_date=None, check_exist_only=False, ret_date_first=True, data_for_analysis=False, sheet_data_func_ptr=None):
 		# import pdb; pdb.set_trace()
 		data_date = self.get_data_date(data_date)
 		find_criteria_dict = {
@@ -737,7 +922,7 @@ class StockChipAnalysis(object):
 		return self.__find_db_internal(find_criteria_dict, check_exist_only, ret_date_first, data_for_analysis, sheet_data_func_ptr)
 
 
-	def __find_db_range(self, start_data_date=None, end_data_date=None, check_exist_only=False, ret_date_first=False, data_for_analysis=False, sheet_data_func_ptr=None):
+	def __find_db_range(self, start_data_date=None, end_data_date=None, check_exist_only=False, ret_date_first=True, data_for_analysis=False, sheet_data_func_ptr=None):
 		find_criteria_dict = None
 		if start_data_date is not None and end_data_date is not None:
 			start_data_date = self.get_data_date(start_data_date)
@@ -769,13 +954,13 @@ class StockChipAnalysis(object):
 
 	def __update_db(self, sheet_data_collection_dict, data_date=None):
 		assert self.db_handle is not None, "self.db_handle should NOT be None"
-		import pdb; pdb.set_trace()
+		# import pdb; pdb.set_trace()
 		data_date = self.get_data_date(data_date)
 		update_criteria_dict = {
 			"created_date": data_date,
 		}
 		update_data_dict = {}
-		for stock_number, stock_sheet_data_collection_dict in sheet_data_collection_dict.items():
+		for stock_number, stock_sheet_data_collection_dict in sheet_data_collection_dict["data"].items():
 			for sheet_name, stock_sheet_data_collection in stock_sheet_data_collection_dict.items():
 				if sheet_name not in update_data_dict:
 					update_data_dict[sheet_name] = {}
@@ -787,6 +972,7 @@ class StockChipAnalysis(object):
 			update_data_dict = {
 				"$set": {
 					"data": db_sheet_data_collection,
+					"metadata": sheet_data_collection_dict["metadata"],
 				}
 			}
 			# import pdb; pdb.set_trace()
@@ -862,6 +1048,9 @@ class StockChipAnalysis(object):
 		elif self.xcfg["database_date_range"] is not None:
 			find_res = self.__find_db_range(self.xcfg["database_date_range_start"], self.xcfg["database_date_range_end"], ret_date_first=True)
 			# ret = self.__find_db_range("2022-06-01", "2022-06-02", ret_date_first=True)
+		else:
+			find_res = self.__find_db(None, ret_date_first=True)
+		import pdb; pdb.set_trace()
 		for databse_date, data_dict in find_res.items():
 			print ("=============== %s ===============" % databse_date.strftime(self.DEFAULT_DB_DATE_STRING_FORMAT))
 			for sheet_name, sub_data_dict in data_dict.items():
@@ -984,9 +1173,30 @@ class StockChipAnalysis(object):
 			del self.workbook
 			self.workbook = None
 
+# from dataclasses import dataclass, field # 記得要 import field
+# import datetime
+# @dataclass
+# class Employee:
+#     """Class that contains basic information about an employee."""
+#     name: str
+#     job: str
+#     salary: int = 0
+#     record_time: datetime.datetime = \
+#         field(init=False, default_factory=datetime.datetime.now) # 資料紀錄時間
+# # 創造實例的時候引數 *不可以* 包含 record_time，不然會出現 error
+
 
 if __name__ == "__main__":
-	
+
+	cfg = {
+		"database_date": "2022-10-07",
+		"source_filename": "stock_chip_analysis@2022-10-07.xlsm",
+	}
+	with StockChipAnalysis(cfg) as obj:
+		obj.check_data_source_difference(False)
+
+	sys.exit(0)
+
 	parser = argparse.ArgumentParser(description='Print help')
 	'''
 	參數基本上分兩種，一種是位置參數 (positional argument)，另一種就是選擇性參數 (optional argument)
@@ -1011,7 +1221,7 @@ if __name__ == "__main__":
 	parser.add_argument('--list_analysis_method', required=False, action='store_true', help='List each analysis method and exit')
 	parser.add_argument('--list_sheet_set_category', required=False, action='store_true', help='List each stock set and exit')
 	parser.add_argument('--update_database', required=False, action='store_true', help='Update database and exit')
-	parser.add_argument('--update_database_multiple', required=False, action='store_true', help='Update database from multiple XLS files and exit. Caution: The format of the XLS filename: {0}_20YY-mm-DD. Ex: {0}_2022-07-29'.format(StockChipAnalysis.DEFAULT_SOURCE_FILENAME))
+	parser.add_argument('--update_database_multiple', required=False, action='store_true', help='Update database from multiple XLS files and exit. Caution: The format of the XLS filename: {0}@20YY-mm-DD. Ex: {0}_2022-07-29'.format(StockChipAnalysis.DEFAULT_SOURCE_FILENAME))
 	parser.add_argument('--find_database', required=False, action='store_true', help='Find database and exit')
 	parser.add_argument('--delete_database', required=False, action='store_true', help='Delete database and exit')
 	parser.add_argument('--list_database_date', required=False, action='store_true', help='List database date and exit')
@@ -1019,6 +1229,7 @@ if __name__ == "__main__":
 	parser.add_argument('--database_date_range', required=False, help='The date range of the data in the database. Format: start_date,end_date. Ex: (1) 2022-05-18,2022-05-30 ; (2) 2022-05-18, ; (3) ,2022-05-30. Caution: Find/Delete Database')
 	parser.add_argument('--database_all_date_range', required=False, action='store_true', help='The all date range of the data in the database')
 	parser.add_argument('--create_report_by_sheet_set_category', required=False, help='Create a report by certain a sheet set category and exit')
+	parser.add_argument('--check_data_source_difference', required=False, help='Check data source difference on a specific day and exit')
 	parser.add_argument('-m', '--analysis_method', required=False, help='The method for chip analysis. Default: 0')	
 	parser.add_argument('-d', '--show_detail', required=False, action='store_true', help='Show detailed data for each stock')
 	parser.add_argument('-g', '--generate_report', required=False, action='store_true', help='Generate the report of the detailed data for each stock to the XLS file.')
@@ -1054,6 +1265,9 @@ if __name__ == "__main__":
 	if args.list_sheet_set_category:
 		StockChipAnalysis.list_sheet_set()
 		sys.exit(0)
+	if args.check_data_source_difference:
+		StockChipAnalysis.check_data_source_difference(args.check_data_source_difference)
+		sys.exit(0)
 	if args.create_report_by_sheet_set_category:
 		search_result_filename = "tmp1.txt"
 		cfg_step1 = {
@@ -1074,7 +1288,6 @@ if __name__ == "__main__":
 			obj_step2.search_sheets_from_file()
 			os.remove(obj_step2.StockListFilepath)
 		sys.exit(0)
-
 
 	# import pdb; pdb.set_trace()
 	cfg = {}
@@ -1111,7 +1324,7 @@ if __name__ == "__main__":
 			for filename in os.listdir(obj.SourceFolderpath):
 				mobj = re.match(regex, filename)
 				if mobj is None: continue
-				# print (mobj.group(1))					
+				# print (mobj.group(1))
 				filepath = os.path.join(obj.SourceFolderpath, filename)
 				if not os.path.isfile(filepath): continue
 				file_date = obj.get_data_date(mobj.group(1))
