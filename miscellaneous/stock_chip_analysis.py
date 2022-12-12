@@ -283,14 +283,12 @@ class StockChipAnalysis(object):
 			# print (db_data_dict)
 			print ("Equal" if xls_data_dict == db_data_dict else "Not Equal")
 
-
 		if consecutive_over_buy_days is None:
 			consecutive_over_buy_days = self.xcfg["consecutive_over_buy_days"]
 		if consecutive_over_buy_days > 0:
 			if sheet_name in self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEET_SET:
 				data_dict = self.__filter_by_consecutive_over_buy_days(data_dict, sheet_name=sheet_name)
 		return data_dict
-
 
 		find_data_dict = {}
 		for db_sheet_name in self.ALL_SHEET_NAME_LIST:
@@ -336,8 +334,8 @@ class StockChipAnalysis(object):
 									continue
 								if stock_number not in find_data_dict[entry["created_date"]]["data"]:
 									find_data_dict[entry["created_date"]]["data"][stock_number] = {}
-								if sheet_data_func_ptr is not None:
-									 stock_data = sheet_data_func_ptr(stock_data)
+								if data_analysis_func_ptr is not None:
+									 stock_data = data_analysis_func_ptr(stock_data)
 								find_data_dict[entry["created_date"]]["data"][stock_number][db_sheet_name] = stock_data
 						else:
 							find_data_dict[entry["created_date"]][db_sheet_name] = entry["data"]
@@ -457,6 +455,7 @@ class StockChipAnalysis(object):
 			# print ("__get_workbook: %s" % self.xcfg["source_filepath"])
 		return self.workbook
 
+
 	def __print_string(self, outpug_str):
 		if self.xcfg["quiet"]: return
 		print (outpug_str)
@@ -518,7 +517,7 @@ class StockChipAnalysis(object):
 		return dict(filter(lambda x: int(x[1][found_index]) >= self.xcfg["consecutive_over_buy_days"], data_dict.items()))
 
 
-# 	def __collect_sheet_all_data(self, sheet_data_func_ptr=None):
+# 	def __collect_sheet_all_data(self, data_analysis_func_ptr=None):
 # 		sheet_data_collection_dict = {}
 # 		if self.xcfg["sheet_name_list"] is None:
 # 			self.xcfg["sheet_name_list"] = self.DEFAULT_SHEET_NAME_LIST
@@ -535,15 +534,15 @@ class StockChipAnalysis(object):
 # 				# if not sheet_data_collection_dict.has_key(data_key):
 # 				if data_key not in sheet_data_collection_dict["data"]:
 # 					sheet_data_collection_dict["data"][data_key] = {}
-# 				if sheet_data_func_ptr is not None:
-# 					 data_value = sheet_data_func_ptr(data_value)
+# 				if data_analysis_func_ptr is not None:
+# 					 data_value = data_analysis_func_ptr(data_value)
 # 				sheet_data_collection_dict["data"][data_key][sheet_name] = data_value
 # 		return sheet_data_collection_dict
 
 
-	def __collect_sheet_data(self, data_for_analysis=False, sheet_data_func_ptr=None):
+	def __collect_sheet_data(self, data_for_analysis=False, data_analysis_func_ptr=None):
 		# if self.xcfg["stock_list"] is None:
-		# 	return self.__collect_sheet_all_data(sheet_data_func_ptr)
+		# 	return self.__collect_sheet_all_data(data_analysis_func_ptr)
 		sheet_data_collection_dict = {}
 		if self.xcfg["sheet_name_list"] is None:
 			self.xcfg["sheet_name_list"] = self.DEFAULT_SHEET_NAME_LIST
@@ -567,13 +566,13 @@ class StockChipAnalysis(object):
 			if data_for_analysis:
 # Find the stock list
 				for stock_number in stock_list:
-					# stock_data = data_dict[stock]
-					# if stock not in sheet_data_collection_dict["data"]:
-					# 	sheet_data_collection_dict["data"][stock] = {}
-					# # if sheet_data_func_ptr is not None:
-					# # 	 stock_data = sheet_data_func_ptr(stock_data)
+					stock_data = data_dict[stock_number]
+					if stock_number not in sheet_data_collection_dict["data"]:
+						sheet_data_collection_dict["data"][stock_number] = {}
+					if data_analysis_func_ptr is not None:
+						 stock_data = data_analysis_func_ptr(stock_data)
 					# sheet_data_collection_dict["data"][stock][sheet_name] = stock_data
-					sheet_data_collection_dict["data"].setdefault(stock_number, {}).update({sheet_name: data_dict[stock_number]})
+					sheet_data_collection_dict["data"].setdefault(stock_number, {}).update({sheet_name: stock_data})
 			else:
 				sheet_data_collection_dict["data"][sheet_name] = dict(filter(lambda x: x[0] in stock_list, data_dict.items()))
 		# import pdb; pdb.set_trace()
@@ -618,10 +617,10 @@ class StockChipAnalysis(object):
 
 	def check_data_source_difference(self, data_for_analysis=False):
 		# import pdb; pdb.set_trace()
-		sheet_data_func_ptr = (lambda x: x) if self.xcfg["show_detail"] else (lambda x: x[0])
-		db_sheet_data_collection_dict_history = self.__find_db(self.xcfg["database_date"], data_for_analysis=data_for_analysis, sheet_data_func_ptr=sheet_data_func_ptr)
+		data_analysis_func_ptr = (lambda x: x) if self.xcfg["show_detail"] else (lambda x: x[0])
+		db_sheet_data_collection_dict_history = self.__find_db(self.xcfg["database_date"], data_for_analysis=data_for_analysis, data_analysis_func_ptr=data_analysis_func_ptr)
 		# import pdb; pdb.set_trace()
-		xls_sheet_data_collection_dict = self.__collect_sheet_data(data_for_analysis=data_for_analysis, sheet_data_func_ptr=sheet_data_func_ptr)
+		xls_sheet_data_collection_dict = self.__collect_sheet_data(data_for_analysis=data_for_analysis, data_analysis_func_ptr=data_analysis_func_ptr)
 		xls_sheet_data_collection_dict_history = {self.get_data_date(self.xcfg["database_date"]): xls_sheet_data_collection_dict}
 		# print (db_sheet_data_collection_dict_history.values())
 		if data_for_analysis:
@@ -670,21 +669,21 @@ class StockChipAnalysis(object):
 
 	def __search_stock_sheets(self):
 		# import pdb; pdb.set_trace()
-		sheet_data_func_ptr = (lambda x: x) if self.xcfg["show_detail"] else (lambda x: x[0])
+		data_analysis_func_ptr = (lambda x: x) if self.xcfg["show_detail"] else (lambda x: x[0])
 		sheet_data_collection_dict_history = None
 		if self.xcfg["search_history"]:
 			if self.xcfg["database_date"] is not None:
-				sheet_data_collection_dict_history = self.__find_db(self.xcfg["database_date"], ret_date_first=True, data_for_analysis=True, sheet_data_func_ptr=sheet_data_func_ptr)
+				sheet_data_collection_dict_history = self.__find_db(self.xcfg["database_date"], ret_date_first=True, data_for_analysis=True, data_analysis_func_ptr=data_analysis_func_ptr)
 			elif self.xcfg["database_all_date_range"]:
-				sheet_data_collection_dict_history = self.__find_db_range(ret_date_first=True, data_for_analysis=True, sheet_data_func_ptr=sheet_data_func_ptr)
+				sheet_data_collection_dict_history = self.__find_db_range(ret_date_first=True, data_for_analysis=True, data_analysis_func_ptr=data_analysis_func_ptr)
 			elif self.xcfg["database_date_range"] is not None:
-				sheet_data_collection_dict_history = self.__find_db_range(self.xcfg["database_date_range_start"], self.xcfg["database_date_range_end"], ret_date_first=True, data_for_analysis=True, sheet_data_func_ptr=sheet_data_func_ptr)
+				sheet_data_collection_dict_history = self.__find_db_range(self.xcfg["database_date_range_start"], self.xcfg["database_date_range_end"], ret_date_first=True, data_for_analysis=True, data_analysis_func_ptr=data_analysis_func_ptr)
 			else:
 				raise ValueError("Should select a date if the data source is from the databases")
 		else:
 # The data read from XLS is different from the one from DB 
 # if the consecutive_over_buy_day is NOT 0 (default: DEFAULT_CONSECUTIVE_OVER_BUY_DAYS)
-			sheet_data_collection_dict = self.__collect_sheet_data(sheet_data_func_ptr)
+			sheet_data_collection_dict = self.__collect_sheet_data(data_analysis_func_ptr)
 			data_date = self.get_data_date()
 			sheet_data_collection_dict_history = {data_date: sheet_data_collection_dict}
 			'''
@@ -821,9 +820,9 @@ class StockChipAnalysis(object):
 			ret = db_collection_handle.insert_one(insert_data_dict)
 			# print (ret)
 
-# data_for_analysis/sheet_data_func_ptr only takes effect when ret_date_first is True
+# data_for_analysis/data_analysis_func_ptr only takes effect when ret_date_first is True
 # The metadata is only included when data_for_analysis is true
-	def __find_db_internal(self, find_criteria_dict, check_exist_only=False, ret_date_first=True, data_for_analysis=False, sheet_data_func_ptr=None):
+	def __find_db_internal(self, find_criteria_dict, check_exist_only=False, ret_date_first=True, data_for_analysis=False, data_analysis_func_ptr=None):
 		assert self.db_handle is not None, "self.db_handle should NOT be None"
 		'''
 		Data format:
@@ -879,22 +878,20 @@ class StockChipAnalysis(object):
 											       |-'data'
 						'''
 						# find_data_dict[entry["created_date"]]["metadata"][db_sheet_name] = entry["metadata"]
-						# if self.xcfg["consecutive_over_buy_days"] > 0:
-						# 	if db_sheet_name in self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEET_SET:
-						# 		entry["data"] = self.__filter_by_consecutive_over_buy_days(entry["data"], title_bar_list=entry["metadata"][db_sheet_name])
+						if self.xcfg["consecutive_over_buy_days"] > 0:
+							if db_sheet_name in self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEET_SET:
+								entry["data"] = self.__filter_by_consecutive_over_buy_days(entry["data"], title_bar_list=entry["metadata"][db_sheet_name])
 						for stock_number, stock_data in entry["data"].items():
 							# if stock_list_not_empty and stock_number not in self.xcfg["stock_list"]:
 							# 	continue
 							if data_for_analysis:							
-								# if stock_number not in find_data_dict[entry["created_date"]]["data"]:
-								# 	find_data_dict[entry["created_date"]]["data"][stock_number] = {}
-								# if sheet_data_func_ptr is not None:
-								# 	 stock_data = sheet_data_func_ptr(stock_data)
+								if stock_number not in find_data_dict[entry["created_date"]]["data"]:
+									find_data_dict[entry["created_date"]]["data"][stock_number] = {}
+								if data_analysis_func_ptr is not None:
+									 stock_data = data_analysis_func_ptr(stock_data)
 								# find_data_dict[entry["created_date"]]["data"][stock_number][db_sheet_name] = stock_data
 								find_data_dict[entry["created_date"]]["data"].setdefault(stock_number, {}).update({db_sheet_name: stock_data})
 							else:
-								# if sheet_data_func_ptr is not None:
-								# 	 stock_data = sheet_data_func_ptr(stock_data)
 								# find_data_dict[entry["created_date"]]["data"][db_sheet_name][stock_number] = stock_data
 								find_data_dict[entry["created_date"]]["data"].setdefault(db_sheet_name, {}).update({stock_number: stock_data})
 						# import pdb; pdb.set_trace()
@@ -913,16 +910,16 @@ class StockChipAnalysis(object):
 		return find_data_dict
 
 
-	def __find_db(self, data_date=None, check_exist_only=False, ret_date_first=True, data_for_analysis=False, sheet_data_func_ptr=None):
+	def __find_db(self, data_date=None, check_exist_only=False, ret_date_first=True, data_for_analysis=False, data_analysis_func_ptr=None):
 		# import pdb; pdb.set_trace()
 		data_date = self.get_data_date(data_date)
 		find_criteria_dict = {
 			"created_date": data_date,
 		}
-		return self.__find_db_internal(find_criteria_dict, check_exist_only, ret_date_first, data_for_analysis, sheet_data_func_ptr)
+		return self.__find_db_internal(find_criteria_dict, check_exist_only, ret_date_first, data_for_analysis, data_analysis_func_ptr)
 
 
-	def __find_db_range(self, start_data_date=None, end_data_date=None, check_exist_only=False, ret_date_first=True, data_for_analysis=False, sheet_data_func_ptr=None):
+	def __find_db_range(self, start_data_date=None, end_data_date=None, check_exist_only=False, ret_date_first=True, data_for_analysis=False, data_analysis_func_ptr=None):
 		find_criteria_dict = None
 		if start_data_date is not None and end_data_date is not None:
 			start_data_date = self.get_data_date(start_data_date)
@@ -942,7 +939,7 @@ class StockChipAnalysis(object):
 			}
 		else:
 			find_criteria_dict = {}
-		return self.__find_db_internal(find_criteria_dict, check_exist_only, ret_date_first, data_for_analysis, sheet_data_func_ptr)
+		return self.__find_db_internal(find_criteria_dict, check_exist_only, ret_date_first, data_for_analysis, data_analysis_func_ptr)
 
 
 	def __check_db_data_exist(self, data_date=None):
@@ -1029,7 +1026,8 @@ class StockChipAnalysis(object):
 	def update_database(self):
 		self.xcfg["consecutive_over_buy_days"] = 0
 		# import pdb; pdb.set_trace()
-		sheet_data_collection_dict = self.__collect_sheet_all_data()
+		# sheet_data_collection_dict = self.__collect_sheet_all_data()
+		sheet_data_collection_dict = self.__collect_sheet_data()
 		data_date = self.get_data_date(self.xcfg["database_date"])
 		if self.__check_db_data_exist(data_date):
 			print ("Data on %s already exists. Update the database..." % data_date.strftime(self.DEFAULT_DB_DATE_STRING_FORMAT))
@@ -1173,30 +1171,8 @@ class StockChipAnalysis(object):
 			del self.workbook
 			self.workbook = None
 
-# from dataclasses import dataclass, field # 記得要 import field
-# import datetime
-# @dataclass
-# class Employee:
-#     """Class that contains basic information about an employee."""
-#     name: str
-#     job: str
-#     salary: int = 0
-#     record_time: datetime.datetime = \
-#         field(init=False, default_factory=datetime.datetime.now) # 資料紀錄時間
-# # 創造實例的時候引數 *不可以* 包含 record_time，不然會出現 error
-
 
 if __name__ == "__main__":
-
-	cfg = {
-		"database_date": "2022-10-07",
-		"source_filename": "stock_chip_analysis@2022-10-07.xlsm",
-	}
-	with StockChipAnalysis(cfg) as obj:
-		obj.check_data_source_difference(False)
-
-	sys.exit(0)
-
 	parser = argparse.ArgumentParser(description='Print help')
 	'''
 	參數基本上分兩種，一種是位置參數 (positional argument)，另一種就是選擇性參數 (optional argument)
