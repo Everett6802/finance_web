@@ -13,7 +13,7 @@ import xlrd
 import xlsxwriter
 import argparse
 from datetime import datetime
-from pymongo import MongoClient
+# from pymongo import MongoClient
 from collections import OrderedDict
 
 
@@ -22,7 +22,7 @@ class StockChipAnalysis(object):
 	DEFAULT_SOURCE_FOLDERPATH =  "C:\\Users\\%s\\Downloads" % os.getlogin()
 	DEFAULT_SOURCE_FILENAME = "stock_chip_analysis"
 	DEFAULT_SOURCE_FULL_FILENAME = "%s.xlsm" % DEFAULT_SOURCE_FILENAME
-	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s\\source" % os.getlogin()
+	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
 	DEFAULT_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
 	DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
 	DEFAULT_SEARCH_RESULT_FILENAME = "search_result_stock_list.txt"
@@ -198,6 +198,7 @@ class StockChipAnalysis(object):
 
 	@classmethod
 	def __read_from_worksheet(cls, worksheet, sheet_metadata):
+		# import pdb; pdb.set_trace()
 		data_dict = {}
 		row_index = 1
 		while True:
@@ -341,7 +342,6 @@ class StockChipAnalysis(object):
 							find_data_dict[entry["created_date"]][db_sheet_name] = entry["data"]
 
 
-
 	def __init__(self, cfg):
 		self.xcfg = {
 			"show_detail": False,
@@ -361,6 +361,7 @@ class StockChipAnalysis(object):
 			"quiet": False,
 			"sort": False,
 			"sort_limit": None,
+			"db_enable": False,
 			"db_host": "localhost",
 			"db_name": self.DEFAULT_DB_NAME,
 			"db_username": self.DEFAULT_DB_USERNAME,
@@ -423,13 +424,13 @@ class StockChipAnalysis(object):
 
 # mongodb://root:lab4man1@localhost:27017/StockChipAnalysis
 		# db_url = 'mongodb://%s:%s@%s:27017' % (self.xcfg["db_username"], self.xcfg["db_password"], self.xcfg["db_host"])
-		db_url = 'mongodb://%s:%s@%s:27017/%s' % (self.xcfg["db_username"], self.xcfg["db_password"], self.xcfg["db_host"], self.xcfg["db_name"])
-		# print ("DB URL: %s" % db_url)
-		self.db_client = MongoClient(db_url)
-		# self.db_client = MongoClient('mongodb://%s:27017' % (self.xcfg["db_host"]))
+		if self.xcfg["db_enable"]:
+			from pymongo import MongoClient
+			db_url = 'mongodb://%s:%s@%s:27017/%s' % (self.xcfg["db_username"], self.xcfg["db_password"], self.xcfg["db_host"], self.xcfg["db_name"])
+			# print ("DB URL: %s" % db_url)
+			self.db_client = MongoClient(db_url)
 # Database (Database -> Collection -> Document)
-		self.db_handle = self.db_client[self.xcfg["db_name"]]
-		# self.db_handle.authenticate(self.xcfg["db_username"], self.xcfg["db_password"])
+			self.db_handle = self.db_client[self.xcfg["db_name"]]
 		return self
 
 
@@ -467,6 +468,7 @@ class StockChipAnalysis(object):
 		# if not self.sheet_title_bar_dict.has_key(sheet_name):
 		if sheet_name not in self.sheet_title_bar_dict:
 			sheet_metadata = self.SHEET_METADATA_DICT[sheet_name]
+			# print(sheet_name)
 			worksheet = self.__get_workbook().sheet_by_name(sheet_name)
 			title_bar_list = [u"商品",]
 			column_start_index = None
@@ -556,13 +558,14 @@ class StockChipAnalysis(object):
 # data
 			data_dict = self.__read_sheet_data(sheet_name)
 			stock_list = None
+			# import pdb; pdb.set_trace()
 			if self.xcfg["stock_list"] is None:
 				stock_list = data_dict.keys()
 			else:
 # has_key has been deprecated in Python 3.0
 				# if not data_dict.has_key(stock):
 				# stock_list = [stock for stock in self.xcfg["stock_list"] if stock in data_dict]
-				stock_list = list(set(self.xcfg["stock_list"]) | set(data_dict.keys()))
+				stock_list = list(set(self.xcfg["stock_list"]) & set(data_dict.keys()))
 			if data_for_analysis:
 # Find the stock list
 				for stock_number in stock_list:
@@ -691,8 +694,8 @@ class StockChipAnalysis(object):
 												       |-'data'
 												       |-'metadata'
 			'''
-		print (sheet_data_collection_dict_history.values())
-		import pdb; pdb.set_trace()
+		# print (sheet_data_collection_dict_history.values())
+		# import pdb; pdb.set_trace()
 		for data_date, sheet_data_collection_dict in sheet_data_collection_dict_history.items():
 			if self.xcfg["need_all_sheet"]:
 				sheet_data_collection_dict = self.__filter_by_sheet_occurrence(sheet_data_collection_dict["data"])
@@ -720,25 +723,27 @@ class StockChipAnalysis(object):
 				output_overview_worksheet = report_workbook.add_worksheet("Overview")
 # Output the data
 			self.__print_string("********** %s **********" % data_date.strftime(self.DEFAULT_DB_DATE_STRING_FORMAT))
+			# import pdb; pdb.set_trace()
 			if self.xcfg["output_search_result"]:
 				self.search_result_txtfile.write("********** %s **********\n" % data_date.strftime(self.DEFAULT_DB_DATE_STRING_FORMAT))
 			for stock_number in self.xcfg["stock_list"]:
 				# if not sheet_data_collection_dict.has_key(stock_number):
-				if stock_number not in sheet_data_collection_dict:
+				if stock_number not in sheet_data_collection_dict["data"]:
 					continue
 				no_data = False
-				stock_sheet_data_collection_dict = sheet_data_collection_dict[stock_number]
+				stock_sheet_data_collection_dict = sheet_data_collection_dict["data"][stock_number]
 				# import pdb; pdb.set_trace()
 				if self.xcfg["show_detail"]:
-					stock_name = stock_sheet_data_collection_dict.values()[0][0]
+					stock_sheet_data_list = list(stock_sheet_data_collection_dict.values())
+					stock_name = stock_sheet_data_list[0][0]
 					self.__print_string("=== %s(%s) ===" % (stock_number, stock_name))
 					if self.xcfg["generate_report"]:
-	# For overview sheet
+# For overview sheet
 						output_overview_worksheet.write(output_overview_row, 0,  "%s(%s)" % (stock_number, stock_name))
 						for output_overview_col, sheet_name in enumerate(stock_sheet_data_collection_dict.keys()):
 							output_overview_worksheet.write(output_overview_row + 1, output_overview_col,  sheet_name)
 						output_overview_row += 3
-	# For detailed sheet
+# For detailed sheet
 						try:
 							worksheet = report_workbook.add_worksheet("%s(%s)" % (stock_number, stock_name))
 						except xlsxwriter.exceptions.InvalidWorksheetName:
@@ -754,7 +759,7 @@ class StockChipAnalysis(object):
 						self.__print_string("* %s" % sheet_name)
 						self.__print_string("%s" % ",".join(["%s[%s]" % elem for elem in zip(sheet_title_bar_list[1:], sheet_data_list[1:])]))
 						if self.xcfg["generate_report"]:
-	# For detailed sheet
+# For detailed sheet
 							worksheet.write(output_row, 0,  sheet_name)
 							for output_col, output_data in enumerate(zip(sheet_title_bar_list[1:], sheet_data_list[1:])):
 								sheet_title_bar, sheet_data = output_data
@@ -763,8 +768,10 @@ class StockChipAnalysis(object):
 							output_row += 4
 				else:
 					# import pdb; pdb.set_trace()
-	# For python 3, it's required to convert to list for the return value of the values function.
-					stock_name = list(stock_sheet_data_collection_dict.values())[0]
+# For python 3, it's required to convert to list for the return value of the values function.
+					# stock_name = list(stock_sheet_data_collection_dict.values())[0]
+					stock_sheet_data_list = list(stock_sheet_data_collection_dict.values())
+					stock_name = stock_sheet_data_list[0][0]
 					self.__print_string("=== %s(%s) ===" % (stock_number, stock_name))
 					self.__print_string("%s" % (u",".join([stock_sheet_data_key for stock_sheet_data_key in stock_sheet_data_collection_dict.keys()])))
 				if self.xcfg["output_search_result"]:
@@ -1186,8 +1193,8 @@ if __name__ == "__main__":
 	'''
 # How to add option without any argument? use action='store_true'
 	'''
-	'store_true' and 'store_false' - 这些是 'store_const' 分别用作存储 True 和 False 值的特殊用例。
-	另外，它们的默认值分别为 False 和 True。例如:
+	'store_true' and 'store_false' - ?些是 'store_const' 分?用作存? True 和 False 值的特殊用例。
+	另外，它?的默?值分?? False 和 True。例如:
 
 	>>> parser = argparse.ArgumentParser()
 	>>> parser.add_argument('--foo', action='store_true')
