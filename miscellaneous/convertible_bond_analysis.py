@@ -22,8 +22,10 @@ import collections
 class ConvertibleBondAnalysis(object):
 
 	DEFAULT_SOURCE_FOLDERPATH =  "C:\\可轉債"
-	DEFAULT_SOURCE_FILENAME = "可轉債總表"
-	DEFAULT_SOURCE_FULL_FILENAME = "%s.csv" % DEFAULT_SOURCE_FILENAME
+	DEFAULT_SOURCE_SUMMARY_FILENAME = "可轉債總表"
+	DEFAULT_SOURCE_SUMMARY_FULL_FILENAME = "%s.csv" % DEFAULT_SOURCE_SUMMARY_FILENAME
+	DEFAULT_SOURCE_QUOTATION_FILENAME = "可轉債報價"
+	DEFAULT_SOURCE_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_SOURCE_QUOTATION_FILENAME
 	# DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s\\source" % os.getlogin()
 	# DEFAULT_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
 	# DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
@@ -78,16 +80,64 @@ class ConvertibleBondAnalysis(object):
 		return csv_data
 
 
+	def __read_data(self):
+		data_dict = {}
+		dt_now = datetime.datetime.now()
+		print "Read %s at %s" % (os.path.basename(self.xcfg["source_filepath"]), dt_now.strftime(self.DATETIME_FORMAT_STR))
+		# import pdb; pdb.set_trace()
+		for row_index in range(self.DATA_CELL_ROW_START_INDEX, self.DATA_CELL_ROW_END_INDEX):
+			key = None
+			try:
+				key = self.worksheet.cell_value(row_index, 0)
+			except IndexError:
+				# print "End row index: %d" % row_index
+				break
+			# print "row_index: %d, %s" % (row_index, self.worksheet.cell_value(row_index, 0))
+			data_dict[key] = {}
+			data_cell_column_list = None
+			column_index_data = self.DATA_CELL_ROW_COLUMN_INDEX_DICT.get(row_index, None)
+			if column_index_data is None:
+				data_cell_column_list = range(self.DATA_CELL_COLUMN_DEF_START_INDEX, self.DATA_CELL_COLUMN_DEF_END_INDEX)
+			else:
+				if type(column_index_data) is dict:
+					data_cell_column_list = range(self.DATA_CELL_ROW_COLUMN_INDEX_DICT[row_index]["from"], self.DATA_CELL_ROW_COLUMN_INDEX_DICT[row_index]["to"])
+				elif type(column_index_data) is list:
+					data_cell_column_list = self.DATA_CELL_ROW_COLUMN_INDEX_DICT[row_index]
+				else:
+					raise RuntimeError("Unknown column index range in row: %d" % row_index)
+			# import pdb; pdb.set_trace()
+			for column_index in data_cell_column_list:
+				# print "row: %d, column: %d" % (row_index, column_index)
+				cell_value = self.worksheet.cell_value(row_index, column_index)
+				# print "value: %s" % str(cell_value)
+# Check if this option is traded
+				if self.__is_string(cell_value):
+					data_dict[key][self.DATA_CELL_COLUMN_TITLE_NAME_LIST[column_index]] = None
+				# print "%s %d %d" % (key, row_index, column_index)
+				# import pdb; pdb.set_trace()
+				elif self.DATA_CELL_COLUMN_TYPE_LIST[column_index] == "float":
+					data_dict[key][self.DATA_CELL_COLUMN_TITLE_NAME_LIST[column_index]] = float(cell_value)
+				elif self.DATA_CELL_COLUMN_TYPE_LIST[column_index] == "int":
+					data_dict[key][self.DATA_CELL_COLUMN_TITLE_NAME_LIST[column_index]] = int(cell_value)
+				else:
+					raise ValueError("Unknown type: %s" % self.DATA_CELL_COLUMN_TYPE_LIST[index])
+		# import pdb; pdb.set_trace()
+		data_dict["created_at"] = dt_now
+		return data_dict
+
+
 	def __init__(self, cfg):
 		self.xcfg = {
 			"source_folderpath": None,
-			"source_filename": None,
+			"source_summary_filename": None,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
 		self.xcfg["source_folderpath"] = self.DEFAULT_SOURCE_FOLDERPATH if self.xcfg["source_folderpath"] is None else self.xcfg["source_folderpath"]
-		self.xcfg["source_filename"] = self.DEFAULT_SOURCE_FULL_FILENAME if self.xcfg["source_filename"] is None else self.xcfg["source_filename"]
-		self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
+		self.xcfg["source_summary_filename"] = self.DEFAULT_SOURCE_SUMMARY_FULL_FILENAME if self.xcfg["source_summary_filename"] is None else self.xcfg["source_summary_filename"]
+		self.xcfg["source_summary_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_summary_filename"])
+		self.xcfg["source_quotation_filename"] = self.DEFAULT_SOURCE_QUATATION_FULL_FILENAME if self.xcfg["source_quotation_filename"] is None else self.xcfg["source_quotation_filename"]
+		self.xcfg["source_quotation_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_quotation_filename"])
 
 
 	def __enter__(self):
@@ -107,7 +157,7 @@ class ConvertibleBondAnalysis(object):
 
 
 	def test(self):
-		self.__read_from_csv(self.xcfg["source_filepath"])
+		self.__read_from_csv(self.xcfg["source_summary_filepath"])
 
 
 	# def __get_workbook(self):
