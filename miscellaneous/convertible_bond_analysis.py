@@ -9,7 +9,7 @@ import errno
 # Question: How to Solve xlrd.biffh.XLRDError: Excel xlsx file; not supported ?
 # Answer : The latest version of xlrd(2.01) only supports .xls files. Installing the older version 1.2.0 to open .xlsx files.
 # '''
-# import xlrd
+import xlrd
 # import xlsxwriter
 import argparse
 # from datetime import datetime
@@ -21,11 +21,12 @@ import collections
 
 class ConvertibleBondAnalysis(object):
 
-	DEFAULT_SOURCE_FOLDERPATH =  "C:\\可轉債"
-	DEFAULT_SOURCE_SUMMARY_FILENAME = "可轉債總表"
-	DEFAULT_SOURCE_SUMMARY_FULL_FILENAME = "%s.csv" % DEFAULT_SOURCE_SUMMARY_FILENAME
-	DEFAULT_SOURCE_QUOTATION_FILENAME = "可轉債報價"
-	DEFAULT_SOURCE_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_SOURCE_QUOTATION_FILENAME
+	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"
+	DEFAULT_CB_SUMMARY_FILENAME = "可轉債總表"
+	DEFAULT_CB_SUMMARY_FULL_FILENAME = "%s.csv" % DEFAULT_CB_SUMMARY_FILENAME
+	DEFAULT_CB_QUOTATION_FILENAME = "可轉債報價"
+	DEFAULT_CB_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_QUOTATION_FILENAME
+	DEFAULT_CB_QUOTATION_FIELD_TYPE = [str, str, float, float, int, float, float, str,]
 	# DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s\\source" % os.getlogin()
 	# DEFAULT_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
 	# DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
@@ -55,116 +56,110 @@ class ConvertibleBondAnalysis(object):
 		return check_exist
 
 
-	@classmethod
-	def __read_from_csv(cls, filepath):
+	def __init__(self, cfg):
+		self.xcfg = {
+			"cb_folderpath": None,
+			"cb_summary_filename": None,
+			"cb_quotation_filename": None,
+		}
+		# import pdb; pdb.set_trace()
+		self.xcfg.update(cfg)
+		self.xcfg["cb_folderpath"] = self.DEFAULT_CB_FOLDERPATH if self.xcfg["cb_folderpath"] is None else self.xcfg["cb_folderpath"]
+		self.xcfg["cb_summary_filename"] = self.DEFAULT_CB_SUMMARY_FULL_FILENAME if self.xcfg["cb_summary_filename"] is None else self.xcfg["cb_summary_filename"]
+		self.xcfg["cb_summary_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_summary_filename"])
+		self.xcfg["cb_quotation_filename"] = self.DEFAULT_CB_QUOTATION_FULL_FILENAME if self.xcfg["cb_quotation_filename"] is None else self.xcfg["cb_quotation_filename"]
+		self.xcfg["cb_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_quotation_filename"])
+
+		self.cb_summary = self.__read_cb_summary()
+		self.workbook = None
+		self.worksheet = None
+
+
+	def __enter__(self):
+# Open the workbook
+		self.workbook = xlrd.open_workbook(self.xcfg["cb_quotation_filepath"])
+		self.worksheet = self.workbook.sheet_by_index(0)
+		return self
+
+
+	def __exit__(self, type, msg, traceback):
+		if self.workbook is not None:
+			self.workbook.release_resources()
+			del self.workbook
+			self.workbook = None
+		return False
+
+
+	def __read_cb_summary(self):
 		pattern = "(.+)\(([\d]{5,6})\)"
-		csv_data = {}
-		with open(filepath, newline='') as f:
+		cb_data = {}
+		with open(self.xcfg["cb_summary_filepath"], newline='') as f:
 			rows = csv.reader(f)
 			regex = re.compile(pattern)
+			title_list = None
 			for index, row in enumerate(rows):
 				# import pdb; pdb.set_trace()
 				if index == 0: pass
 				elif index == 1:
 					title_list = list(map(lambda x: x.lstrip("=\"").rstrip("\"").rstrip("(%)"), row))
-					print(title_list)
-					CSVData = collections.namedtuple("CSVData", "%s" % (" ".join(title_list)))
+					# print(title_list)
+					# CSVData = collections.namedtuple("CSVData", "%s" % (" ".join(title_list)))
 				else:
+					assert title_list is not None, "title_list should NOT be None"
 					data_list = list(map(lambda x: x.lstrip("=\"").rstrip("\""), row))
 					mobj = re.match(regex, data_list[0])
 					if mobj is None: 
 						raise ValueError("Incorrect format: %s" % data_list[0])
 					data_list[0] = mobj.group(1)
-					csv_data[mobj.group(2)] = data_list
+					data_dict = dict(zip(title_list, data_list))
+					cb_data[mobj.group(2)] = data_dict
 				# print ("%s" % (",".join(data_list)))
-		return csv_data
+		return cb_data
 
 
-	def __read_data(self):
-		data_dict = {}
-		dt_now = datetime.datetime.now()
-		print "Read %s at %s" % (os.path.basename(self.xcfg["source_filepath"]), dt_now.strftime(self.DATETIME_FORMAT_STR))
+	def __read_cb_quotation(self):
+		cb_data = {}
 		# import pdb; pdb.set_trace()
-		for row_index in range(self.DATA_CELL_ROW_START_INDEX, self.DATA_CELL_ROW_END_INDEX):
-			key = None
-			try:
-				key = self.worksheet.cell_value(row_index, 0)
-			except IndexError:
-				# print "End row index: %d" % row_index
-				break
-			# print "row_index: %d, %s" % (row_index, self.worksheet.cell_value(row_index, 0))
-			data_dict[key] = {}
-			data_cell_column_list = None
-			column_index_data = self.DATA_CELL_ROW_COLUMN_INDEX_DICT.get(row_index, None)
-			if column_index_data is None:
-				data_cell_column_list = range(self.DATA_CELL_COLUMN_DEF_START_INDEX, self.DATA_CELL_COLUMN_DEF_END_INDEX)
-			else:
-				if type(column_index_data) is dict:
-					data_cell_column_list = range(self.DATA_CELL_ROW_COLUMN_INDEX_DICT[row_index]["from"], self.DATA_CELL_ROW_COLUMN_INDEX_DICT[row_index]["to"])
-				elif type(column_index_data) is list:
-					data_cell_column_list = self.DATA_CELL_ROW_COLUMN_INDEX_DICT[row_index]
-				else:
-					raise RuntimeError("Unknown column index range in row: %d" % row_index)
-			# import pdb; pdb.set_trace()
-			for column_index in data_cell_column_list:
-				# print "row: %d, column: %d" % (row_index, column_index)
-				cell_value = self.worksheet.cell_value(row_index, column_index)
-				# print "value: %s" % str(cell_value)
-# Check if this option is traded
-				if self.__is_string(cell_value):
-					data_dict[key][self.DATA_CELL_COLUMN_TITLE_NAME_LIST[column_index]] = None
-				# print "%s %d %d" % (key, row_index, column_index)
-				# import pdb; pdb.set_trace()
-				elif self.DATA_CELL_COLUMN_TYPE_LIST[column_index] == "float":
-					data_dict[key][self.DATA_CELL_COLUMN_TITLE_NAME_LIST[column_index]] = float(cell_value)
-				elif self.DATA_CELL_COLUMN_TYPE_LIST[column_index] == "int":
-					data_dict[key][self.DATA_CELL_COLUMN_TITLE_NAME_LIST[column_index]] = int(cell_value)
-				else:
-					raise ValueError("Unknown type: %s" % self.DATA_CELL_COLUMN_TYPE_LIST[index])
-		# import pdb; pdb.set_trace()
-		data_dict["created_at"] = dt_now
-		return data_dict
-
-
-	def __init__(self, cfg):
-		self.xcfg = {
-			"source_folderpath": None,
-			"source_summary_filename": None,
-		}
-		# import pdb; pdb.set_trace()
-		self.xcfg.update(cfg)
-		self.xcfg["source_folderpath"] = self.DEFAULT_SOURCE_FOLDERPATH if self.xcfg["source_folderpath"] is None else self.xcfg["source_folderpath"]
-		self.xcfg["source_summary_filename"] = self.DEFAULT_SOURCE_SUMMARY_FULL_FILENAME if self.xcfg["source_summary_filename"] is None else self.xcfg["source_summary_filename"]
-		self.xcfg["source_summary_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_summary_filename"])
-		self.xcfg["source_quotation_filename"] = self.DEFAULT_SOURCE_QUATATION_FULL_FILENAME if self.xcfg["source_quotation_filename"] is None else self.xcfg["source_quotation_filename"]
-		self.xcfg["source_quotation_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_quotation_filename"])
-
-
-	def __enter__(self):
-		# Open the workbook
-		# self.workbook = xlrd.open_workbook(self.xcfg["source_filepath"])
-		# if self.xcfg["output_search_result"]:
-		# 	self.search_result_txtfile = open(self.xcfg["search_result_filepath"], "w")
-		return self
-
-
-	def __exit__(self, type, msg, traceback):
-		# if self.workbook is not None:
-		# 	self.workbook.release_resources()
-		# 	del self.workbook
-		# 	self.workbook = None
-		return False
+		title_list = []
+		for column_index in range(1, self.worksheet.ncols):
+			title_value = self.worksheet.cell_value(0, column_index)
+			title_list.append(title_value)
+		for row_index in range(1, self.worksheet.nrows):
+			data_key = self.worksheet.cell_value(row_index, 0)
+			data_list = []
+			data_key = self.worksheet.cell_value(row_index, 0)
+			for column_index in range(1, self.worksheet.ncols):
+				data_value = self.worksheet.cell_value(row_index, column_index)
+				try:
+					data_type = self.DEFAULT_CB_QUOTATION_FIELD_TYPE[column_index]
+					data_value = data_type(data_value)
+				except ValueError:
+					# print "End row index: %d" % row_index
+					data_value = None
+					break
+				# except Exception as e:
+				# 	import pdb; pdb.set_trace()
+				# 	print (e)
+				data_list.append(data_value)
+			data_dict = dict(zip(title_list, data_list))
+			cb_data[data_key] = data_dict
+		return cb_data
 
 
 	def test(self):
-		self.__read_from_csv(self.xcfg["source_summary_filepath"])
+		data_dict_summary = self.__read_cb_summary()
+		# print (data_dict_summary)
+		data_dict_quotation = self.__read_cb_quotation()
+		# print (data_dict_quotation)
+		if set(data_dict_summary.keys()) == set(data_dict_quotation.keys()):
+			raise ValueError("The CB keys are NOT identical")
 
 
 	# def __get_workbook(self):
 	# 	if self.workbook is None:
 	# 		# import pdb; pdb.set_trace()
-	# 		self.workbook = xlrd.open_workbook(self.xcfg["source_filepath"])
-	# 		# print ("__get_workbook: %s" % self.xcfg["source_filepath"])
+	# 		self.workbook = xlrd.open_workbook(self.xcfg["cb_filepath"])
+	# 		# print ("__get_workbook: %s" % self.xcfg["cb_filepath"])
 	# 	return self.workbook
 
 
@@ -197,3 +192,4 @@ if __name__ == "__main__":
 	}
 	with ConvertibleBondAnalysis(cfg) as obj:
 		obj.test()
+
