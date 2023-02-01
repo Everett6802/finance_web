@@ -12,7 +12,9 @@ import errno
 import xlrd
 # import xlsxwriter
 import argparse
-# from datetime import datetime
+from datetime import datetime
+from datetime import date
+import math
 # from pymongo import MongoClient
 # from collections import OrderedDict
 import csv
@@ -56,6 +58,15 @@ class ConvertibleBondAnalysis(object):
 		return check_exist
 
 
+	@classmethod
+	def __get_days(cls, end_date_str, start_date_str=None):
+		# import pdb; pdb.set_trace()
+		end_date = datetime.strptime(end_date_str,"%Y/%m/%d")
+		start_date = datetime.strptime(start_date_str,"%Y/%m/%d") if start_date_str is not None else datetime.fromordinal(date.today().toordinal())
+		days = int((end_date - start_date).days) + 1
+		return days
+
+
 	def __init__(self, cfg):
 		self.xcfg = {
 			"cb_folderpath": None,
@@ -70,9 +81,11 @@ class ConvertibleBondAnalysis(object):
 		self.xcfg["cb_quotation_filename"] = self.DEFAULT_CB_QUOTATION_FULL_FILENAME if self.xcfg["cb_quotation_filename"] is None else self.xcfg["cb_quotation_filename"]
 		self.xcfg["cb_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_quotation_filename"])
 
-		self.cb_summary = self.__read_cb_summary()
 		self.workbook = None
 		self.worksheet = None
+		self.cb_summary = self.__read_cb_summary()
+		self.cb_id_list = list(self.cb_summary.keys())
+		self.check_cb_id =  False
 
 
 	def __enter__(self):
@@ -124,10 +137,10 @@ class ConvertibleBondAnalysis(object):
 		for column_index in range(1, self.worksheet.ncols):
 			title_value = self.worksheet.cell_value(0, column_index)
 			title_list.append(title_value)
+		# import pdb; pdb.set_trace()
 		for row_index in range(1, self.worksheet.nrows):
 			data_key = self.worksheet.cell_value(row_index, 0)
 			data_list = []
-			data_key = self.worksheet.cell_value(row_index, 0)
 			for column_index in range(1, self.worksheet.ncols):
 				data_value = self.worksheet.cell_value(row_index, column_index)
 				try:
@@ -136,23 +149,61 @@ class ConvertibleBondAnalysis(object):
 				except ValueError:
 					# print "End row index: %d" % row_index
 					data_value = None
-					break
 				# except Exception as e:
 				# 	import pdb; pdb.set_trace()
 				# 	print (e)
 				data_list.append(data_value)
 			data_dict = dict(zip(title_list, data_list))
 			cb_data[data_key] = data_dict
+		if not self.check_cb_id:
+			# import pdb; pdb.set_trace()
+			cb_summary_id_set = set(self.cb_summary.keys())
+			cb_quotation_id_set = set(cb_data.keys())
+			cb_diff_id_set = cb_summary_id_set - cb_quotation_id_set
+			if len(cb_diff_id_set) > 0:
+				# raise ValueError("The CB keys are NOT identical: %s" % cb_diff_id_set)
+				print("The CB IDs are NOT identical: %s" % cb_diff_id_set)
+				for cb_id in list(cb_diff_id_set):
+					self.cb_id_list.remove(cb_id)
+			self.check_cb_id = True
 		return cb_data
 
 
+	def calculate_internal_rate_of_return(self, cb_quotation, use_percentage=True, filter_funcptr=None):
+		irr_dict = {}
+		# import pdb; pdb.set_trace()
+		for cb_id in self.cb_id_list:
+			cb_quotation_data = cb_quotation[cb_id]
+			# print(cb_quotation_data)
+			if cb_quotation_data["賣出一"] is None:
+				continue
+			days = self.__get_days(cb_quotation_data["到期日"])
+			days_to_year = days / 365.0
+			irr = math.pow(100.0 / cb_quotation_data["賣出一"], 1 / days_to_year) - 1
+			if use_percentage:
+				irr *= 100.0
+			if filter_funcptr is not None:
+				if not filter_funcptr(irr):
+					continue
+			irr_dict[cb_id] = {"商品": cb_quotation_data["商品"], "到期日": cb_quotation_data["到期日"], "年化報酬率": irr}
+		return irr_dict
+
+
+	def get_positive_internal_rate_of_return(self, cb_quotation, positive_threshold=0.1):
+		filter_funcptr = lambda x: True if (x >= positive_threshold) else False
+		return self.calculate_internal_rate_of_return(cb_quotation, use_percentage=True, filter_funcptr=filter_funcptr)  
+
+
 	def test(self):
-		data_dict_summary = self.__read_cb_summary()
-		# print (data_dict_summary)
+		# data_dict_summary = self.__read_cb_summary()
+		# # print (data_dict_summary)
 		data_dict_quotation = self.__read_cb_quotation()
 		# print (data_dict_quotation)
-		if set(data_dict_summary.keys()) == set(data_dict_quotation.keys()):
-			raise ValueError("The CB keys are NOT identical")
+		# print(self.calculate_internal_rate_of_return(data_dict_quotation))
+		irr_dict = self.get_positive_internal_rate_of_return(data_dict_quotation)
+		for irr_key, irr_data in irr_dict.items():
+			print ("%s[%s]: %.2f  %s" % (irr_data["商品"], irr_key, float(irr_data["年化報酬率"]), irr_data["到期日"]))
+		# print(irr_dict)
 
 
 	# def __get_workbook(self):
