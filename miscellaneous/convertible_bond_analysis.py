@@ -14,6 +14,7 @@ import xlrd
 import argparse
 from datetime import datetime
 from datetime import date
+from datetime import timedelta
 import math
 # from pymongo import MongoClient
 # from collections import OrderedDict
@@ -169,7 +170,7 @@ class ConvertibleBondAnalysis(object):
 		return cb_data
 
 
-	def calculate_internal_rate_of_return(self, cb_quotation, use_percentage=True, filter_funcptr=None):
+	def calculate_internal_rate_of_return(self, cb_quotation, use_percentage=True):
 		irr_dict = {}
 		# import pdb; pdb.set_trace()
 		for cb_id in self.cb_id_list:
@@ -182,16 +183,25 @@ class ConvertibleBondAnalysis(object):
 			irr = math.pow(100.0 / cb_quotation_data["賣出一"], 1 / days_to_year) - 1
 			if use_percentage:
 				irr *= 100.0
-			if filter_funcptr is not None:
-				if not filter_funcptr(irr):
-					continue
+			# if filter_funcptr is not None:
+			# 	if not filter_funcptr(irr):
+			# 		continue
 			irr_dict[cb_id] = {"商品": cb_quotation_data["商品"], "到期日": cb_quotation_data["到期日"], "年化報酬率": irr}
 		return irr_dict
 
 
-	def get_positive_internal_rate_of_return(self, cb_quotation, positive_threshold=0.1):
-		filter_funcptr = lambda x: True if (x >= positive_threshold) else False
-		return self.calculate_internal_rate_of_return(cb_quotation, use_percentage=True, filter_funcptr=filter_funcptr)  
+	def get_positive_internal_rate_of_return(self, cb_quotation, positive_threshold=0.1, duration_within_days=365, need_sort=True):
+		# filter_funcptr = lambda x: True if (x >= positive_threshold) else False
+		# return self.calculate_internal_rate_of_return(cb_quotation, use_percentage=True, filter_funcptr=filter_funcptr)  
+		irr_dict = self.calculate_internal_rate_of_return(cb_quotation, use_percentage=True)
+		if positive_threshold is not None:
+			irr_dict = dict(filter(lambda x: x[1]["年化報酬率"] > 0.1, irr_dict.items()))
+		if duration_within_days is not None:
+			duration_date = datetime.now() + timedelta(days=duration_within_days)
+			irr_dict = dict(filter(lambda x: datetime.strptime(x[1]["到期日"],"%Y/%m/%d") <= duration_date, irr_dict.items()))
+		if need_sort:
+			irr_dict = collections.OrderedDict(sorted(irr_dict.items(), key=lambda x: x[1]["年化報酬率"], reverse=True))
+		return irr_dict
 
 
 	def test(self):
