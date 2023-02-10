@@ -27,6 +27,7 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"
 	DEFAULT_CB_SUMMARY_FILENAME = "可轉債總表"
 	DEFAULT_CB_SUMMARY_FULL_FILENAME = "%s.csv" % DEFAULT_CB_SUMMARY_FILENAME
+	DEFAULT_CB_SUMMARY_FIELD_TYPE = [str, str, str, float, str, float, float, float, float, float, str,]
 	DEFAULT_CB_QUOTATION_FILENAME = "可轉債報價"
 	DEFAULT_CB_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_QUOTATION_FILENAME
 	DEFAULT_CB_QUOTATION_FIELD_TYPE = [str, str, float, float, int, float, float, str,]
@@ -116,11 +117,19 @@ class ConvertibleBondAnalysis(object):
 				if index == 0: pass
 				elif index == 1:
 					title_list = list(map(lambda x: x.lstrip("=\"").rstrip("\"").rstrip("(%)"), row))
+# ['可轉債商品', '到期日', '可轉換日', '票面利率', '上次付息日', '轉換價格', '現股收盤價', '可轉債價格', '套利報酬', '年化殖利率', '']
 					# print(title_list)
-					# CSVData = collections.namedtuple("CSVData", "%s" % (" ".join(title_list)))
 				else:
 					assert title_list is not None, "title_list should NOT be None"
 					data_list = list(map(lambda x: x.lstrip("=\"").rstrip("\""), row))
+					for data_index, data_value in enumerate(data_list):
+						try:
+							data_type = self.DEFAULT_CB_SUMMARY_FIELD_TYPE[data_index]
+							data_value = data_type(data_value)
+						except ValueError:
+							# print "End row index: %d" % row_index
+							data_value = None
+						data_list[data_index] = data_value
 					mobj = re.match(regex, data_list[0])
 					if mobj is None: 
 						raise ValueError("Incorrect format: %s" % data_list[0])
@@ -138,6 +147,8 @@ class ConvertibleBondAnalysis(object):
 		for column_index in range(1, self.worksheet.ncols):
 			title_value = self.worksheet.cell_value(0, column_index)
 			title_list.append(title_value)
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
+		# print(title_list)
 		# import pdb; pdb.set_trace()
 		for row_index in range(1, self.worksheet.nrows):
 			data_key = self.worksheet.cell_value(row_index, 0)
@@ -190,12 +201,12 @@ class ConvertibleBondAnalysis(object):
 		return irr_dict
 
 
-	def get_positive_internal_rate_of_return(self, cb_quotation, positive_threshold=0.1, duration_within_days=365, need_sort=True):
+	def get_positive_internal_rate_of_return(self, cb_quotation, positive_threshold=1, duration_within_days=365, need_sort=True):
 		# filter_funcptr = lambda x: True if (x >= positive_threshold) else False
 		# return self.calculate_internal_rate_of_return(cb_quotation, use_percentage=True, filter_funcptr=filter_funcptr)  
 		irr_dict = self.calculate_internal_rate_of_return(cb_quotation, use_percentage=True)
 		if positive_threshold is not None:
-			irr_dict = dict(filter(lambda x: x[1]["年化報酬率"] > 0.1, irr_dict.items()))
+			irr_dict = dict(filter(lambda x: x[1]["年化報酬率"] > positive_threshold, irr_dict.items()))
 		if duration_within_days is not None:
 			duration_date = datetime.now() + timedelta(days=duration_within_days)
 			irr_dict = dict(filter(lambda x: datetime.strptime(x[1]["到期日"],"%Y/%m/%d") <= duration_date, irr_dict.items()))
