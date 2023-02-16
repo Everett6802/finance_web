@@ -31,10 +31,9 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_CB_QUOTATION_FILENAME = "可轉債報價"
 	DEFAULT_CB_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_QUOTATION_FILENAME
 	DEFAULT_CB_QUOTATION_FIELD_TYPE = [str, str, float, float, int, float, float, str,]
-	# DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s\\source" % os.getlogin()
-	# DEFAULT_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
-	# DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
-	# DEFAULT_SEARCH_RESULT_FILENAME = "search_result_stock_list.txt"
+	DEFAULT_CB_STOCK_QUOTATION_FILENAME = "可轉債個股報價"
+	DEFAULT_CB_STOCK_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_STOCK_QUOTATION_FILENAME
+	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE = [str, str, float, float, int, float, float,]
 
 
 	@classmethod
@@ -69,11 +68,17 @@ class ConvertibleBondAnalysis(object):
 		return days
 
 
+	@classmethod
+	def __is_cb(cls, cb_id):
+		return True if (re.match("[\d]{5}", cb_id) is not None) else False
+
+
 	def __init__(self, cfg):
 		self.xcfg = {
 			"cb_folderpath": None,
 			"cb_summary_filename": None,
 			"cb_quotation_filename": None,
+			"cb_stock_quotation_filename": None,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -82,26 +87,37 @@ class ConvertibleBondAnalysis(object):
 		self.xcfg["cb_summary_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_summary_filename"])
 		self.xcfg["cb_quotation_filename"] = self.DEFAULT_CB_QUOTATION_FULL_FILENAME if self.xcfg["cb_quotation_filename"] is None else self.xcfg["cb_quotation_filename"]
 		self.xcfg["cb_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_quotation_filename"])
+		self.xcfg["cb_stock_quotation_filename"] = self.DEFAULT_CB_STOCK_QUOTATION_FULL_FILENAME if self.xcfg["cb_stock_quotation_filename"] is None else self.xcfg["cb_stock_quotation_filename"]
+		self.xcfg["cb_stock_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_stock_quotation_filename"])
 
-		self.workbook = None
-		self.worksheet = None
+		self.cb_workbook = None
+		self.cb_worksheet = None
+		self.cb_stock_workbook = None
+		self.cb_stock_worksheet = None
 		self.cb_summary = self.__read_cb_summary()
-		self.cb_id_list = list(self.cb_summary.keys())
-		self.check_cb_id =  False
+		self.cb_id_list = None  # list(self.cb_summary.keys())
+		self.cb_stock_id_list = None  
 
 
 	def __enter__(self):
-# Open the workbook
-		self.workbook = xlrd.open_workbook(self.xcfg["cb_quotation_filepath"])
-		self.worksheet = self.workbook.sheet_by_index(0)
+# Open the workbook of cb quotation
+		self.cb_workbook = xlrd.open_workbook(self.xcfg["cb_quotation_filepath"])
+		self.cb_worksheet = self.cb_workbook.sheet_by_index(0)
+# Open the workbook of cb stock quotation
+		self.cb_stock_workbook = xlrd.open_workbook(self.xcfg["cb_stock_quotation_filepath"])
+		self.cb_stock_worksheet = self.cb_stock_workbook.sheet_by_index(0)
 		return self
 
 
 	def __exit__(self, type, msg, traceback):
-		if self.workbook is not None:
-			self.workbook.release_resources()
-			del self.workbook
-			self.workbook = None
+		if self.cb_workbook is not None:
+			self.cb_workbook.release_resources()
+			del self.cb_workbook
+			self.cb_workbook = None
+		if self.cb_stock_workbook is not None:
+			self.cb_stock_workbook.release_resources()
+			del self.cb_stock_workbook
+			self.cb_stock_workbook = None
 		return False
 
 
@@ -140,21 +156,25 @@ class ConvertibleBondAnalysis(object):
 		return cb_data
 
 
-	def __read_cb_quotation(self):
-		cb_data = {}
+	def __read_worksheet(self, worksheet, worksheet_field_type, target_filter_funcptr=None):
+		worksheet_data = {}
 		# import pdb; pdb.set_trace()
 		title_list = []
-		for column_index in range(1, self.worksheet.ncols):
-			title_value = self.worksheet.cell_value(0, column_index)
+		for column_index in range(1, worksheet.ncols):
+			title_value = worksheet.cell_value(0, column_index)
 			title_list.append(title_value)
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
 		# print(title_list)
 		# import pdb; pdb.set_trace()
-		for row_index in range(1, self.worksheet.nrows):
-			data_key = self.worksheet.cell_value(row_index, 0)
+		for row_index in range(1, worksheet.nrows):
+			data_key = worksheet.cell_value(row_index, 0)
+			if target_filter_funcptr is not None:
+				if not target_filter_funcptr(data_key):
+					print("The target[%s] is removed" % data_key)
+					continue
 			data_list = []
-			for column_index in range(1, self.worksheet.ncols):
-				data_value = self.worksheet.cell_value(row_index, column_index)
+			for column_index in range(1, worksheet.ncols):
+				data_value = worksheet.cell_value(row_index, column_index)
 				try:
 					data_type = self.DEFAULT_CB_QUOTATION_FIELD_TYPE[column_index]
 					data_value = data_type(data_value)
@@ -166,19 +186,56 @@ class ConvertibleBondAnalysis(object):
 				# 	print (e)
 				data_list.append(data_value)
 			data_dict = dict(zip(title_list, data_list))
-			cb_data[data_key] = data_dict
-		if not self.check_cb_id:
-			# import pdb; pdb.set_trace()
-			cb_summary_id_set = set(self.cb_summary.keys())
-			cb_quotation_id_set = set(cb_data.keys())
-			cb_diff_id_set = cb_summary_id_set - cb_quotation_id_set
-			if len(cb_diff_id_set) > 0:
-				# raise ValueError("The CB keys are NOT identical: %s" % cb_diff_id_set)
-				print("The CB IDs are NOT identical: %s" % cb_diff_id_set)
-				for cb_id in list(cb_diff_id_set):
-					self.cb_id_list.remove(cb_id)
-			self.check_cb_id = True
+			worksheet_data[data_key] = data_dict
+		return worksheet_data
+
+
+	def __read_cb_quotation(self):
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
+		cb_data = self.__read_worksheet(self.cb_worksheet, self.DEFAULT_CB_QUOTATION_FIELD_TYPE, self.__is_cb)
+		if self.cb_id_list is None:
+			self.cb_id_list = list(cb_data.keys())
 		return cb_data
+
+
+	def __read_cb_stock_quotation(self):
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一']
+		cb_stock_data = self.__read_worksheet(self.cb_stock_worksheet, self.DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE)
+		if self.cb_stock_id_list is None:
+			self.cb_stock_id_list = list(cb_stock_data.keys())
+		# stock_id_list = sorted(list(set(map(lambda x: x[:4], cb_stock_data.keys()))), reverse=False)
+		# print(stock_id_list)
+		# print(len(stock_id_list))
+		return cb_stock_data
+
+
+	def check_cb_quotation_table_field(self, cb_quotation_data):
+		# import pdb; pdb.set_trace()
+		cb_summary_id_set = set(self.cb_summary.keys())
+		cb_quotation_id_set = set(cb_quotation_data.keys())
+		cb_diff_id_set = cb_summary_id_set - cb_quotation_id_set
+		if len(cb_diff_id_set) > 0:
+			# raise ValueError("The CB keys are NOT identical: %s" % cb_diff_id_set)
+			print("The CB IDs are NOT identical: %s" % cb_diff_id_set)
+			# for cb_id in list(cb_diff_id_set):
+			# 	self.cb_id_list.remove(cb_id)
+
+
+	def check_cb_stock_quotation_table_field(self, cb_quotation_data, cb_stock_quotation_data):
+		# import pdb; pdb.set_trace()
+		new_stock_id_set = set(map(lambda x: x[:4], cb_quotation_data.keys()))
+		old_stock_id_set = set(cb_stock_quotation_data.keys())
+		deleted_stock_id_set = old_stock_id_set - new_stock_id_set
+		added_stock_id_set = new_stock_id_set - old_stock_id_set
+		stock_changed = False
+		if len(deleted_stock_id_set) > 0:
+			print("The stocks are deleted: %s" % deleted_stock_id_set)
+			if not stock_changed: stock_changed = True
+		if len(added_stock_id_set) > 0:
+			print("The stocks are added: %s" % added_stock_id_set)
+			if not stock_changed: stock_changed = True
+		if stock_changed:
+			raise ValueError("The stocks are NOT identical")
 
 
 	def calculate_internal_rate_of_return(self, cb_quotation, use_percentage=True):
@@ -194,9 +251,6 @@ class ConvertibleBondAnalysis(object):
 			irr = math.pow(100.0 / cb_quotation_data["賣出一"], 1 / days_to_year) - 1
 			if use_percentage:
 				irr *= 100.0
-			# if filter_funcptr is not None:
-			# 	if not filter_funcptr(irr):
-			# 		continue
 			irr_dict[cb_id] = {"商品": cb_quotation_data["商品"], "到期日": cb_quotation_data["到期日"], "年化報酬率": irr}
 		return irr_dict
 
@@ -219,9 +273,9 @@ class ConvertibleBondAnalysis(object):
 		# data_dict_summary = self.__read_cb_summary()
 		# # print (data_dict_summary)
 		data_dict_quotation = self.__read_cb_quotation()
-		stock_id_list = sorted(list(set(map(lambda x: x[:4], data_dict_quotation.keys()))), reverse=False)
-		print(stock_id_list)
-		print(len(stock_id_list))
+		stock_data_dict_quotation = self.__read_cb_stock_quotation()
+		self.check_cb_quotation_table_field(data_dict_quotation)
+		self.check_cb_stock_quotation_table_field(data_dict_quotation, stock_data_dict_quotation)
 		# print (data_dict_quotation)
 		# print(self.calculate_internal_rate_of_return(data_dict_quotation))
 		irr_dict = self.get_positive_internal_rate_of_return(data_dict_quotation)
@@ -231,11 +285,11 @@ class ConvertibleBondAnalysis(object):
 
 
 	# def __get_workbook(self):
-	# 	if self.workbook is None:
+	# 	if self.cb_workbook is None:
 	# 		# import pdb; pdb.set_trace()
-	# 		self.workbook = xlrd.open_workbook(self.xcfg["cb_filepath"])
+	# 		self.cb_workbook = xlrd.open_workbook(self.xcfg["cb_filepath"])
 	# 		# print ("__get_workbook: %s" % self.xcfg["cb_filepath"])
-	# 	return self.workbook
+	# 	return self.cb_workbook
 
 
 if __name__ == "__main__":
