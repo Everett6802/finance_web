@@ -73,6 +73,11 @@ class ConvertibleBondAnalysis(object):
 		return True if (re.match("[\d]{5}", cb_id) is not None) else False
 
 
+	@classmethod
+	def __get_conversion_parity(cls, conversion_price, stock_price):
+		return float(100.0 / conversion_price * stock_price)
+
+
 	def __init__(self, cfg):
 		self.xcfg = {
 			"cb_folderpath": None,
@@ -269,6 +274,32 @@ class ConvertibleBondAnalysis(object):
 		return irr_dict
 
 
+	def calculate_premium(self, cb_quotation, cb_stock_quotation, use_percentage=True):
+		premium_dict = {}
+		# import pdb; pdb.set_trace()
+		for cb_id in self.cb_id_list:
+			cb_quotation_data = cb_quotation[cb_id]
+			cb_summary_data = self.cb_summary[cb_id]
+			cb_stock_id = cb_id[:4]
+			cb_stock_quotation_data = cb_quotation[cb_stock_id]
+			conversion_parity = self.__get_conversion_parity(cb_summary_data["轉換價格"], cb_stock_quotation_data["買進一"])
+			premium = (cb_quotation_data["賣出一"] - conversion_parity) / conversion_parity
+			# print(cb_quotation_data)
+			if use_percentage:
+				premium *= 100.0
+			premium_dict[cb_id] = {"商品": cb_quotation_data["商品"], "溢價率": irr}
+		return premium_dict
+
+
+	def get_negative_premium(self, cb_quotation, cb_stock_quotation, negative_threshold=-1, need_sort=True):
+		premium_dict = self.calculate_premium(cb_quotation, cb_stock_quotation, use_percentage=True)
+		if negative_threshold is not None:
+			premium_dict = dict(filter(lambda x: x[1]["溢價率"] > negative_threshold, premium_dict.items()))
+		if need_sort:
+			premium_dict = collections.OrderedDict(sorted(premium_dict.items(), key=lambda x: x[1]["溢價率"], reverse=False))
+		return premium_dict
+
+
 	def test(self):
 		# data_dict_summary = self.__read_cb_summary()
 		# # print (data_dict_summary)
@@ -281,6 +312,10 @@ class ConvertibleBondAnalysis(object):
 		irr_dict = self.get_positive_internal_rate_of_return(data_dict_quotation)
 		for irr_key, irr_data in irr_dict.items():
 			print ("%s[%s]: %.2f  %s" % (irr_data["商品"], irr_key, float(irr_data["年化報酬率"]), irr_data["到期日"]))
+		premium_dict = self.get_negative_premium(data_dict_quotation, stock_data_dict_quotation)
+		for premium_key, premium_data in premium_dict.items():
+			print ("%s[%s]: %.2f  %s" % (premium_data["商品"], premium_key, float(premium_data["溢價率"])))
+
 		# print(irr_dict)
 
 
