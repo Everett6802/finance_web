@@ -5,6 +5,7 @@ import os
 import sys
 import re
 import errno
+import traceback
 # '''
 # Question: How to Solve xlrd.biffh.XLRDError: Excel xlsx file; not supported ?
 # Answer : The latest version of xlrd(2.01) only supports .xls files. Installing the older version 1.2.0 to open .xlsx files.
@@ -16,8 +17,6 @@ from datetime import datetime
 from datetime import date
 from datetime import timedelta
 import math
-# from pymongo import MongoClient
-# from collections import OrderedDict
 import csv
 import collections
 
@@ -27,13 +26,16 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"
 	DEFAULT_CB_SUMMARY_FILENAME = "可轉債總表"
 	DEFAULT_CB_SUMMARY_FULL_FILENAME = "%s.csv" % DEFAULT_CB_SUMMARY_FILENAME
+# ['可轉債商品', '到期日', '可轉換日', '票面利率', '上次付息日', '轉換價格', '現股收盤價', '可轉債價格', '套利報酬', '年化殖利率', '']
 	DEFAULT_CB_SUMMARY_FIELD_TYPE = [str, str, str, float, str, float, float, float, float, float, str,]
 	DEFAULT_CB_QUOTATION_FILENAME = "可轉債報價"
 	DEFAULT_CB_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_QUOTATION_FILENAME
-	DEFAULT_CB_QUOTATION_FIELD_TYPE = [str, str, float, float, int, float, float, str,]
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
+	DEFAULT_CB_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, str,]
 	DEFAULT_CB_STOCK_QUOTATION_FILENAME = "可轉債個股報價"
 	DEFAULT_CB_STOCK_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_STOCK_QUOTATION_FILENAME
-	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE = [str, str, float, float, int, float, float,]
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一']
+	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float,]
 
 
 	@classmethod
@@ -94,6 +96,16 @@ class ConvertibleBondAnalysis(object):
 		self.xcfg["cb_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_quotation_filename"])
 		self.xcfg["cb_stock_quotation_filename"] = self.DEFAULT_CB_STOCK_QUOTATION_FULL_FILENAME if self.xcfg["cb_stock_quotation_filename"] is None else self.xcfg["cb_stock_quotation_filename"]
 		self.xcfg["cb_stock_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_stock_quotation_filename"])
+
+		file_not_exist_list = []
+		if not self. __check_file_exist(self.xcfg["cb_summary_filepath"]):
+			file_not_exist_list.append(self.xcfg["cb_summary_filepath"])
+		if not self. __check_file_exist(self.xcfg["cb_quotation_filepath"]):
+			file_not_exist_list.append(self.xcfg["cb_quotation_filepath"])
+		if not self. __check_file_exist(self.xcfg["cb_stock_quotation_filepath"]):
+			file_not_exist_list.append(self.xcfg["cb_stock_quotation_filepath"])
+		if len(file_not_exist_list) > 0:
+			raise RuntimeError("The file[%s] does NOT exist" % ", ".join(file_not_exist_list))
 
 		self.cb_workbook = None
 		self.cb_worksheet = None
@@ -161,63 +173,101 @@ class ConvertibleBondAnalysis(object):
 		return cb_data
 
 
-	def __read_worksheet(self, worksheet, worksheet_field_type, target_filter_funcptr=None):
+	def __read_worksheet(self, worksheet, check_data_filter_funcptr):
 		worksheet_data = {}
 		# import pdb; pdb.set_trace()
 		title_list = []
+# title
 		for column_index in range(1, worksheet.ncols):
 			title_value = worksheet.cell_value(0, column_index)
 			title_list.append(title_value)
-# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
 		# print(title_list)
 		# import pdb; pdb.set_trace()
+# data
 		for row_index in range(1, worksheet.nrows):
 			data_key = worksheet.cell_value(row_index, 0)
-			if target_filter_funcptr is not None:
-				if not target_filter_funcptr(data_key):
-					print("The target[%s] is removed" % data_key)
-					continue
 			data_list = []
 			for column_index in range(1, worksheet.ncols):
 				data_value = worksheet.cell_value(row_index, column_index)
-				try:
-					data_type = self.DEFAULT_CB_QUOTATION_FIELD_TYPE[column_index]
-					data_value = data_type(data_value)
-				except ValueError:
-					# print "End row index: %d" % row_index
-					data_value = None
-				# except Exception as e:
-				# 	import pdb; pdb.set_trace()
-				# 	print (e)
 				data_list.append(data_value)
+			check_data_filter_funcptr(data_list)
 			data_dict = dict(zip(title_list, data_list))
 			worksheet_data[data_key] = data_dict
 		return worksheet_data
 
 
+	def __check_cb_quotation_data(self, data_list):
+		data_index = 0
+		for data_value in data_list:
+			try:
+				data_type = self.DEFAULT_CB_QUOTATION_FIELD_TYPE[data_index]
+				data_value = data_type(data_value)
+				data_list[data_index] = data_value
+			except ValueError:
+				data_list[data_index] = None
+			except Exception as e:
+				# import pdb; pdb.set_trace()
+				traceback.print_exc()
+				raise e
+			data_index += 1
+
+
 	def __read_cb_quotation(self):
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
-		cb_data = self.__read_worksheet(self.cb_worksheet, self.DEFAULT_CB_QUOTATION_FIELD_TYPE, self.__is_cb)
+		cb_data_dict = self.__read_worksheet(self.cb_worksheet, self.__check_cb_quotation_data)
 		if self.cb_id_list is None:
-			self.cb_id_list = list(cb_data.keys())
-		return cb_data
+			cb_id_list = list(cb_data_dict.keys())
+			self.cb_id_list = list(filter(self.__is_cb, cb_id_list))
+		return cb_data_dict
+
+
+	def __check_cb_stock_quotation_data(self, data_list):
+		data_index = 0
+		for data_value in data_list:
+			try:
+				data_type = self.DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE[data_index]
+				data_value = data_type(data_value)
+				data_list[data_index] = data_value
+			except ValueError as e:
+					# print "End row index: %d" % row_index
+				if data_index == 4:  # 買進一
+					print(data_list)
+					if re.match("市價", data_value) is not None:  # 漲停
+						data_list[4] = data_list[1]  # 買進一 設為 成交價
+						data_list[5] = None
+						break
+					else:
+						traceback.print_exc()
+						raise e
+				elif data_index == 5:  # 賣出一
+					print(data_list)
+					if re.match("市價", data_value) is not None:  # 跌停
+						data_list[5] = data_list[1]  # 賣出一 設為 成交價
+						assert data_list[4] == None, "買進一 should be None"
+					else:
+						traceback.print_exc()
+						raise e
+				else:
+					data_list[data_index] = None
+			except Exception as e:
+				# import pdb; pdb.set_trace()
+				traceback.print_exc()
+				raise e
+			data_index += 1
 
 
 	def __read_cb_stock_quotation(self):
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一']
-		cb_stock_data = self.__read_worksheet(self.cb_stock_worksheet, self.DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE)
+		cb_stock_data_dict = self.__read_worksheet(self.cb_stock_worksheet, self.__check_cb_stock_quotation_data)
 		if self.cb_stock_id_list is None:
-			self.cb_stock_id_list = list(cb_stock_data.keys())
-		# stock_id_list = sorted(list(set(map(lambda x: x[:4], cb_stock_data.keys()))), reverse=False)
-		# print(stock_id_list)
-		# print(len(stock_id_list))
-		return cb_stock_data
+			self.cb_stock_id_list = list(cb_stock_data_dict.keys())
+		return cb_stock_data_dict
 
 
 	def check_cb_quotation_table_field(self, cb_quotation_data):
 		# import pdb; pdb.set_trace()
 		cb_summary_id_set = set(self.cb_summary.keys())
-		cb_quotation_id_set = set(cb_quotation_data.keys())
+		cb_quotation_id_set = set(self.cb_id_list)
 		cb_diff_id_set = cb_summary_id_set - cb_quotation_id_set
 		if len(cb_diff_id_set) > 0:
 			# raise ValueError("The CB keys are NOT identical: %s" % cb_diff_id_set)
@@ -228,8 +278,8 @@ class ConvertibleBondAnalysis(object):
 
 	def check_cb_stock_quotation_table_field(self, cb_quotation_data, cb_stock_quotation_data):
 		# import pdb; pdb.set_trace()
-		new_stock_id_set = set(map(lambda x: x[:4], cb_quotation_data.keys()))
-		old_stock_id_set = set(cb_stock_quotation_data.keys())
+		new_stock_id_set = set(map(lambda x: x[:4], self.cb_id_list))
+		old_stock_id_set = set(self.cb_stock_id_list)
 		deleted_stock_id_set = old_stock_id_set - new_stock_id_set
 		added_stock_id_set = new_stock_id_set - old_stock_id_set
 		stock_changed = False
@@ -260,9 +310,7 @@ class ConvertibleBondAnalysis(object):
 		return irr_dict
 
 
-	def get_positive_internal_rate_of_return(self, cb_quotation, positive_threshold=1, duration_within_days=365, need_sort=True):
-		# filter_funcptr = lambda x: True if (x >= positive_threshold) else False
-		# return self.calculate_internal_rate_of_return(cb_quotation, use_percentage=True, filter_funcptr=filter_funcptr)  
+	def get_positive_internal_rate_of_return(self, cb_quotation, positive_threshold=1, duration_within_days=365, need_sort=
 		irr_dict = self.calculate_internal_rate_of_return(cb_quotation, use_percentage=True)
 		if positive_threshold is not None:
 			irr_dict = dict(filter(lambda x: x[1]["年化報酬率"] > positive_threshold, irr_dict.items()))
@@ -281,23 +329,34 @@ class ConvertibleBondAnalysis(object):
 			cb_quotation_data = cb_quotation[cb_id]
 			cb_summary_data = self.cb_summary[cb_id]
 			cb_stock_id = cb_id[:4]
-			cb_stock_quotation_data = cb_quotation[cb_stock_id]
+			cb_stock_quotation_data = cb_stock_quotation[cb_stock_id]
+			if cb_stock_quotation_data["買進一"] is None:
+				# print("Ignore CB Stock[%s]: 沒有 買進一" % cb_stock_id)
+				continue
+			if cb_quotation_data["賣出一"] is None:
+				# print("Ignore CB[%s]: 沒有 賣出一" % cb_id)
+				continue
 			conversion_parity = self.__get_conversion_parity(cb_summary_data["轉換價格"], cb_stock_quotation_data["買進一"])
 			premium = (cb_quotation_data["賣出一"] - conversion_parity) / conversion_parity
 			# print(cb_quotation_data)
 			if use_percentage:
 				premium *= 100.0
-			premium_dict[cb_id] = {"商品": cb_quotation_data["商品"], "溢價率": irr}
+			premium_dict[cb_id] = {"商品": cb_quotation_data["商品"], "溢價率": premium}
 		return premium_dict
 
 
 	def get_negative_premium(self, cb_quotation, cb_stock_quotation, negative_threshold=-1, need_sort=True):
 		premium_dict = self.calculate_premium(cb_quotation, cb_stock_quotation, use_percentage=True)
 		if negative_threshold is not None:
-			premium_dict = dict(filter(lambda x: x[1]["溢價率"] > negative_threshold, premium_dict.items()))
+			premium_dict = dict(filter(lambda x: x[1]["溢價率"] <= negative_threshold, premium_dict.items()))
 		if need_sort:
 			premium_dict = collections.OrderedDict(sorted(premium_dict.items(), key=lambda x: x[1]["溢價率"], reverse=False))
 		return premium_dict
+
+
+	def check_data_source(self, cb_quotation_data, cb_stock_quotation_data):
+		self.check_cb_quotation_table_field(cb_quotation_data)
+		self.check_cb_stock_quotation_table_field(cb_quotation_data, cb_stock_quotation_data)
 
 
 	def test(self):
@@ -305,17 +364,19 @@ class ConvertibleBondAnalysis(object):
 		# # print (data_dict_summary)
 		data_dict_quotation = self.__read_cb_quotation()
 		stock_data_dict_quotation = self.__read_cb_stock_quotation()
-		self.check_cb_quotation_table_field(data_dict_quotation)
-		self.check_cb_stock_quotation_table_field(data_dict_quotation, stock_data_dict_quotation)
+		self.check_data_source(data_dict_quotation, stock_data_dict_quotation)
 		# print (data_dict_quotation)
 		# print(self.calculate_internal_rate_of_return(data_dict_quotation))
+		print("=================================================================")
 		irr_dict = self.get_positive_internal_rate_of_return(data_dict_quotation)
 		for irr_key, irr_data in irr_dict.items():
 			print ("%s[%s]: %.2f  %s" % (irr_data["商品"], irr_key, float(irr_data["年化報酬率"]), irr_data["到期日"]))
+		print("=================================================================\n")
+		print("=================================================================")
 		premium_dict = self.get_negative_premium(data_dict_quotation, stock_data_dict_quotation)
 		for premium_key, premium_data in premium_dict.items():
-			print ("%s[%s]: %.2f  %s" % (premium_data["商品"], premium_key, float(premium_data["溢價率"])))
-
+			print ("%s[%s]: %.2f" % (premium_data["商品"], premium_key, float(premium_data["溢價率"])))
+		print("=================================================================\n")
 		# print(irr_dict)
 
 
