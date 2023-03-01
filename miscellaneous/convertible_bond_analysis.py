@@ -34,8 +34,8 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_CB_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, str,]
 	DEFAULT_CB_STOCK_QUOTATION_FILENAME = "可轉債個股報價"
 	DEFAULT_CB_STOCK_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_STOCK_QUOTATION_FILENAME
-# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一']
-	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float,]
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '融資餘額', '融券餘額']
+	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, int, int,]
 
 
 	@classmethod
@@ -232,15 +232,20 @@ class ConvertibleBondAnalysis(object):
 					# print "End row index: %d" % row_index
 				if data_index == 4:  # 買進一
 					print(data_list)
+					# import pdb; pdb.set_trace()
 					if re.match("市價", data_value) is not None:  # 漲停
 						data_list[4] = data_list[1]  # 買進一 設為 成交價
 						data_list[5] = None
 						break
 					else:
-						traceback.print_exc()
-						raise e
+						if re.match("市價", data_list[5]) is None:  # 不是跌停
+							traceback.print_exc()
+							raise e
+						else: 
+							data_list[4] = None
 				elif data_index == 5:  # 賣出一
 					print(data_list)
+					# import pdb; pdb.set_trace()
 					if re.match("市價", data_value) is not None:  # 跌停
 						data_list[5] = data_list[1]  # 賣出一 設為 成交價
 						assert data_list[4] == None, "買進一 should be None"
@@ -257,7 +262,7 @@ class ConvertibleBondAnalysis(object):
 
 
 	def __read_cb_stock_quotation(self):
-# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一']
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '融資餘額', '融券餘額']
 		cb_stock_data_dict = self.__read_worksheet(self.cb_stock_worksheet, self.__check_cb_stock_quotation_data)
 		if self.cb_stock_id_list is None:
 			self.cb_stock_id_list = list(cb_stock_data_dict.keys())
@@ -310,7 +315,7 @@ class ConvertibleBondAnalysis(object):
 		return irr_dict
 
 
-	def get_positive_internal_rate_of_return(self, cb_quotation, positive_threshold=1, duration_within_days=365, need_sort=
+	def get_positive_internal_rate_of_return(self, cb_quotation, positive_threshold=1, duration_within_days=365, need_sort=True):
 		irr_dict = self.calculate_internal_rate_of_return(cb_quotation, use_percentage=True)
 		if positive_threshold is not None:
 			irr_dict = dict(filter(lambda x: x[1]["年化報酬率"] > positive_threshold, irr_dict.items()))
