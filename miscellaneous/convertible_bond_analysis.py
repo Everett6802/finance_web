@@ -359,6 +359,35 @@ class ConvertibleBondAnalysis(object):
 		return premium_dict
 
 
+	def calculate_stock_premium(self, cb_quotation, cb_stock_quotation, duration_within_days=180, use_percentage=True):
+		stock_premium_dict = {}
+		# import pdb; pdb.set_trace()
+		for cb_id in self.cb_id_list:
+			cb_quotation_data = cb_quotation[cb_id]
+			cb_summary_data = self.cb_summary[cb_id]
+			cb_stock_id = cb_id[:4]
+			cb_stock_quotation_data = cb_stock_quotation[cb_stock_id]
+			if cb_stock_quotation_data["成交"] is None:
+				# print("Ignore CB Stock[%s]: 沒有 成交" % cb_stock_id)
+				continue
+			days = self.__get_days(cb_quotation_data["到期日"])
+			stock_premium = (cb_quotation_data["成交"] - cb_summary_data["轉換價格"]) / cb_summary_data["轉換價格"]
+			# print(cb_quotation_data)
+			if use_percentage:
+				stock_premium *= 100.0
+			stock_premium_dict[cb_id] = {"商品": cb_quotation_data["商品"], "到期日": cb_quotation_data["到期日"], "到期天數": days, "股票溢價率": stock_premium}
+		return stock_premium_dict
+
+
+	def get_negative_stock_premium(self, cb_quotation, cb_stock_quotation, negative_threshold=-1, need_sort=True):
+		premium_dict = self.calculate_premium(cb_quotation, cb_stock_quotation, use_percentage=True)
+		if negative_threshold is not None:
+			premium_dict = dict(filter(lambda x: x[1]["溢價率"] <= negative_threshold, premium_dict.items()))
+		if need_sort:
+			premium_dict = collections.OrderedDict(sorted(premium_dict.items(), key=lambda x: x[1]["溢價率"], reverse=False))
+		return premium_dict
+
+
 	def check_data_source(self, cb_quotation_data, cb_stock_quotation_data):
 		self.check_cb_quotation_table_field(cb_quotation_data)
 		self.check_cb_stock_quotation_table_field(cb_quotation_data, cb_stock_quotation_data)
