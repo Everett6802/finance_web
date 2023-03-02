@@ -231,7 +231,7 @@ class ConvertibleBondAnalysis(object):
 			except ValueError as e:
 					# print "End row index: %d" % row_index
 				if data_index == 4:  # 買進一
-					print(data_list)
+					# print(data_list)
 					# import pdb; pdb.set_trace()
 					if re.match("市價", data_value) is not None:  # 漲停
 						data_list[4] = data_list[1]  # 買進一 設為 成交價
@@ -244,7 +244,7 @@ class ConvertibleBondAnalysis(object):
 						else: 
 							data_list[4] = None
 				elif data_index == 5:  # 賣出一
-					print(data_list)
+					# print(data_list)
 					# import pdb; pdb.set_trace()
 					if re.match("市價", data_value) is not None:  # 跌停
 						data_list[5] = data_list[1]  # 賣出一 設為 成交價
@@ -311,7 +311,7 @@ class ConvertibleBondAnalysis(object):
 			irr = math.pow(100.0 / cb_quotation_data["賣出一"], 1 / days_to_year) - 1
 			if use_percentage:
 				irr *= 100.0
-			irr_dict[cb_id] = {"商品": cb_quotation_data["商品"], "到期日": cb_quotation_data["到期日"], "年化報酬率": irr}
+			irr_dict[cb_id] = {"商品": cb_quotation_data["商品"], "到期日": cb_quotation_data["到期日"], "到期天數": days, "年化報酬率": irr}
 		return irr_dict
 
 
@@ -320,8 +320,9 @@ class ConvertibleBondAnalysis(object):
 		if positive_threshold is not None:
 			irr_dict = dict(filter(lambda x: x[1]["年化報酬率"] > positive_threshold, irr_dict.items()))
 		if duration_within_days is not None:
-			duration_date = datetime.now() + timedelta(days=duration_within_days)
-			irr_dict = dict(filter(lambda x: datetime.strptime(x[1]["到期日"],"%Y/%m/%d") <= duration_date, irr_dict.items()))
+			# duration_date = datetime.now() + timedelta(days=duration_within_days)
+			# irr_dict = dict(filter(lambda x: datetime.strptime(x[1]["到期日"],"%Y/%m/%d") <= duration_date, irr_dict.items()))
+			irr_dict = dict(filter(lambda x: x[1]["到期天數"] <= duration_within_days, irr_dict.items()))
 		if need_sort:
 			irr_dict = collections.OrderedDict(sorted(irr_dict.items(), key=lambda x: x[1]["年化報酬率"], reverse=True))
 		return irr_dict
@@ -346,20 +347,19 @@ class ConvertibleBondAnalysis(object):
 			# print(cb_quotation_data)
 			if use_percentage:
 				premium *= 100.0
-			premium_dict[cb_id] = {"商品": cb_quotation_data["商品"], "溢價率": premium}
+			premium_dict[cb_id] = {"商品": cb_quotation_data["商品"], "溢價率": premium, "融資餘額": cb_stock_quotation_data["融資餘額"], "融券餘額": cb_stock_quotation_data["融券餘額"]}
 		return premium_dict
 
 
 	def get_negative_premium(self, cb_quotation, cb_stock_quotation, negative_threshold=-1, need_sort=True):
 		premium_dict = self.calculate_premium(cb_quotation, cb_stock_quotation, use_percentage=True)
-		if negative_threshold is not None:
-			premium_dict = dict(filter(lambda x: x[1]["溢價率"] <= negative_threshold, premium_dict.items()))
+		premium_dict = dict(filter(lambda x: x[1]["溢價率"] <= negative_threshold, premium_dict.items()))
 		if need_sort:
 			premium_dict = collections.OrderedDict(sorted(premium_dict.items(), key=lambda x: x[1]["溢價率"], reverse=False))
 		return premium_dict
 
 
-	def calculate_stock_premium(self, cb_quotation, cb_stock_quotation, duration_within_days=180, use_percentage=True):
+	def calculate_stock_premium(self, cb_quotation, cb_stock_quotation, use_percentage=True):
 		stock_premium_dict = {}
 		# import pdb; pdb.set_trace()
 		for cb_id in self.cb_id_list:
@@ -371,7 +371,7 @@ class ConvertibleBondAnalysis(object):
 				# print("Ignore CB Stock[%s]: 沒有 成交" % cb_stock_id)
 				continue
 			days = self.__get_days(cb_quotation_data["到期日"])
-			stock_premium = (cb_quotation_data["成交"] - cb_summary_data["轉換價格"]) / cb_summary_data["轉換價格"]
+			stock_premium = (cb_stock_quotation_data["成交"] - cb_summary_data["轉換價格"]) / cb_summary_data["轉換價格"]
 			# print(cb_quotation_data)
 			if use_percentage:
 				stock_premium *= 100.0
@@ -379,13 +379,16 @@ class ConvertibleBondAnalysis(object):
 		return stock_premium_dict
 
 
-	def get_negative_stock_premium(self, cb_quotation, cb_stock_quotation, negative_threshold=-1, need_sort=True):
-		premium_dict = self.calculate_premium(cb_quotation, cb_stock_quotation, use_percentage=True)
-		if negative_threshold is not None:
-			premium_dict = dict(filter(lambda x: x[1]["溢價率"] <= negative_threshold, premium_dict.items()))
+	def get_absolute_stock_premium(self, cb_quotation, cb_stock_quotation, absolute_threshold=5, duration_within_days=180, need_sort=True):
+		stock_premium_dict = self.calculate_stock_premium(cb_quotation, cb_stock_quotation, use_percentage=True)
+		stock_premium_dict = dict(filter(lambda x: abs(x[1]["股票溢價率"]) <= absolute_threshold, stock_premium_dict.items()))
+		if duration_within_days is not None:
+			# duration_date = datetime.now() + timedelta(days=duration_within_days)
+			# irr_dict = dict(filter(lambda x: datetime.strptime(x[1]["到期日"],"%Y/%m/%d") <= duration_date, irr_dict.items()))
+			stock_premium_dict = dict(filter(lambda x: x[1]["到期天數"] <= duration_within_days, stock_premium_dict.items()))
 		if need_sort:
-			premium_dict = collections.OrderedDict(sorted(premium_dict.items(), key=lambda x: x[1]["溢價率"], reverse=False))
-		return premium_dict
+			stock_premium_dict = collections.OrderedDict(sorted(stock_premium_dict.items(), key=lambda x: x[1]["股票溢價率"], reverse=False))
+		return stock_premium_dict
 
 
 	def check_data_source(self, cb_quotation_data, cb_stock_quotation_data):
@@ -401,16 +404,22 @@ class ConvertibleBondAnalysis(object):
 		self.check_data_source(data_dict_quotation, stock_data_dict_quotation)
 		# print (data_dict_quotation)
 		# print(self.calculate_internal_rate_of_return(data_dict_quotation))
-		print("=================================================================")
+		print("=== 年化報酬率 ==================================================")
 		irr_dict = self.get_positive_internal_rate_of_return(data_dict_quotation)
 		for irr_key, irr_data in irr_dict.items():
 			print ("%s[%s]: %.2f  %s" % (irr_data["商品"], irr_key, float(irr_data["年化報酬率"]), irr_data["到期日"]))
 		print("=================================================================\n")
-		print("=================================================================")
+		print("=== 溢價率 ======================================================")
 		premium_dict = self.get_negative_premium(data_dict_quotation, stock_data_dict_quotation)
 		for premium_key, premium_data in premium_dict.items():
-			print ("%s[%s]: %.2f" % (premium_data["商品"], premium_key, float(premium_data["溢價率"])))
+			print ("%s[%s]: %.2f  %d  %d" % (premium_data["商品"], premium_key, float(premium_data["溢價率"]), premium_data["融資餘額"], premium_data["融券餘額"]))
 		print("=================================================================\n")
+		print("=== 股票溢價率 ==================================================")
+		stock_premium_dict = self.get_absolute_stock_premium(data_dict_quotation, stock_data_dict_quotation)
+		for stock_premium_key, stock_premium_data in stock_premium_dict.items():
+			print ("%s[%s]: %.2f" % (stock_premium_data["商品"], stock_premium_key, float(stock_premium_data["股票溢價率"])))
+		print("=================================================================\n")
+
 		# print(irr_dict)
 
 
