@@ -27,30 +27,6 @@ class StockChipAnalysis(object):
 	DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
 	DEFAULT_SEARCH_RESULT_FILENAME = "search_result_stock_list.txt"
 	SHEET_METADATA_DICT = {
-		# u"即時指數": { # Dummy
-		# 	"is_dummy": True,
-		# },
-		# u"主要指數": { # Dummy
-		# 	"is_dummy": True,
-		# },
-		# u"外匯市場": { # Dummy
-		# 	"is_dummy": True,
-		# },
-		# u"商品市場": { # Dummy
-		# 	"is_dummy": True,
-		# },
-		# u"商品行情": { # Dummy
-		# 	"is_dummy": True,
-		# },
-		# u"資金流向": { # Dummy
-		# 	"is_dummy": True,
-		# },
-		# u"大盤籌碼多空勢力": { # Dummy
-		# 	"is_dummy": True,
-		# },
-		# u"焦點股": { 
-		# 	"key_mode": 0, # 1476.TW
-		# },
 		u"法人共同買超累計": {
 			"key_mode": 0, # 1476.TW
 			"direction": "+",
@@ -71,57 +47,17 @@ class StockChipAnalysis(object):
 			"key_mode": 3, # 2504 國產
 			"direction": "+",
 		},
-		u"外資買最多股": {
-			"key_mode": 1, # 陽明(2609)
-			"direction": "+",
-		},
-		u"外資賣最多股": {
-			"key_mode": 1, # 陽明(2609)
-			"direction": "-",
-		},
-		u"投信買最多股": {
-			"key_mode": 1, # 陽明(2609)
-			"direction": "+",
-		},
-		u"投信賣最多股": {
-			"key_mode": 1, # 陽明(2609)
-			"direction": "-",
-		},
-		u"主力買最多股": {
-			"key_mode": 1, # 陽明(2609)
-			"direction": "+",
-		},
-		u"主力賣最多股": {
-			"key_mode": 1, # 陽明(2609)
-			"direction": "-",
-		},
-		u"買超異常": {
-			"key_mode": 1, # 陽明(2609)
-			"direction": "+",
-		},
-		u"賣超異常": {
-			"key_mode": 1, # 陽明(2609)
-			"direction": "-",
-		},
-		u"券商買最多股": {
-			"key_mode": 1, # 陽明(2609)
-			"direction": "+",
-		},
-		u"券商賣最多股": {
-			"key_mode": 1, # 陽明(2609)
-			"direction": "-",
-		},
 		u"上市融資增加": {
 			"key_mode": 2, # 4736  泰博
 			"direction": "+",
 		},
 		u"上櫃融資增加": {
 			"key_mode": 2, # 4736  泰博
-			"direction": "-",
+			"direction": "+",
 		},
 	}
 	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
-	DEFAULT_SHEET_NAME_LIST = [u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計", u"外資買最多股", u"外資賣最多股", u"投信買最多股", u"投信賣最多股", u"主力買最多股", u"主力賣最多股", u"買超異常", u"賣超異常", u"券商買最多股", u"券商賣最多股", u"上市融資增加", u"上櫃融資增加",]
+	DEFAULT_SHEET_NAME_LIST = [u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計", u"上市融資增加", u"上櫃融資增加",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
