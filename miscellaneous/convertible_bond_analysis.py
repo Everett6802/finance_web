@@ -28,6 +28,10 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_CB_SUMMARY_FULL_FILENAME = "%s.csv" % DEFAULT_CB_SUMMARY_FILENAME
 # ['可轉債商品', '到期日', '可轉換日', '票面利率', '上次付息日', '轉換價格', '現股收盤價', '可轉債價格', '套利報酬', '年化殖利率', '']
 	DEFAULT_CB_SUMMARY_FIELD_TYPE = [str, str, str, float, str, float, float, float, float, float, str,]
+	DEFAULT_CB_PUBLISH_FILENAME = "可轉債發行"
+	DEFAULT_CB_PUBLISH_FULL_FILENAME = "%s.csv" % DEFAULT_CB_PUBLISH_FILENAME
+# ['債券簡稱', '發行人', '發行日期', '到期日期', '年期', '發行總面額', '發行資料']
+	DEFAULT_CB_PUBLISH_FIELD_TYPE = [str, str, str, str, int, int, str,]
 	DEFAULT_CB_QUOTATION_FILENAME = "可轉債報價"
 	DEFAULT_CB_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_QUOTATION_FILENAME
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
@@ -92,6 +96,7 @@ class ConvertibleBondAnalysis(object):
 		self.xcfg = {
 			"cb_folderpath": None,
 			"cb_summary_filename": None,
+			"cb_publish_filename": None,
 			"cb_quotation_filename": None,
 			"cb_stock_quotation_filename": None,
 		}
@@ -100,6 +105,8 @@ class ConvertibleBondAnalysis(object):
 		self.xcfg["cb_folderpath"] = self.DEFAULT_CB_FOLDERPATH if self.xcfg["cb_folderpath"] is None else self.xcfg["cb_folderpath"]
 		self.xcfg["cb_summary_filename"] = self.DEFAULT_CB_SUMMARY_FULL_FILENAME if self.xcfg["cb_summary_filename"] is None else self.xcfg["cb_summary_filename"]
 		self.xcfg["cb_summary_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_summary_filename"])
+		self.xcfg["cb_publish_filename"] = self.DEFAULT_CB_PUBLISH_FULL_FILENAME if self.xcfg["cb_publish_filename"] is None else self.xcfg["cb_publish_filename"]
+		self.xcfg["cb_publish_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_publish_filename"])
 		self.xcfg["cb_quotation_filename"] = self.DEFAULT_CB_QUOTATION_FULL_FILENAME if self.xcfg["cb_quotation_filename"] is None else self.xcfg["cb_quotation_filename"]
 		self.xcfg["cb_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_quotation_filename"])
 		self.xcfg["cb_stock_quotation_filename"] = self.DEFAULT_CB_STOCK_QUOTATION_FULL_FILENAME if self.xcfg["cb_stock_quotation_filename"] is None else self.xcfg["cb_stock_quotation_filename"]
@@ -110,6 +117,10 @@ class ConvertibleBondAnalysis(object):
 			file_not_exist_list.append(self.xcfg["cb_summary_filepath"])
 		# else:
 		# 	print ("Read CB Sumary from: %s" % self.xcfg["cb_summary_filepath"])
+		if not self. __check_file_exist(self.xcfg["cb_publish_filepath"]):
+			file_not_exist_list.append(self.xcfg["cb_publish_filepath"])
+		# else:
+		# 	print ("Read CB Publish from: %s" % self.xcfg["cb_publish_filepath"])
 		if not self. __check_file_exist(self.xcfg["cb_quotation_filepath"]):
 			file_not_exist_list.append(self.xcfg["cb_quotation_filepath"])
 		# else:
@@ -122,13 +133,12 @@ class ConvertibleBondAnalysis(object):
 		if len(file_not_exist_list) > 0:
 			raise RuntimeError("The file[%s] does NOT exist" % ", ".join(file_not_exist_list))
 
+		self.cb_summary = self.__read_cb_summary()
+		self.cb_publish = self.__read_cb_publish()
 		self.cb_workbook = None
 		self.cb_worksheet = None
 		self.cb_stock_workbook = None
 		self.cb_stock_worksheet = None
-		self.cb_summary = self.__read_cb_summary()
-		self.cb_summary = self.__read_cb_summary()
-		self.cb_summary = self.__read_cb_summary()
 		self.cb_id_list = None  # list(self.cb_summary.keys())
 		self.cb_stock_id_list = None  
 
@@ -187,6 +197,50 @@ class ConvertibleBondAnalysis(object):
 					data_dict = dict(zip(title_list, data_list))
 					cb_data[mobj.group(2)] = data_dict
 				# print ("%s" % (",".join(data_list)))
+		return cb_data
+
+
+	def __read_cb_publish(self):
+		pattern = "([\d]+)年"
+		cb_data = {}
+		with open(self.xcfg["cb_publish_filepath"], newline='') as f:
+			rows = csv.reader(f)
+			regex = re.compile(pattern)
+			title_list = None
+			title_tenor_index = None
+			title_par_value_index = None
+			for index, row in enumerate(rows):
+				if index in [0, 1, 3,]: pass
+				elif index == 2:
+					title_list = row
+					title_list = title_list[1:]  # ignore 債券代號
+					title_tenor_index = title_list.index("年期")
+					title_par_value_index = title_list.index("發行總面額")
+# ['債券簡稱', '發行人', '發行日期', '到期日期', '年期', '發行總面額', '發行資料']
+					# print(title_list)
+				else:
+					assert title_list is not None, "title_list should NOT be None"
+					data_list = []
+					data_key = row[0]
+					for data_index, data_value in enumerate(row[1:]):  # ignore 債券代號
+						try:
+							if data_index == title_tenor_index:
+								mobj = re.match(regex, data_value)
+								# import pdb; pdb.set_trace()
+								if mobj is None: 
+									raise ValueError("Incorrect format in 年期 field: %s" % data_value)
+								data_value = mobj.group(1)
+							elif data_index == title_par_value_index:
+								data_value = data_value.replace(",","")
+							data_type = self.DEFAULT_CB_PUBLISH_FIELD_TYPE[data_index]
+							data_value = data_type(data_value)
+							data_list.append(data_value)
+						except ValueError as e:
+							print ("Exception occurs in %s, due to: %s" % (data_key, str(e)))
+							raise e						
+					data_dict = dict(zip(title_list, data_list))
+					cb_data[data_key] = data_dict
+		# import pdb; pdb.set_trace()
 		return cb_data
 
 
@@ -295,13 +349,18 @@ class ConvertibleBondAnalysis(object):
 	def check_cb_quotation_table_field(self, cb_quotation_data):
 		# import pdb; pdb.set_trace()
 		cb_summary_id_set = set(self.cb_summary.keys())
+		cb_publish_id_set = set(self.cb_publish.keys())
 		cb_quotation_id_set = set(self.cb_id_list)
-		cb_diff_id_set = cb_summary_id_set - cb_quotation_id_set
-		if len(cb_diff_id_set) > 0:
+		cb_diff_id_set1 = cb_summary_id_set - cb_quotation_id_set
+		if len(cb_diff_id_set1) > 0:
 			# raise ValueError("The CB keys are NOT identical: %s" % cb_diff_id_set)
-			print("The CB IDs are NOT identical: %s" % cb_diff_id_set)
+			print("The CB IDs are NOT identical[1]: %s" % cb_diff_id_set1)
 			# for cb_id in list(cb_diff_id_set):
 			# 	self.cb_id_list.remove(cb_id)
+		cb_diff_id_set2 = cb_publish_id_set - cb_quotation_id_set
+		if len(cb_diff_id_set2) > 0:
+			# raise ValueError("The CB keys are NOT identical: %s" % cb_diff_id_set)
+			print("The CB IDs are NOT identical[2]: %s" % cb_diff_id_set2)
 
 
 	def check_cb_stock_quotation_table_field(self, cb_quotation_data, cb_stock_quotation_data):
@@ -454,7 +513,7 @@ class ConvertibleBondAnalysis(object):
 		for irr_key, irr_data in irr_dict.items():
 			print ("%s[%s]: %.2f  %.2f  %s" % (irr_data["商品"], irr_key, float(irr_data["年化報酬率"]), float(irr_data["賣出一"]), irr_data["到期日"]))
 		print("=================================================================\n")
-		print("=== 溢價率 ======================================================")
+		print("=== 溢價率(套利) ======================================================")
 		premium_dict = self.get_negative_premium(data_dict_quotation, stock_data_dict_quotation)
 		for premium_key, premium_data in premium_dict.items():
 			print ("%s[%s]: %.2f  %d  %d" % (premium_data["商品"], premium_key, float(premium_data["溢價率"]), premium_data["融資餘額"], premium_data["融券餘額"]))
@@ -469,13 +528,6 @@ class ConvertibleBondAnalysis(object):
 		for cb_key, cb_data in cb_dict.items():
 			print ("%s[%s]: %.2f  %.2f  %.2f  %s" % (cb_data["商品"], cb_key, float(cb_data["溢價率"]), float(cb_data["成交"]), float(cb_data["賣出一"]), cb_data["到期日"]))
 		print("=================================================================\n")
-
-	# def __get_workbook(self):
-	# 	if self.cb_workbook is None:
-	# 		# import pdb; pdb.set_trace()
-	# 		self.cb_workbook = xlrd.open_workbook(self.xcfg["cb_filepath"])
-	# 		# print ("__get_workbook: %s" % self.xcfg["cb_filepath"])
-	# 	return self.cb_workbook
 
 
 if __name__ == "__main__":
@@ -500,11 +552,26 @@ if __name__ == "__main__":
 	>>> parser.add_argument('--bar', action='store_false')
 	>>> parser.add_argument('--baz', action='store_false')
 	'''
-	parser.add_argument('--list_analysis_method', required=False, action='store_true', help='List each analysis method and exit')
-	args = parser.parse_args()
+	# parser.add_argument('--list_analysis_method', required=False, action='store_true', help='List each analysis method and exit')
+	# args = parser.parse_args()
 
 	cfg = {
 	}
 	with ConvertibleBondAnalysis(cfg) as obj:
 		obj.test()
+
+	# from selenium import webdriver
+	# import time
+
+	# driver = webdriver.Chrome("C:\chromedriver.exe")
+	# # driver.get("https://www.tpex.org.tw/web/bond/publish/convertible_bond_search/memo.php?l=zh-tw")
+	# driver.get("https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=45552&bond_kind=5&bond_subn=%24M00000001&bond_yrn=2&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=4555&monyr_reg=202302&pg=&step=0&tg=k_code=4555&monyr_reg=202302&pg=&step=0&tg=")
+	# time.sleep(5)
+	# # #找到輸入框
+	# # element = driver.find_element_by_name("q");
+	# # #輸入內容
+	# # element.send_keys("hello world");
+	# # #提交表單
+	# # element.submit();
+	# driver.close()
 
