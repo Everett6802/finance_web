@@ -351,16 +351,23 @@ class ConvertibleBondAnalysis(object):
 		cb_summary_id_set = set(self.cb_summary.keys())
 		cb_publish_id_set = set(self.cb_publish.keys())
 		cb_quotation_id_set = set(self.cb_id_list)
-		cb_diff_id_set1 = cb_summary_id_set - cb_quotation_id_set
-		if len(cb_diff_id_set1) > 0:
-			# raise ValueError("The CB keys are NOT identical: %s" % cb_diff_id_set)
-			print("The CB IDs are NOT identical[1]: %s" % cb_diff_id_set1)
-			# for cb_id in list(cb_diff_id_set):
-			# 	self.cb_id_list.remove(cb_id)
-		cb_diff_id_set2 = cb_publish_id_set - cb_quotation_id_set
-		if len(cb_diff_id_set2) > 0:
-			# raise ValueError("The CB keys are NOT identical: %s" % cb_diff_id_set)
-			print("The CB IDs are NOT identical[2]: %s" % cb_diff_id_set2)
+		cb_summary_diff_quotation_id_set = cb_summary_id_set - cb_quotation_id_set
+		if len(cb_summary_diff_quotation_id_set) > 0:
+			print("The CB IDs are NOT identical[1]: %s" % cb_summary_diff_quotation_id_set)
+		cb_publish_diff_quotation_id_set = cb_publish_id_set - cb_quotation_id_set
+		if len(cb_publish_diff_quotation_id_set) > 0:
+			print("The CB IDs are NOT identical[2]: %s" % cb_publish_diff_quotation_id_set)
+		stock_changed = False
+		cb_quotation_diff_summary_id_set = cb_quotation_id_set - cb_summary_id_set
+		if len(cb_quotation_diff_summary_id_set) > 0:
+			print("The CB IDs are NOT identical[3]: %s" % cb_quotation_diff_summary_id_set)
+			if not stock_changed: stock_changed = True
+		cb_quotation_diff_publish_id_set = cb_quotation_id_set - cb_publish_id_set
+		if len(cb_quotation_diff_publish_id_set) > 0:
+			print("The CB IDs are NOT identical[4]: %s" % cb_quotation_diff_publish_id_set)
+			if not stock_changed: stock_changed = True
+		if stock_changed:
+			raise ValueError("The CBs are NOT identical")
 
 
 	def check_cb_stock_quotation_table_field(self, cb_quotation_data, cb_stock_quotation_data):
