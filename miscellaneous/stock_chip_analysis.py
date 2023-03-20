@@ -82,7 +82,9 @@ class StockChipAnalysis(object):
 	DEFAULT_CONSECUTIVE_OVER_BUY_DAYS = 3
 	CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST = [u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
 	CHECK_CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST = [u"主力買超累計天數", u"法人買超累計天數", u"外資買超累計天數", u"投信買超累計天數",]
-	CHECK_CONSECUTIVE_OVER_BUY_DAYS_FIELD_NAME_KEY = u"買超累計天數"
+	DEFAULT_MINIMUM_VOLUME = 1000
+	CHECK_MINIMUM_VOLUME_SHEETNAME_LIST = [u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
+	CHECK_MINIMUM_VOLUME_FIELDNAME_LIST = [u"主力買超張數", u"法人累計買超張數", u"外資累計買超張數", u"投信累計買超張數",]
 
 	WEIGHTED_STOCK_LIST = ["2330", "2317", "2454", "2308", "0050", ]
 	DEFENSE_STOCK_LIST = ["2412", "3045", "4904", "2801", "2809", "2812", "2823", "2834", "2880", "2881", "2882", "2883", "2884", "2885", "2886", "2887", "2888", "2889", "2890", "2891", "2892", "5776", "5880", ]
@@ -178,6 +180,7 @@ class StockChipAnalysis(object):
 			"sheet_name_list": None,
 			"sheet_set_category": -1,
 			"consecutive_over_buy_days": self.DEFAULT_CONSECUTIVE_OVER_BUY_DAYS,
+			"minimum_volume": self.DEFAULT_MINIMUM_VOLUME,
 			"need_all_sheet": False,
 			"search_history": False,
 			"search_result_filename": self.DEFAULT_SEARCH_RESULT_FILENAME,
@@ -297,7 +300,7 @@ class StockChipAnalysis(object):
 # The data
 		csv_data_dict = self.__read_from_worksheet(worksheet, sheet_metadata)
 # Filter the data if necessary
-		if self.xcfg["consecutive_over_buy_days"] > 0:
+		if self.xcfg["consecutive_over_buy_days"] is not None:
 			try:
 				sheet_index = self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST.index(sheet_name)
 				# import pdb; pdb.set_trace()
@@ -305,7 +308,38 @@ class StockChipAnalysis(object):
 				csv_data_dict = dict(filter(lambda x: int(x[1][field_name]) >= self.xcfg["consecutive_over_buy_days"], csv_data_dict.items()))
 			except ValueError as e: 
 				pass
+		if self.xcfg["minimum_volume"] is not None:
+			try:
+				sheet_index = self.CHECK_MINIMUM_VOLUME_SHEETNAME_LIST.index(sheet_name)
+				# import pdb; pdb.set_trace()
+				field_name = self.CHECK_MINIMUM_VOLUME_FIELDNAME_LIST[sheet_index]
+				csv_data_dict = dict(filter(lambda x: int(x[1][field_name]) >= self.xcfg["minimum_volume"], csv_data_dict.items()))
+			except ValueError as e: 
+				pass
 		return csv_data_dict
+
+
+	def search_targets(self, stock_chip_data_dict):
+		stock_set1 = set(stock_chip_data_dict[u"主力買超天數累計"].keys())
+		stock_set2 = set(stock_chip_data_dict[u"法人買超天數累計"].keys())
+		stock_set3 = set(stock_chip_data_dict[u"外資買超天數累計"].keys())
+		stock_set4 = set(stock_chip_data_dict[u"投信買超天數累計"].keys())
+# https://blog.csdn.net/qq_37195276/article/details/79467917
+# & != and ; | != or
+# python中&、|代表的是位運算符，and、or代表的是邏輯運算符
+		stock_list = list(stock_set1 & stock_set2 & stock_set3 & stock_set4)
+		stock_name_list = [stock_chip_data_dict[u"主力買超天數累計"][stock]["商品"] for stock in stock_list]
+		stock_list_str = " ".join(map(lambda x: "%s[%s]" % (x[0], x[1]), zip(stock_list, stock_name_list)))
+		print (stock_list_str)
+		sheet_name_list = ["短線多空", "主法量率", "六大買超",]
+		for index, stock in enumerate(stock_list):
+			print ("*** %s[%s] ***" % (stock, stock_name_list[index]))
+			for sheet_name in sheet_name_list:				
+				sheet_data_dict = stock_chip_data_dict[sheet_name]
+				if stock not in sheet_data_dict.keys():
+					continue
+				stock_sheet_data_dict = sheet_data_dict[stock]
+				print(" ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), stock_sheet_data_dict.items())))
 
 
 	def search_sheets_from_file(self):
@@ -340,63 +374,63 @@ class StockChipAnalysis(object):
 		return stock_chip_data_dict
 
 
-	@property
-	def StockList(self):
-		return self.xcfg["stock_list"]
+	# @property
+	# def StockList(self):
+	# 	return self.xcfg["stock_list"]
 
 
-	@StockList.setter
-	def StockList(self, stock_list):
-		self.xcfg["stock_list"] = stock_list
+	# @StockList.setter
+	# def StockList(self, stock_list):
+	# 	self.xcfg["stock_list"] = stock_list
 
 
-	@property
-	def StockListFilepath(self):
-		return self.xcfg["stock_list_filepath"]
+	# @property
+	# def StockListFilepath(self):
+	# 	return self.xcfg["stock_list_filepath"]
 
 
-	@property
-	def DatabaseDate(self):
-		return self.xcfg["database_date"]
+	# @property
+	# def DatabaseDate(self):
+	# 	return self.xcfg["database_date"]
 
 
-	@DatabaseDate.setter
-	def DatabaseDate(self, database_date):
-		self.xcfg["database_date"] = self.get_data_date(database_date)
+	# @DatabaseDate.setter
+	# def DatabaseDate(self, database_date):
+	# 	self.xcfg["database_date"] = self.get_data_date(database_date)
 
 
-	@property
-	def SourceFolderpath(self):
-		assert self.xcfg["source_folderpath"] is not None, "source_folderpath should NOT be NONE"
-		return self.xcfg["source_folderpath"]
+	# @property
+	# def SourceFolderpath(self):
+	# 	assert self.xcfg["source_folderpath"] is not None, "source_folderpath should NOT be NONE"
+	# 	return self.xcfg["source_folderpath"]
 
 
-	@SourceFolderpath.setter
-	def SourceFolderpath(self, source_folderpath):
-		self.xcfg["source_folderpath"] = source_folderpath
-		self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
-		# print ("SourceFolderpath: %s" % self.xcfg["source_filepath"])
-		if self.workbook is not None:
-			self.workbook.release_resources()
-			del self.workbook
-			self.workbook = None
+	# @SourceFolderpath.setter
+	# def SourceFolderpath(self, source_folderpath):
+	# 	self.xcfg["source_folderpath"] = source_folderpath
+	# 	self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
+	# 	# print ("SourceFolderpath: %s" % self.xcfg["source_filepath"])
+	# 	if self.workbook is not None:
+	# 		self.workbook.release_resources()
+	# 		del self.workbook
+	# 		self.workbook = None
 
 
-	@property
-	def SourceFilename(self):
-		assert self.xcfg["source_filename"] is not None, "source_filename should NOT be NONE"
-		return self.xcfg["source_filename"]
+	# @property
+	# def SourceFilename(self):
+	# 	assert self.xcfg["source_filename"] is not None, "source_filename should NOT be NONE"
+	# 	return self.xcfg["source_filename"]
 
 
-	@SourceFilename.setter
-	def SourceFilename(self, source_filename):
-		self.xcfg["source_filename"] = source_filename
-		self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
-		# print ("SourceFilename: %s" % self.xcfg["source_filepath"])
-		if self.workbook is not None:
-			self.workbook.release_resources()
-			del self.workbook
-			self.workbook = None
+	# @SourceFilename.setter
+	# def SourceFilename(self, source_filename):
+	# 	self.xcfg["source_filename"] = source_filename
+	# 	self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
+	# 	# print ("SourceFilename: %s" % self.xcfg["source_filepath"])
+	# 	if self.workbook is not None:
+	# 		self.workbook.release_resources()
+	# 		del self.workbook
+	# 		self.workbook = None
 
 
 if __name__ == "__main__":
@@ -560,12 +594,13 @@ if __name__ == "__main__":
 	cfg = {}
 	with StockChipAnalysis(cfg) as obj:
 		stock_chip_data_dict = obj.get_stock_chip_data()
-		stock_set1 = set(stock_chip_data_dict[u"主力買超天數累計"].keys())
-		stock_set2 = set(stock_chip_data_dict[u"法人買超天數累計"].keys())
-		stock_set3 = set(stock_chip_data_dict[u"外資買超天數累計"].keys())
-		stock_set4 = set(stock_chip_data_dict[u"投信買超天數累計"].keys())
-# https://blog.csdn.net/qq_37195276/article/details/79467917
-# & != and ; | != or
-# python中&、|代表的是位運算符，and、or代表的是邏輯運算符
-		stock_set = stock_set1 & stock_set2 # & stock_set3 # & stock_set4
-		print (list(stock_set))
+		obj.search_targets(stock_chip_data_dict)
+# 		stock_set1 = set(stock_chip_data_dict[u"主力買超天數累計"].keys())
+# 		stock_set2 = set(stock_chip_data_dict[u"法人買超天數累計"].keys())
+# 		stock_set3 = set(stock_chip_data_dict[u"外資買超天數累計"].keys())
+# 		stock_set4 = set(stock_chip_data_dict[u"投信買超天數累計"].keys())
+# # https://blog.csdn.net/qq_37195276/article/details/79467917
+# # & != and ; | != or
+# # python中&、|代表的是位運算符，and、or代表的是邏輯運算符
+# 		stock_set = stock_set1 & stock_set2 & stock_set3 & stock_set4
+# 		print (list(stock_set))
