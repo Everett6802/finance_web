@@ -66,9 +66,9 @@ class ConvertibleBondAnalysis(object):
 
 
 	@classmethod
-	def __get_days(cls, end_date_str, start_date_str=None):
+	def __get_days(cls, end_date_str=None, start_date_str=None):
 		# import pdb; pdb.set_trace()
-		end_date = datetime.strptime(end_date_str,"%Y/%m/%d")
+		end_date = datetime.strptime(end_date_str,"%Y/%m/%d") if end_date_str is not None else datetime.fromordinal(date.today().toordinal())
 		start_date = datetime.strptime(start_date_str,"%Y/%m/%d") if start_date_str is not None else datetime.fromordinal(date.today().toordinal())
 		days = int((end_date - start_date).days) + 1
 		return days
@@ -264,8 +264,8 @@ class ConvertibleBondAnalysis(object):
 			# print ("%s: %s" % (data_key, data_list))
 			try:
 				check_data_filter_funcptr(data_list)
-			except ValueError as e:
-				print ("Exception occurs in %s" % data_key)
+			except Exception as e:
+				print ("Exception occurs in %s: %s" % (data_key, data_list))
 				raise e
 			data_dict = dict(zip(title_list, data_list))
 			worksheet_data[data_key] = data_dict
@@ -305,7 +305,6 @@ class ConvertibleBondAnalysis(object):
 				data_value = data_type(data_value)
 				data_list[data_index] = data_value
 			except ValueError as e:
-					# print "End row index: %d" % row_index
 				if data_index == 4:  # 買進一
 					# print(data_list)
 					# import pdb; pdb.set_trace()
@@ -320,6 +319,11 @@ class ConvertibleBondAnalysis(object):
 							raise e
 						else: 
 							data_list[4] = None
+					# if re.match("--", data_value) is not None:  # 跌停
+					# 	if int(data_list[5] * 100) != int(data_list[1] * 100):  # 不是跌停
+					# 		traceback.print_exc()
+					# 		raise e
+					# 	data_list[4] = None
 				elif data_index == 5:  # 賣出一
 					# print(data_list)
 					# import pdb; pdb.set_trace()
@@ -329,6 +333,11 @@ class ConvertibleBondAnalysis(object):
 					else:
 						traceback.print_exc()
 						raise e
+					# if re.match("--", data_value) is not None:  # 漲停
+					# 	if int(data_list[4] * 100) != int(data_list[1] * 100):  # 不是漲停
+					# 		traceback.print_exc()
+					# 		raise e
+					# 	data_list[5] = None
 				else:
 					data_list[data_index] = None
 			except Exception as e:
@@ -385,6 +394,11 @@ class ConvertibleBondAnalysis(object):
 			if not stock_changed: stock_changed = True
 		if stock_changed:
 			raise ValueError("The stocks are NOT identical")
+
+
+	def check_data_source(self, cb_quotation_data, cb_stock_quotation_data):
+		self.check_cb_quotation_table_field(cb_quotation_data)
+		self.check_cb_stock_quotation_table_field(cb_quotation_data, cb_stock_quotation_data)
 
 
 	def calculate_internal_rate_of_return(self, cb_quotation, use_percentage=True):
@@ -462,9 +476,9 @@ class ConvertibleBondAnalysis(object):
 		return premium_dict
 
 
-	def get_low_premium_and_breakeven(self, cb_quotation, cb_stock_quotation, low_threshold=5, breakeven_threshold=105, need_sort=True):
+	def get_low_premium_and_breakeven(self, cb_quotation, cb_stock_quotation, low_conversion_premium_rate_threshold=10, breakeven_threshold=110, need_sort=True):
 		premium_dict = self.calculate_premium(cb_quotation, cb_stock_quotation, need_breakeven=True, use_percentage=True)
-		premium_dict = dict(filter(lambda x: x[1]["溢價率"] <= low_threshold and x[1]["成交"] <= breakeven_threshold, premium_dict.items()))
+		premium_dict = dict(filter(lambda x: x[1]["溢價率"] <= low_conversion_premium_rate_threshold and x[1]["成交"] <= breakeven_threshold, premium_dict.items()))
 		if need_sort:
 			premium_dict = collections.OrderedDict(sorted(premium_dict.items(), key=lambda x: x[1]["溢價率"], reverse=False))
 		return premium_dict
@@ -502,9 +516,62 @@ class ConvertibleBondAnalysis(object):
 		return stock_premium_dict
 
 
-	def check_data_source(self, cb_quotation_data, cb_stock_quotation_data):
-		self.check_cb_quotation_table_field(cb_quotation_data)
-		self.check_cb_stock_quotation_table_field(cb_quotation_data, cb_stock_quotation_data)
+	def search_cb_opportunity_dates(self, cb_quotation, cb_stock_quotation, issuing_date_threshold=30, convertible_date_threshold=30, maturity_date_threshold=180, low_conversion_premium_rate_threshold=10, breakeven_threshold=110, use_percentage=True):
+		# premium_dict = self.calculate_premium(cb_quotation, cb_stock_quotation, need_breakeven=True, use_percentage=True)
+		issuing_date_cb_dict = {}
+		convertible_date_cb_dict = {}
+		maturity_date_cb_dict = {}
+		# import pdb; pdb.set_trace()
+		for cb_id in self.cb_id_list:
+			cb_summary_data = self.cb_summary[cb_id]
+			cb_publish_data = self.cb_publish[cb_id]
+			cb_quotation_data = cb_quotation[cb_id]
+			cb_stock_id = cb_id[:4]
+			cb_stock_quotation_data = cb_stock_quotation[cb_stock_id]
+			if cb_stock_quotation_data["買進一"] is None:
+				# print("Ignore CB Stock[%s]: 沒有 買進一" % cb_stock_id)
+				continue
+			if cb_quotation_data["賣出一"] is None:
+				# print("Ignore CB[%s]: 沒有 賣出一" % cb_id)
+				continue
+			if cb_quotation_data["成交"] is None:
+				# print("Ignore CB[%s]: 沒有 成交" % cb_stock_id)
+				continue
+
+			conversion_premium_rate = self.__get_conversion_premium_rate(cb_summary_data["轉換價格"], cb_quotation_data["賣出一"], cb_stock_quotation_data["買進一"])
+			if use_percentage:
+				conversion_premium_rate *= 100.0
+			if low_conversion_premium_rate_threshold is not None and conversion_premium_rate > low_conversion_premium_rate_threshold:
+				continue
+			if breakeven_threshold is not None and cb_quotation_data["成交"] > breakeven_threshold:
+				continue
+
+			issuing_date_days = self.__get_days(start_date_str=self.cb_publish[cb_id]["發行日期"])
+			if issuing_date_days <= issuing_date_threshold:
+
+				issuing_date_cb_dict[cb_id] = {
+					"商品": cb_quotation_data["商品"],
+					"天數": issuing_date_days,
+					"溢價率": conversion_premium_rate,
+					"成交": cb_quotation_data["成交"],
+				}
+			convertible_date_days = self.__get_days(cb_summary_data["可轉換日"])
+			if abs(convertible_date_days) <= convertible_date_threshold:
+				convertible_date_cb_dict[cb_id] = {
+					"商品": cb_quotation_data["商品"],
+					"天數": convertible_date_days,
+					"溢價率": conversion_premium_rate,
+					"成交": cb_quotation_data["成交"],
+				}
+			maturity_date_days = self.__get_days(self.cb_publish[cb_id]["到期日期"])
+			if maturity_date_days <= maturity_date_threshold:
+				convertible_date_cb_dict[cb_id] = {
+					"商品": cb_quotation_data["商品"],
+					"天數": maturity_date_days,
+					"溢價率": conversion_premium_rate,
+					"成交": cb_quotation_data["成交"],
+				}
+		return issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict
 
 
 	def test(self):
@@ -513,6 +580,8 @@ class ConvertibleBondAnalysis(object):
 		data_dict_quotation = self.__read_cb_quotation()
 		stock_data_dict_quotation = self.__read_cb_stock_quotation()
 		self.check_data_source(data_dict_quotation, stock_data_dict_quotation)
+		print("\n*****************************************************************\n")
+
 		# print (data_dict_quotation)
 		# print(self.calculate_internal_rate_of_return(data_dict_quotation))
 		print("=== 年化報酬率 ==================================================")
@@ -520,20 +589,33 @@ class ConvertibleBondAnalysis(object):
 		for irr_key, irr_data in irr_dict.items():
 			print ("%s[%s]: %.2f  %.2f  %s" % (irr_data["商品"], irr_key, float(irr_data["年化報酬率"]), float(irr_data["賣出一"]), irr_data["到期日"]))
 		print("=================================================================\n")
-		print("=== 溢價率(套利) ======================================================")
+		print("=== 溢價率(套利) ================================================")
 		premium_dict = self.get_negative_premium(data_dict_quotation, stock_data_dict_quotation)
-		for premium_key, premium_data in premium_dict.items():
-			print ("%s[%s]: %.2f  %d  %d" % (premium_data["商品"], premium_key, float(premium_data["溢價率"]), premium_data["融資餘額"], premium_data["融券餘額"]))
+		for premium_key, premium_dict in premium_dict.items():
+			print ("%s[%s]: %.2f  %d  %d" % (premium_dict["商品"], premium_key, float(premium_dict["溢價率"]), premium_dict["融資餘額"], premium_dict["融券餘額"]))
 		print("=================================================================\n")
 		print("=== 股票溢價率 ==================================================")
 		stock_premium_dict = self.get_absolute_stock_premium(data_dict_quotation, stock_data_dict_quotation)
-		for stock_premium_key, stock_premium_data in stock_premium_dict.items():
-			print ("%s[%s]: %.2f" % (stock_premium_data["商品"], stock_premium_key, float(stock_premium_data["股票溢價率"])))
+		for stock_premium_key, stock_premium_dict in stock_premium_dict.items():
+			print ("%s[%s]: %.2f" % (stock_premium_dict["商品"], stock_premium_key, float(stock_premium_dict["股票溢價率"])))
 		print("=================================================================\n")
 		print("=== 低溢價且保本 ================================================")
 		cb_dict = self.get_low_premium_and_breakeven(data_dict_quotation, stock_data_dict_quotation)
 		for cb_key, cb_data in cb_dict.items():
 			print ("%s[%s]: %.2f  %.2f  %.2f  %s" % (cb_data["商品"], cb_key, float(cb_data["溢價率"]), float(cb_data["成交"]), float(cb_data["賣出一"]), cb_data["到期日"]))
+		print("=================================================================\n")
+		issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict = self.search_cb_opportunity_dates(data_dict_quotation, stock_data_dict_quotation)
+		print("=== 近發行日期 ==================================================")
+		for cb_key, cb_data in issuing_date_cb_dict.items():
+			print ("%s[%s]:  %d  %.2f  %.2f" % (cb_data["商品"], cb_key, int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
+		print("=================================================================\n")
+		print("=== 近可轉換日 ==================================================")
+		for cb_key, cb_data in convertible_date_cb_dict.items():
+			print ("%s[%s]:  %d  %.2f  %.2f" % (cb_data["商品"], cb_key, int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
+		print("=================================================================\n")
+		print("=== 近到期日期 ==================================================")
+		for cb_key, cb_data in maturity_date_cb_dict.items():
+			print ("%s[%s]:  %d  %.2f  %.2f" % (cb_data["商品"], cb_key, int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
 		print("=================================================================\n")
 
 
