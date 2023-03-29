@@ -546,11 +546,11 @@ class ConvertibleBondAnalysis(object):
 			if breakeven_threshold is not None and cb_quotation_data["成交"] > breakeven_threshold:
 				continue
 
-			issuing_date_days = self.__get_days(start_date_str=self.cb_publish[cb_id]["發行日期"])
+			issuing_date_days = self.__get_days(start_date_str=cb_publish_data["發行日期"])
 			if issuing_date_days <= issuing_date_threshold:
-
 				issuing_date_cb_dict[cb_id] = {
 					"商品": cb_quotation_data["商品"],
+					"日期": cb_publish_data["發行日期"],
 					"天數": issuing_date_days,
 					"溢價率": conversion_premium_rate,
 					"成交": cb_quotation_data["成交"],
@@ -559,14 +559,16 @@ class ConvertibleBondAnalysis(object):
 			if abs(convertible_date_days) <= convertible_date_threshold:
 				convertible_date_cb_dict[cb_id] = {
 					"商品": cb_quotation_data["商品"],
+					"日期": cb_summary_data["可轉換日"],
 					"天數": convertible_date_days,
 					"溢價率": conversion_premium_rate,
 					"成交": cb_quotation_data["成交"],
 				}
-			maturity_date_days = self.__get_days(self.cb_publish[cb_id]["到期日期"])
+			maturity_date_days = self.__get_days(cb_publish_data["到期日期"])
 			if maturity_date_days <= maturity_date_threshold:
-				convertible_date_cb_dict[cb_id] = {
+				maturity_date_cb_dict[cb_id] = {
 					"商品": cb_quotation_data["商品"],
+					"日期": cb_publish_data["到期日期"],
 					"天數": maturity_date_days,
 					"溢價率": conversion_premium_rate,
 					"成交": cb_quotation_data["成交"],
@@ -607,15 +609,15 @@ class ConvertibleBondAnalysis(object):
 		issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict = self.search_cb_opportunity_dates(data_dict_quotation, stock_data_dict_quotation)
 		print("=== 近發行日期 ==================================================")
 		for cb_key, cb_data in issuing_date_cb_dict.items():
-			print ("%s[%s]:  %d  %.2f  %.2f" % (cb_data["商品"], cb_key, int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
+			print ("%s[%s]:  %s(%d)  %.2f  %.2f" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
 		print("=================================================================\n")
 		print("=== 近可轉換日 ==================================================")
 		for cb_key, cb_data in convertible_date_cb_dict.items():
-			print ("%s[%s]:  %d  %.2f  %.2f" % (cb_data["商品"], cb_key, int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
+			print ("%s[%s]:  %s(%d)  %.2f  %.2f" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
 		print("=================================================================\n")
 		print("=== 近到期日期 ==================================================")
 		for cb_key, cb_data in maturity_date_cb_dict.items():
-			print ("%s[%s]:  %d  %.2f  %.2f" % (cb_data["商品"], cb_key, int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
+			print ("%s[%s]:  %s(%d)  %.2f  %.2f" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
 		print("=================================================================\n")
 
 
