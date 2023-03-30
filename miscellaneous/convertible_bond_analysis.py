@@ -576,6 +576,28 @@ class ConvertibleBondAnalysis(object):
 		return issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict
 
 
+	def search_multiple_publish(self):
+		multiple_publish_dict = {}
+		for cb_stock_id in self.cb_stock_id_list:
+			regex = re.compile(cb_stock_id)
+			filter_cb_id_list = list(filter(regex.match, self.cb_id_list))
+			if len(filter_cb_id_list) > 1:
+				multiple_publish_dict[cb_stock_id] = filter_cb_id_list
+		return multiple_publish_dict
+
+
+	@property
+	def CBSummary(self):
+		assert self.cb_summary is not None, "cb_summary should NOT be NONE"
+		return self.cb_summary
+
+
+	@property
+	def CBPublish(self):
+		assert self.cb_publish is not None, "cb_publish should NOT be NONE"
+		return self.cb_publish
+
+
 	def test(self):
 		# data_dict_summary = self.__read_cb_summary()
 		# # print (data_dict_summary)
@@ -586,39 +608,57 @@ class ConvertibleBondAnalysis(object):
 
 		# print (data_dict_quotation)
 		# print(self.calculate_internal_rate_of_return(data_dict_quotation))
-		print("=== 年化報酬率 ==================================================")
 		irr_dict = self.get_positive_internal_rate_of_return(data_dict_quotation)
-		for irr_key, irr_data in irr_dict.items():
-			print ("%s[%s]: %.2f  %.2f  %s" % (irr_data["商品"], irr_key, float(irr_data["年化報酬率"]), float(irr_data["賣出一"]), irr_data["到期日"]))
-		print("=================================================================\n")
-		print("=== 溢價率(套利) ================================================")
+		if bool(irr_dict):
+			print("=== 年化報酬率 ==================================================")
+			for irr_key, irr_data in irr_dict.items():
+				print ("%s[%s]: %.2f  %.2f  %s" % (irr_data["商品"], irr_key, float(irr_data["年化報酬率"]), float(irr_data["賣出一"]), irr_data["到期日"]))
+			print("=================================================================\n")
 		premium_dict = self.get_negative_premium(data_dict_quotation, stock_data_dict_quotation)
-		for premium_key, premium_dict in premium_dict.items():
-			print ("%s[%s]: %.2f  %d  %d" % (premium_dict["商品"], premium_key, float(premium_dict["溢價率"]), premium_dict["融資餘額"], premium_dict["融券餘額"]))
-		print("=================================================================\n")
-		print("=== 股票溢價率 ==================================================")
+		if bool(premium_dict):
+			print("=== 溢價率(套利) ================================================")
+			for premium_key, premium_dict in premium_dict.items():
+				print ("%s[%s]: %.2f  %d  %d" % (premium_dict["商品"], premium_key, float(premium_dict["溢價率"]), premium_dict["融資餘額"], premium_dict["融券餘額"]))
+			print("=================================================================\n")
 		stock_premium_dict = self.get_absolute_stock_premium(data_dict_quotation, stock_data_dict_quotation)
-		for stock_premium_key, stock_premium_dict in stock_premium_dict.items():
-			print ("%s[%s]: %.2f" % (stock_premium_dict["商品"], stock_premium_key, float(stock_premium_dict["股票溢價率"])))
-		print("=================================================================\n")
-		print("=== 低溢價且保本 ================================================")
+		if bool(stock_premium_dict):
+			print("=== 股票溢價率 ==================================================")
+			for stock_premium_key, stock_premium_dict in stock_premium_dict.items():
+				print ("%s[%s]: %.2f" % (stock_premium_dict["商品"], stock_premium_key, float(stock_premium_dict["股票溢價率"])))
+			print("=================================================================\n")
 		cb_dict = self.get_low_premium_and_breakeven(data_dict_quotation, stock_data_dict_quotation)
-		for cb_key, cb_data in cb_dict.items():
-			print ("%s[%s]: %.2f  %.2f  %.2f  %s" % (cb_data["商品"], cb_key, float(cb_data["溢價率"]), float(cb_data["成交"]), float(cb_data["賣出一"]), cb_data["到期日"]))
-		print("=================================================================\n")
+		if bool(cb_dict):
+			print("=== 低溢價且保本 ================================================")
+			for cb_key, cb_data in cb_dict.items():
+				print ("%s[%s]: %.2f  %.2f  %.2f  %s" % (cb_data["商品"], cb_key, float(cb_data["溢價率"]), float(cb_data["成交"]), float(cb_data["賣出一"]), cb_data["到期日"]))
+			print("=================================================================\n")
 		issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict = self.search_cb_opportunity_dates(data_dict_quotation, stock_data_dict_quotation)
-		print("=== 近發行日期 ==================================================")
-		for cb_key, cb_data in issuing_date_cb_dict.items():
-			print ("%s[%s]:  %s(%d)  %.2f  %.2f" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
-		print("=================================================================\n")
-		print("=== 近可轉換日 ==================================================")
-		for cb_key, cb_data in convertible_date_cb_dict.items():
-			print ("%s[%s]:  %s(%d)  %.2f  %.2f" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
-		print("=================================================================\n")
-		print("=== 近到期日期 ==================================================")
-		for cb_key, cb_data in maturity_date_cb_dict.items():
-			print ("%s[%s]:  %s(%d)  %.2f  %.2f" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
-		print("=================================================================\n")
+		if bool(issuing_date_cb_dict):
+			print("=== 近發行日期 ==================================================")
+			for cb_key, cb_data in issuing_date_cb_dict.items():
+				print ("%s[%s]:  %s(%d)  %.2f  %.2f" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
+			print("=================================================================\n")
+		if bool(convertible_date_cb_dict):
+			print("=== 近可轉換日 ==================================================")
+			for cb_key, cb_data in convertible_date_cb_dict.items():
+				print ("%s[%s]:  %s(%d)  %.2f  %.2f" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
+			print("=================================================================\n")
+		if bool(maturity_date_cb_dict):
+			print("=== 近到期日期 ==================================================")
+			for cb_key, cb_data in maturity_date_cb_dict.items():
+				print ("%s[%s]:  %s(%d)  %.2f  %.2f" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
+			print("=================================================================\n")
+		multiple_publish_dict = self.search_multiple_publish()
+		if bool(multiple_publish_dict):
+			print("=== 多次發行 ==================================================")
+			for key, data in multiple_publish_dict.items():
+				print("***** %s *****" % key)
+				cb_id_list = data
+				for cb_id in cb_id_list:
+					# import pdb; pdb.set_trace()
+					cb_publish_data = self.CBPublish[cb_id]
+					print("%s[%s]: %s  %s  %d  %d" % (cb_publish_data["債券簡稱"], cb_id, cb_publish_data["發行日期"], cb_publish_data["到期日期"], cb_publish_data["年期"], cb_publish_data["發行總面額"] / 100000))
+				# print("\n")
 
 
 if __name__ == "__main__":
