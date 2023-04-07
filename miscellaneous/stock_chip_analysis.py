@@ -334,12 +334,20 @@ class StockChipAnalysis(object):
 		sheet_name_list = ["短線多空", "主法量率", "六大買超",]
 		for index, stock in enumerate(stock_list):
 			print ("*** %s[%s] ***" % (stock, stock_name_list[index]))
+			global_item_list = None
 			for sheet_name in sheet_name_list:				
 				sheet_data_dict = stock_chip_data_dict[sheet_name]
 				if stock not in sheet_data_dict.keys():
 					continue
 				stock_sheet_data_dict = sheet_data_dict[stock]
-				print(" ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), stock_sheet_data_dict.items())))
+				item_list = stock_sheet_data_dict.items()
+				if global_item_list is None:
+					global_item_list = []
+					global_item_list.extend(filter(lambda x: x[0] in ["成交", "漲幅%", "漲跌幅",], item_list))
+					global_item_list.extend(map(lambda x: (x[0], str(int(x[1]))), filter(lambda x: x[0] in ["成交量", "總量",], item_list)))
+					print(" ==>" + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), global_item_list)))
+				item_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_list)
+				print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
 
 
 	def search_sheets_from_file(self):
