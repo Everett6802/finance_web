@@ -80,11 +80,15 @@ class StockChipAnalysis(object):
 		[u"外資買超天數累計", u"投信買超天數累計",],
 	]
 	DEFAULT_CONSECUTIVE_OVER_BUY_DAYS = 3
-	CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST = [u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
-	CHECK_CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST = [u"主力買超累計天數", u"法人買超累計天數", u"外資買超累計天數", u"投信買超累計天數",]
+	CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST = [u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
+	CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST = [u"主力買超累計天數", u"法人買超累計天數", u"外資買超累計天數", u"投信買超累計天數",]
 	DEFAULT_MINIMUM_VOLUME = 1000
-	CHECK_MINIMUM_VOLUME_SHEETNAME_LIST = [u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
-	CHECK_MINIMUM_VOLUME_FIELDNAME_LIST = [u"主力買超張數", u"法人累計買超張數", u"外資累計買超張數", u"投信累計買超張數",]
+	MINIMUM_VOLUME_SHEETNAME_LIST = [u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
+	MINIMUM_VOLUME_FIELDNAME_LIST = [u"主力買超張數", u"法人累計買超張數", u"外資累計買超張數", u"投信累計買超張數",]
+	DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_THRESHOLD = 10.0
+	DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS = 3
+	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_SHEETNAME = "主法量率"
+	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_FIELDNAME = "主法量率 D"
 
 	WEIGHTED_STOCK_LIST = ["2330", "2317", "2454", "2308", "0050", ]
 	DEFENSE_STOCK_LIST = ["2412", "3045", "4904", "2801", "2809", "2812", "2823", "2834", "2880", "2881", "2882", "2883", "2884", "2885", "2886", "2887", "2888", "2889", "2890", "2891", "2892", "5776", "5880", ]
@@ -181,6 +185,8 @@ class StockChipAnalysis(object):
 			"sheet_set_category": -1,
 			"consecutive_over_buy_days": self.DEFAULT_CONSECUTIVE_OVER_BUY_DAYS,
 			"minimum_volume": self.DEFAULT_MINIMUM_VOLUME,
+			"main_force_instuitional_investors_ratio_threshold": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_THRESHOLD,
+			"main_force_instuitional_investors_ratio_consecutive_days": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS,
 			"need_all_sheet": False,
 			"search_history": False,
 			"search_result_filename": self.DEFAULT_SEARCH_RESULT_FILENAME,
@@ -302,20 +308,32 @@ class StockChipAnalysis(object):
 # Filter the data if necessary
 		if self.xcfg["consecutive_over_buy_days"] is not None:
 			try:
-				sheet_index = self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST.index(sheet_name)
+				sheet_index = self.CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST.index(sheet_name)
 				# import pdb; pdb.set_trace()
-				field_name = self.CHECK_CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST[sheet_index]
+				field_name = self.CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST[sheet_index]
 				csv_data_dict = dict(filter(lambda x: int(x[1][field_name]) >= self.xcfg["consecutive_over_buy_days"], csv_data_dict.items()))
 			except ValueError as e: 
 				pass
 		if self.xcfg["minimum_volume"] is not None:
 			try:
-				sheet_index = self.CHECK_MINIMUM_VOLUME_SHEETNAME_LIST.index(sheet_name)
+				sheet_index = self.MINIMUM_VOLUME_SHEETNAME_LIST.index(sheet_name)
 				# import pdb; pdb.set_trace()
-				field_name = self.CHECK_MINIMUM_VOLUME_FIELDNAME_LIST[sheet_index]
+				field_name = self.MINIMUM_VOLUME_FIELDNAME_LIST[sheet_index]
 				csv_data_dict = dict(filter(lambda x: int(x[1][field_name]) >= self.xcfg["minimum_volume"], csv_data_dict.items()))
 			except ValueError as e: 
 				pass
+		if self.xcfg["main_force_instuitional_investors_ratio_threshold"] is not None:
+			if sheet_name == self.MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_SHEETNAME:
+				csv_data_dict = dict(filter(lambda x: float(x[1][self.MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_FIELDNAME]) >= self.xcfg["main_force_instuitional_investors_ratio_threshold"], csv_data_dict.items()))
+				if self.xcfg["main_force_instuitional_investors_ratio_consecutive_days"] is not None:
+					def check_consecutive_days(x):
+						# import pdb; pdb.set_trace()
+						for index in range(1, self.xcfg["main_force_instuitional_investors_ratio_consecutive_days"]):
+							field_name = "D-%d" % index
+							if x[1][field_name] < self.xcfg["main_force_instuitional_investors_ratio_threshold"]:
+								return False
+						return True
+					csv_data_dict = dict(filter(lambda x: check_consecutive_days(x), csv_data_dict.items()))
 		return csv_data_dict
 
 
@@ -327,7 +345,7 @@ class StockChipAnalysis(object):
 # https://blog.csdn.net/qq_37195276/article/details/79467917
 # & != and ; | != or
 # python中&、|代表的是位運算符，and、or代表的是邏輯運算符
-		stock_list = list(stock_set1 & stock_set2 & stock_set3 & stock_set4)
+		stock_list = list(stock_set1 & stock_set2 & stock_set3)
 		stock_name_list = [stock_chip_data_dict[u"主力買超天數累計"][stock]["商品"] for stock in stock_list]
 		stock_list_str = " ".join(map(lambda x: "%s[%s]" % (x[0], x[1]), zip(stock_list, stock_name_list)))
 		print (stock_list_str)
