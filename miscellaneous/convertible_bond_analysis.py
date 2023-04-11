@@ -554,6 +554,8 @@ class ConvertibleBondAnalysis(object):
 					"天數": issuing_date_days,
 					"溢價率": conversion_premium_rate,
 					"成交": cb_quotation_data["成交"],
+					"總量": cb_quotation_data["總量"],
+					"發行張數": cb_publish_data["發行總面額"] / 100000,
 				}
 			convertible_date_days = self.__get_days(cb_summary_data["可轉換日"])
 			if abs(convertible_date_days) <= convertible_date_threshold:
@@ -563,6 +565,8 @@ class ConvertibleBondAnalysis(object):
 					"天數": convertible_date_days,
 					"溢價率": conversion_premium_rate,
 					"成交": cb_quotation_data["成交"],
+					"總量": cb_quotation_data["總量"],
+					"發行張數": cb_publish_data["發行總面額"] / 100000,
 				}
 			maturity_date_days = self.__get_days(cb_publish_data["到期日期"])
 			if maturity_date_days <= maturity_date_threshold:
@@ -572,6 +576,8 @@ class ConvertibleBondAnalysis(object):
 					"天數": maturity_date_days,
 					"溢價率": conversion_premium_rate,
 					"成交": cb_quotation_data["成交"],
+					"總量": cb_quotation_data["總量"],
+					"發行張數": cb_publish_data["發行總面額"] / 100000,
 				}
 		return issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict
 
@@ -636,28 +642,28 @@ class ConvertibleBondAnalysis(object):
 		if bool(issuing_date_cb_dict):
 			print("=== 近發行日期 ==================================================")
 			for cb_key, cb_data in issuing_date_cb_dict.items():
-				print ("%s[%s]:  %s(%d)  %.2f  %.2f" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
+				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"])))
 			print("=================================================================\n")
 		if bool(convertible_date_cb_dict):
 			print("=== 近可轉換日 ==================================================")
 			for cb_key, cb_data in convertible_date_cb_dict.items():
-				print ("%s[%s]:  %s(%d)  %.2f  %.2f" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
+				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"])))
 			print("=================================================================\n")
 		if bool(maturity_date_cb_dict):
 			print("=== 近到期日期 ==================================================")
 			for cb_key, cb_data in maturity_date_cb_dict.items():
-				print ("%s[%s]:  %s(%d)  %.2f  %.2f" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"])))
+				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"])))
 			print("=================================================================\n")
-		multiple_publish_dict = self.search_multiple_publish()
-		if bool(multiple_publish_dict):
-			print("=== 多次發行 ==================================================")
-			for key, data in multiple_publish_dict.items():
-				print("***** %s *****" % key)
-				cb_id_list = data
-				for cb_id in cb_id_list:
-					# import pdb; pdb.set_trace()
-					cb_publish_data = self.CBPublish[cb_id]
-					print("%s[%s]: %s  %s  %d  %d" % (cb_publish_data["債券簡稱"], cb_id, cb_publish_data["發行日期"], cb_publish_data["到期日期"], cb_publish_data["年期"], cb_publish_data["發行總面額"] / 100000))
+		# multiple_publish_dict = self.search_multiple_publish()
+		# if bool(multiple_publish_dict):
+		# 	print("=== 多次發行 ==================================================")
+		# 	for key, data in multiple_publish_dict.items():
+		# 		print("***** %s *****" % key)
+		# 		cb_id_list = data
+		# 		for cb_id in cb_id_list:
+		# 			# import pdb; pdb.set_trace()
+		# 			cb_publish_data = self.CBPublish[cb_id]
+		# 			print("%s[%s]: %s  %s  %d  %d" % (cb_publish_data["債券簡稱"], cb_id, cb_publish_data["發行日期"], cb_publish_data["到期日期"], cb_publish_data["年期"], cb_publish_data["發行總面額"] / 100000))
 				# print("\n")
 
 
