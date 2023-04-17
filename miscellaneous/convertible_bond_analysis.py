@@ -806,11 +806,21 @@ if __name__ == "__main__":
 # https://stackoverflow.com/questions/24108507/beautiful-soup-resultset-object-has-no-attribute-find-all
 	table_trs = table[0].find_all("tr")
 	cb_publish_detail_dict = {}
-	import pdb; pdb.set_trace()
+	# import pdb; pdb.set_trace()
 	for tr in table_trs:
-		print(tr.text)
-		tr_elem_list = list(map(lambda x: x.strip(""), tr.text.split("：")))
-		if len(tr_elem_list) != 2:
-			print(tr_elem_list)
-		cb_publish_detail_dict[tr_elem_list[0]] = tr_elem_list[1]
+		tds = tr.find_all("td")
+		for td in tds:
+			print(td.text)
+			td_elem_list = list(map(lambda x: x.strip(), td.text.split("：", 1)))
+			if len(td_elem_list) < 2:
+				print("ERROR: %s" % td.text)
+				# import pdb; pdb.set_trace()
+				continue
+			cb_publish_detail_dict[td_elem_list[0]] = td_elem_list[1]
+	print("===============================================================================")
 	print(cb_publish_detail_dict)
+	print("===============================================================================")
+	print("本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
+	print("最新轉(交)換價格: %s" % (cb_publish_detail_dict["最新轉(交)換價格"]))
+	print("最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
+
