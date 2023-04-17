@@ -337,18 +337,29 @@ class StockChipAnalysis(object):
 		return csv_data_dict
 
 
+	def get_stock_chip_data(self, sheet_name_list=None):
+		stock_chip_data_dict = {}
+		if sheet_name_list is None:
+			sheet_name_list = self.DEFAULT_SHEET_NAME_LIST
+		for sheet_name in sheet_name_list:
+			stock_chip_data_dict[sheet_name] = self.__read_sheet_data(sheet_name)
+		# import pdb; pdb.set_trace()
+		return stock_chip_data_dict
+
+
 	def search_targets(self, stock_chip_data_dict):
 		stock_set1 = set(stock_chip_data_dict[u"主力買超天數累計"].keys())
 		stock_set2 = set(stock_chip_data_dict[u"法人買超天數累計"].keys())
-		stock_set3 = set(stock_chip_data_dict[u"外資買超天數累計"].keys())
-		stock_set4 = set(stock_chip_data_dict[u"投信買超天數累計"].keys())
+		stock_set3 = set(stock_chip_data_dict[u"主法量率"].keys())
+		stock_set4 = set(stock_chip_data_dict[u"外資買超天數累計"].keys())
+		stock_set5 = set(stock_chip_data_dict[u"投信買超天數累計"].keys())
 # https://blog.csdn.net/qq_37195276/article/details/79467917
 # & != and ; | != or
 # python中&、|代表的是位運算符，and、or代表的是邏輯運算符
-		stock_list = list(stock_set1 & stock_set2 & stock_set3)
+		stock_list = list(stock_set1 & stock_set2 & stock_set3 & stock_set5)
 		stock_name_list = [stock_chip_data_dict[u"主力買超天數累計"][stock]["商品"] for stock in stock_list]
-		stock_list_str = " ".join(map(lambda x: "%s[%s]" % (x[0], x[1]), zip(stock_list, stock_name_list)))
-		print (stock_list_str)
+		stock_list_str = ", ".join(map(lambda x: "%s[%s]" % (x[0], x[1]), zip(stock_list, stock_name_list)))
+		print (stock_list_str + "\n")
 		sheet_name_list = ["短線多空", "主法量率", "六大買超",]
 		for index, stock in enumerate(stock_list):
 			print ("*** %s[%s] ***" % (stock, stock_name_list[index]))
@@ -389,15 +400,6 @@ class StockChipAnalysis(object):
 			self.xcfg['stock_list'] = self.xcfg['stock_list'].split(",")
 		self.__search_stock_sheets()
 
-
-	def get_stock_chip_data(self, sheet_name_list=None):
-		stock_chip_data_dict = {}
-		if sheet_name_list is None:
-			sheet_name_list = self.DEFAULT_SHEET_NAME_LIST
-		for sheet_name in sheet_name_list:
-			stock_chip_data_dict[sheet_name] = self.__read_sheet_data(sheet_name)
-		# import pdb; pdb.set_trace()
-		return stock_chip_data_dict
 
 
 	# @property

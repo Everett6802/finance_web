@@ -767,23 +767,23 @@ if __name__ == "__main__":
 	# with ConvertibleBondAnalysis(cfg) as obj:
 	# 	obj.test()
 
-	# print ("Yes" if ConvertibleBondAnalysis.can_scrape() else "No")
-
+	# from selenium import webdriver
 	# import time
 
-	# # from selenium import webdriver
-
-	# # driver = webdriver.Chrome("C:\chromedriver.exe")
-
-	# module = __import__("selenium.webdriver")
-	# my_class = getattr(module, "webdriver")
-	# driver = my_class.Chrome("C:\chromedriver.exe")
-
+	# driver = webdriver.Chrome("C:\chromedriver.exe")
 	# # driver.get("https://www.tpex.org.tw/web/bond/publish/convertible_bond_search/memo.php?l=zh-tw")
 	# driver.get("https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=45552&bond_kind=5&bond_subn=%24M00000001&bond_yrn=2&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=4555&monyr_reg=202302&pg=&step=0&tg=k_code=4555&monyr_reg=202302&pg=&step=0&tg=")
+	# # driver.get("https://www.tdcc.com.tw/portal/zh/QStatWAR/indm004")
 	# time.sleep(5)
 	# # #找到輸入框
 	# # element = driver.find_element_by_name("q");
+	# #form1 > table > tbody > tr:nth-child(4) > td > input[type=submit]
+	# link = driver.find_element("xpath", '//*[@id="table01"]/center/table[2]/tbody/tr[46]/td/a')
+	# # btn = driver.find_element("xpath", '/html/body/div[1]/div[1]/div/main/div[4]/form/table/tbody/tr[4]/td/input')
+	# time.sleep(5)
+	# btn.click()
+
+
 	# # #輸入內容
 	# # element.send_keys("hello world");
 	# # #提交表單
