@@ -41,6 +41,8 @@ class ConvertibleBondAnalysis(object):
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '融資餘額', '融券餘額']
 	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, int, int,]
 
+	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
+
 
 	@classmethod
 	def __is_string(cls, value):
@@ -92,6 +94,41 @@ class ConvertibleBondAnalysis(object):
 		return conversion_premium_rate
 
 
+	@classmethod
+	def __check_request_module(cls):
+		try:
+			module = __import__("requests")
+		except ModuleNotFoundError:
+			return False
+		return True
+
+
+	@classmethod
+	def __can_beautifulsoup_module(cls):
+		try:
+			module = __import__("bs4.BeautifulSoup")
+		except ModuleNotFoundError:
+			return False
+		return True
+
+
+	@classmethod
+	def __can_scrape(cls):
+		try:
+			module = __import__("selenium.webdriver")
+		except ModuleNotFoundError:
+			return False
+		return True
+
+
+	@classmethod
+	def __get_web_driver(cls, web_driver_filepath="C:\chromedriver.exe"):
+		module = __import__("selenium.webdriver")
+		web_driver_class = getattr(module, "webdriver")
+		web_driver_obj = web_driver_class.Chrome(web_driver_filepath)
+		return web_driver_obj
+
+
 	def __init__(self, cfg):
 		self.xcfg = {
 			"cb_folderpath": None,
@@ -140,7 +177,10 @@ class ConvertibleBondAnalysis(object):
 		self.cb_stock_workbook = None
 		self.cb_stock_worksheet = None
 		self.cb_id_list = None  # list(self.cb_summary.keys())
-		self.cb_stock_id_list = None  
+		self.cb_stock_id_list = None
+		self.can_scrape = self.__can_scrape()
+		self.requests_module = None
+		self.beautifulsoup_module = None
 
 
 	def __enter__(self):
@@ -163,6 +203,22 @@ class ConvertibleBondAnalysis(object):
 			del self.cb_stock_workbook
 			self.cb_stock_workbook = None
 		return False
+
+
+	def __get_requests_module(self):
+		if not self.__check_request_module():
+			raise ValueError("The requests module is NOT installed!!!")
+		if self.requests_module is None:
+			self.requests_module = __import__("requests")
+		return self.requests_module
+
+
+	def __get_beautifulsoup_module(self):
+		if not self.__check_beautifulsoup_module():
+			raise ValueError("The beautifulsoup module is NOT installed!!!")
+		if self.beautifulsoup_module is None:
+			self.beautifulsoup_module = __import__("bs4.BeautifulSoup")
+		return self.beautifulsoup_module
 
 
 	def __read_cb_summary(self):
@@ -582,6 +638,15 @@ class ConvertibleBondAnalysis(object):
 		return issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict
 
 
+	def scrape_publish_detail(self, cb_id):
+		import pdb; pdb.set_trace()
+		url = self.cb_publish[cb_id]["發行資料"]
+		# web_driver = self.__get_web_driver()
+		# driver.get(url)
+		resp = self.__get_requests_module().get(url)
+		beautifulsoup_class = getattr(self.__get_beautifulsoup_module(), "beautifulsoup")
+		soup = beautifulsoup_class.BeautifulSoup(resp.text)
+
 	def search_multiple_publish(self):
 		multiple_publish_dict = {}
 		for cb_stock_id in self.cb_stock_id_list:
@@ -602,6 +667,11 @@ class ConvertibleBondAnalysis(object):
 	def CBPublish(self):
 		assert self.cb_publish is not None, "cb_publish should NOT be NONE"
 		return self.cb_publish
+
+
+	@property
+	def CanScrape(self):
+		return self.can_scrape
 
 
 	def test(self):
@@ -692,15 +762,23 @@ if __name__ == "__main__":
 	# parser.add_argument('--list_analysis_method', required=False, action='store_true', help='List each analysis method and exit')
 	# args = parser.parse_args()
 
-	cfg = {
-	}
-	with ConvertibleBondAnalysis(cfg) as obj:
-		obj.test()
+	# cfg = {
+	# }
+	# with ConvertibleBondAnalysis(cfg) as obj:
+	# 	obj.test()
 
-	# from selenium import webdriver
+	# print ("Yes" if ConvertibleBondAnalysis.can_scrape() else "No")
+
 	# import time
 
-	# driver = webdriver.Chrome("C:\chromedriver.exe")
+	# # from selenium import webdriver
+
+	# # driver = webdriver.Chrome("C:\chromedriver.exe")
+
+	# module = __import__("selenium.webdriver")
+	# my_class = getattr(module, "webdriver")
+	# driver = my_class.Chrome("C:\chromedriver.exe")
+
 	# # driver.get("https://www.tpex.org.tw/web/bond/publish/convertible_bond_search/memo.php?l=zh-tw")
 	# driver.get("https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=45552&bond_kind=5&bond_subn=%24M00000001&bond_yrn=2&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=4555&monyr_reg=202302&pg=&step=0&tg=k_code=4555&monyr_reg=202302&pg=&step=0&tg=")
 	# time.sleep(5)
@@ -712,3 +790,27 @@ if __name__ == "__main__":
 	# # element.submit();
 	# driver.close()
 
+	requests_module = __import__("requests")
+	resp = requests_module.get("https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=33465&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=3346&monyr_reg=202303&pg=&step=0&tg=")
+	# print(resp.text)
+
+	bs4_module = __import__("bs4")
+	beautifulsoup_class = getattr(bs4_module, "BeautifulSoup")
+	soup = beautifulsoup_class(resp.text, "html.parser")
+
+	# from bs4 import BeautifulSoup
+	# soup = BeautifulSoup(resp.text, 'html.parser')
+
+	table = soup.find_all("table", {"class": "hasBorder"})
+# Beautiful Soup: 'ResultSet' object has no attribute 'find_all'?
+# https://stackoverflow.com/questions/24108507/beautiful-soup-resultset-object-has-no-attribute-find-all
+	table_trs = table[0].find_all("tr")
+	cb_publish_detail_dict = {}
+	import pdb; pdb.set_trace()
+	for tr in table_trs:
+		print(tr.text)
+		tr_elem_list = list(map(lambda x: x.strip(""), tr.text.split("：")))
+		if len(tr_elem_list) != 2:
+			print(tr_elem_list)
+		cb_publish_detail_dict[tr_elem_list[0]] = tr_elem_list[1]
+	print(cb_publish_detail_dict)
