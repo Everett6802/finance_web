@@ -95,7 +95,7 @@ class ConvertibleBondAnalysis(object):
 
 
 	@classmethod
-	def __check_request_module(cls):
+	def __check_request_module_installed(cls):
 		try:
 			module = __import__("requests")
 		except ModuleNotFoundError:
@@ -104,9 +104,9 @@ class ConvertibleBondAnalysis(object):
 
 
 	@classmethod
-	def __can_beautifulsoup_module(cls):
+	def __check_bs4_module_installed(cls):
 		try:
-			module = __import__("bs4.BeautifulSoup")
+			module = __import__("bs4")
 		except ModuleNotFoundError:
 			return False
 		return True
@@ -114,10 +114,23 @@ class ConvertibleBondAnalysis(object):
 
 	@classmethod
 	def __can_scrape(cls):
+		if not cls.__check_request_module_installed(): return False
+		if not cls.__check_bs4_module_installed(): return False
+		return True
+
+
+	@classmethod
+	def __check_selenium_module_installed(cls):
 		try:
 			module = __import__("selenium.webdriver")
 		except ModuleNotFoundError:
 			return False
+		return True
+
+
+	@classmethod
+	def __can_scrape_ui(cls):
+		if not cls.__check_selenium_module_installed(): return False
 		return True
 
 
@@ -180,7 +193,8 @@ class ConvertibleBondAnalysis(object):
 		self.cb_stock_id_list = None
 		self.can_scrape = self.__can_scrape()
 		self.requests_module = None
-		self.beautifulsoup_module = None
+		self.beautifulsoup_class = None
+		self.cb_publish_detail = {}
 
 
 	def __enter__(self):
@@ -206,19 +220,20 @@ class ConvertibleBondAnalysis(object):
 
 
 	def __get_requests_module(self):
-		if not self.__check_request_module():
-			raise ValueError("The requests module is NOT installed!!!")
+		if not self.__check_request_module_installed():
+			raise RuntimeError("The requests module is NOT installed!!!")
 		if self.requests_module is None:
 			self.requests_module = __import__("requests")
 		return self.requests_module
 
 
-	def __get_beautifulsoup_module(self):
-		if not self.__check_beautifulsoup_module():
-			raise ValueError("The beautifulsoup module is NOT installed!!!")
-		if self.beautifulsoup_module is None:
-			self.beautifulsoup_module = __import__("bs4.BeautifulSoup")
-		return self.beautifulsoup_module
+	def __get_beautifulsoup_class(self):
+		if not self.__check_bs4_module_installed():
+			raise RuntimeError("The bs4 module is NOT installed!!!")
+		if self.beautifulsoup_class is None:
+			bs4_module = __import__("bs4")
+			self.beautifulsoup_class = getattr(bs4_module, "BeautifulSoup")
+		return self.beautifulsoup_class
 
 
 	def __read_cb_summary(self):
@@ -532,7 +547,7 @@ class ConvertibleBondAnalysis(object):
 		return premium_dict
 
 
-	def get_low_premium_and_breakeven(self, cb_quotation, cb_stock_quotation, low_conversion_premium_rate_threshold=10, breakeven_threshold=110, need_sort=True):
+	def get_low_premium_and_breakeven(self, cb_quotation, cb_stock_quotation, low_conversion_premium_rate_threshold=8, breakeven_threshold=108, need_sort=True):
 		premium_dict = self.calculate_premium(cb_quotation, cb_stock_quotation, need_breakeven=True, use_percentage=True)
 		premium_dict = dict(filter(lambda x: x[1]["溢價率"] <= low_conversion_premium_rate_threshold and x[1]["成交"] <= breakeven_threshold, premium_dict.items()))
 		if need_sort:
@@ -639,13 +654,43 @@ class ConvertibleBondAnalysis(object):
 
 
 	def scrape_publish_detail(self, cb_id):
-		import pdb; pdb.set_trace()
+		# import pdb; pdb.set_trace()
 		url = self.cb_publish[cb_id]["發行資料"]
-		# web_driver = self.__get_web_driver()
-		# driver.get(url)
 		resp = self.__get_requests_module().get(url)
-		beautifulsoup_class = getattr(self.__get_beautifulsoup_module(), "beautifulsoup")
-		soup = beautifulsoup_class.BeautifulSoup(resp.text)
+		# print(resp.text)
+		beautifulsoup_class = self.__get_beautifulsoup_class()
+		soup = beautifulsoup_class(resp.text, "html.parser")
+
+		table = soup.find_all("table", {"class": "hasBorder"})
+# Beautiful Soup: 'ResultSet' object has no attribute 'find_all'?
+# https://stackoverflow.com/questions/24108507/beautiful-soup-resultset-object-has-no-attribute-find-all
+		table_trs = table[0].find_all("tr")
+		cb_publish_detail_dict = {}
+		# import pdb; pdb.set_trace()
+		for tr in table_trs:
+			tds = tr.find_all("td")
+			for td in tds:
+				# print(td.text)
+				td_elem_list = list(map(lambda x: x.strip(), td.text.split("：", 1)))
+				if len(td_elem_list) < 2:
+					# print("ERROR: %s" % td.text)
+					# import pdb; pdb.set_trace()
+					continue
+				cb_publish_detail_dict[td_elem_list[0]] = td_elem_list[1]
+		# print("===============================================================================")
+		# print(cb_publish_detail_dict)
+		# print("===============================================================================")
+		# print("本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
+		# print("最新轉(交)換價格: %s" % (cb_publish_detail_dict["最新轉(交)換價格"]))
+		# print("最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
+		return cb_publish_detail_dict
+
+
+	def get_publish_detail(self, cb_id):
+		if cb_id not in self.cb_publish_detail:
+			self.cb_publish_detail[cb_id] = self.scrape_publish_detail(cb_id)
+		return self.cb_publish_detail[cb_id]
+
 
 	def search_multiple_publish(self):
 		multiple_publish_dict = {}
@@ -713,17 +758,36 @@ class ConvertibleBondAnalysis(object):
 			print("=== 近發行日期 ==================================================")
 			for cb_key, cb_data in issuing_date_cb_dict.items():
 				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"])))
+				cb_publish_detail_dict = self.get_publish_detail(cb_key)
+				print(" *************")
+				print("  本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
+				print("  最新轉(交)換價格: %s" % (cb_publish_detail_dict["最新轉(交)換價格"]))
+				# print("  最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
+				print(" *************")
 			print("=================================================================\n")
 		if bool(convertible_date_cb_dict):
 			print("=== 近可轉換日 ==================================================")
 			for cb_key, cb_data in convertible_date_cb_dict.items():
 				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"])))
+				cb_publish_detail_dict = self.get_publish_detail(cb_key)
+				print(" *************")
+				print("  本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
+				print("  最新轉(交)換價格: %s" % (cb_publish_detail_dict["最新轉(交)換價格"]))
+				print("  最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
+				print(" *************")
 			print("=================================================================\n")
 		if bool(maturity_date_cb_dict):
 			print("=== 近到期日期 ==================================================")
 			for cb_key, cb_data in maturity_date_cb_dict.items():
 				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"])))
+				cb_publish_detail_dict = self.get_publish_detail(cb_key)
+				print(" *************")
+				print("  本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
+				print("  最新轉(交)換價格: %s" % (cb_publish_detail_dict["最新轉(交)換價格"]))
+				# print("  最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
+				print(" *************")
 			print("=================================================================\n")
+
 		# multiple_publish_dict = self.search_multiple_publish()
 		# if bool(multiple_publish_dict):
 		# 	print("=== 多次發行 ==================================================")
@@ -767,60 +831,64 @@ if __name__ == "__main__":
 	# with ConvertibleBondAnalysis(cfg) as obj:
 	# 	obj.test()
 
-	# from selenium import webdriver
-	# import time
+	from selenium import webdriver
+	import time
+	# from selenium.webdriver.common.by import By
 
-	# driver = webdriver.Chrome("C:\chromedriver.exe")
-	# # driver.get("https://www.tpex.org.tw/web/bond/publish/convertible_bond_search/memo.php?l=zh-tw")
+	driver = webdriver.Chrome("C:\chromedriver.exe")
+	# driver.get("https://www.tpex.org.tw/web/bond/publish/convertible_bond_search/memo.php?l=zh-tw")
 	# driver.get("https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=45552&bond_kind=5&bond_subn=%24M00000001&bond_yrn=2&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=4555&monyr_reg=202302&pg=&step=0&tg=k_code=4555&monyr_reg=202302&pg=&step=0&tg=")
-	# # driver.get("https://www.tdcc.com.tw/portal/zh/QStatWAR/indm004")
-	# time.sleep(5)
-	# # #找到輸入框
+	# driver.get("https://www.tdcc.com.tw/portal/zh/QStatWAR/indm004")
+	driver.get("https://concords.moneydj.com/Z/ZC/ZCX/ZCX_2330.djhtm")
+	time.sleep(5)
+	# #找到輸入框
 	# # element = driver.find_element_by_name("q");
 	# #form1 > table > tbody > tr:nth-child(4) > td > input[type=submit]
 	# link = driver.find_element("xpath", '//*[@id="table01"]/center/table[2]/tbody/tr[46]/td/a')
 	# # btn = driver.find_element("xpath", '/html/body/div[1]/div[1]/div/main/div[4]/form/table/tbody/tr[4]/td/input')
 	# time.sleep(5)
 	# btn.click()
-
-
-	# # #輸入內容
-	# # element.send_keys("hello world");
-	# # #提交表單
-	# # element.submit();
-	# driver.close()
-
-	requests_module = __import__("requests")
-	resp = requests_module.get("https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=33465&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=3346&monyr_reg=202303&pg=&step=0&tg=")
-	# print(resp.text)
-
-	bs4_module = __import__("bs4")
-	beautifulsoup_class = getattr(bs4_module, "BeautifulSoup")
-	soup = beautifulsoup_class(resp.text, "html.parser")
-
-	# from bs4 import BeautifulSoup
-	# soup = BeautifulSoup(resp.text, 'html.parser')
-
-	table = soup.find_all("table", {"class": "hasBorder"})
-# Beautiful Soup: 'ResultSet' object has no attribute 'find_all'?
-# https://stackoverflow.com/questions/24108507/beautiful-soup-resultset-object-has-no-attribute-find-all
-	table_trs = table[0].find_all("tr")
-	cb_publish_detail_dict = {}
+	table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/table[1]/tbody/tr/td/table[6]')
+	trs = table.find_elements("tag name", "tr")
 	# import pdb; pdb.set_trace()
-	for tr in table_trs:
-		tds = tr.find_all("td")
-		for td in tds:
-			print(td.text)
-			td_elem_list = list(map(lambda x: x.strip(), td.text.split("：", 1)))
-			if len(td_elem_list) < 2:
-				print("ERROR: %s" % td.text)
-				# import pdb; pdb.set_trace()
-				continue
-			cb_publish_detail_dict[td_elem_list[0]] = td_elem_list[1]
-	print("===============================================================================")
-	print(cb_publish_detail_dict)
-	print("===============================================================================")
-	print("本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
-	print("最新轉(交)換價格: %s" % (cb_publish_detail_dict["最新轉(交)換價格"]))
-	print("最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
+	mobj = re.search("融資融券", trs[0].find_element("tag name", "td").text)
+	if mobj is not None:
+		title_tmp_list1 = []
+		td1s = trs[1].find_elements("tag name", "td")
+		for tr in td1s[1:]:
+			td = tr.find_element("tag name", "td").text
+			title_tmp_list1.append(td.text)
+		title_tmp_list2 = []
+		td2s = trs[2].find_elements("tag name", "td")
+		for tr in td1s[1:]:
+			td = tr.find_element("tag name", "td").text
+			title_tmp_list2.append(td.text)
+		import pdb; pdb.set_trace()
+		title_list = []
+		title_list.append(map(lambda x: "%s%s" % (title_tmp_list1[0], x), title_tmp_list2[1:7]))
+		title_list.append(map(lambda x: "%s%s" % (title_tmp_list1[1], x), title_tmp_list2[7:]))
+		title_list.append(title_tmp_list2[-1])
+		for tr in trs[3:]:
+			tds = tr.find_elements("tag name", "td")
+			td_text_list = []
+			for td in tds:
+				td_text_list.append(td.text)
+			print("%s\n" % (", ".join(td_text_list)))
 
+
+	# #輸入內容
+	# element.send_keys("hello world");
+	# #提交表單
+	# element.submit();
+	driver.close()
+
+		# # # web_driver = self.__get_web_driver()
+		# # # driver.get(url)
+		# # resp = self.__get_requests_module().get(url)
+		# # beautifulsoup_class = getattr(self.__get_beautifulsoup_module(), "beautifulsoup")
+		# # soup = beautifulsoup_class.BeautifulSoup(resp.text)
+		# resp = self.__get_requests_module().get(url)
+		# # print(resp.text)
+		# # bs4_module = __import__("bs4")
+		# beautifulsoup_class = self.__get_beautifulsoup_class()
+		# soup = beautifulsoup_class(resp.text, "html.parser")
