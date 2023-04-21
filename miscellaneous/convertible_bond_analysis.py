@@ -851,29 +851,33 @@ if __name__ == "__main__":
 	table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/table[1]/tbody/tr/td/table[6]')
 	trs = table.find_elements("tag name", "tr")
 	# import pdb; pdb.set_trace()
+	data_dict = {}
 	mobj = re.search("融資融券", trs[0].find_element("tag name", "td").text)
 	if mobj is not None:
 		title_tmp_list1 = []
 		td1s = trs[1].find_elements("tag name", "td")
-		for tr in td1s[1:]:
-			td = tr.find_element("tag name", "td").text
+		for td in td1s[1:3]:
 			title_tmp_list1.append(td.text)
 		title_tmp_list2 = []
 		td2s = trs[2].find_elements("tag name", "td")
-		for tr in td1s[1:]:
-			td = tr.find_element("tag name", "td").text
+		for td in td2s[1:]:
 			title_tmp_list2.append(td.text)
-		import pdb; pdb.set_trace()
+		# import pdb; pdb.set_trace()
 		title_list = []
-		title_list.append(map(lambda x: "%s%s" % (title_tmp_list1[0], x), title_tmp_list2[1:7]))
-		title_list.append(map(lambda x: "%s%s" % (title_tmp_list1[1], x), title_tmp_list2[7:]))
+		title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[0], x), title_tmp_list2[1:7])))
+		title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[1], x), title_tmp_list2[7:])))
 		title_list.append(title_tmp_list2[-1])
+		# import pdb; pdb.set_trace()
 		for tr in trs[3:]:
 			tds = tr.find_elements("tag name", "td")
 			td_text_list = []
-			for td in tds:
+			for td in tds[1:]:
 				td_text_list.append(td.text)
-			print("%s\n" % (", ".join(td_text_list)))
+			# import pdb; pdb.set_trace()
+			data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
+	# import pdb; pdb.set_trace()
+	print(data_dict)
+			# print("%s\n" % (", ".join(td_text_list)))
 
 
 	# #輸入內容
