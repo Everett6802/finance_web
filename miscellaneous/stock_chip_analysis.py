@@ -347,7 +347,7 @@ class StockChipAnalysis(object):
 		return stock_chip_data_dict
 
 
-	def search_targets(self, stock_chip_data_dict):
+	def search_targets(self, stock_chip_data_dict, search_rule_index=0):
 		stock_set1 = set(stock_chip_data_dict[u"主力買超天數累計"].keys())
 		stock_set2 = set(stock_chip_data_dict[u"法人買超天數累計"].keys())
 		stock_set3 = set(stock_chip_data_dict[u"主法量率"].keys())
@@ -356,7 +356,25 @@ class StockChipAnalysis(object):
 # https://blog.csdn.net/qq_37195276/article/details/79467917
 # & != and ; | != or
 # python中&、|代表的是位運算符，and、or代表的是邏輯運算符
-		stock_list = list(stock_set1 & stock_set2 & stock_set3 & stock_set5)
+		search_rule_list = None
+		stock_list = None
+		if search_rule_index == 0:
+			search_rule_list = ["主力買超天數累計", "法人買超天數累計", "主法量率", "外資買超天數累計", "投信買超天數累計",]
+			stock_list = list(stock_set1 & stock_set2 & stock_set3 & stock_set4 & stock_set5)
+		elif search_rule_index == 1:
+			search_rule_list = ["主力買超天數累計", "法人買超天數累計", "主法量率", "外資買超天數累計",]
+			stock_list = list(stock_set1 & stock_set2 & stock_set3 & stock_set4)
+		elif search_rule_index == 2:
+			search_rule_list = ["主力買超天數累計", "法人買超天數累計", "主法量率",]
+			stock_list = list(stock_set1 & stock_set2 & stock_set3)
+		elif search_rule_index == 3:
+			search_rule_list = ["主力買超天數累計", "法人買超天數累計",]
+			stock_list = list(stock_set1 & stock_set2)
+		else:
+			raise ValueError("Unsupport search_rule_index: %d" % search_rule_index)
+
+		search_rule_list_str = ", ".join(search_rule_list)
+		print ("搜尋規則: " + search_rule_list_str )
 		stock_name_list = [stock_chip_data_dict[u"主力買超天數累計"][stock]["商品"] for stock in stock_list]
 		stock_list_str = ", ".join(map(lambda x: "%s[%s]" % (x[0], x[1]), zip(stock_list, stock_name_list)))
 		print (stock_list_str + "\n")
@@ -376,7 +394,10 @@ class StockChipAnalysis(object):
 					global_item_list.extend(map(lambda x: (x[0], str(int(x[1]))), filter(lambda x: x[0] in ["成交量", "總量",], item_list)))
 					print(" ==>" + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), global_item_list)))
 				item_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_list)
-				print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
+				if sheet_name == "六大買超":
+					print("  " + " ".join(map(lambda x: "%s(%d)" % (x[0], int(x[1])), item_list)))
+				else:
+					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
 
 
 	def search_sheets_from_file(self):
@@ -483,35 +504,35 @@ if __name__ == "__main__":
 	>>> parser.add_argument('--bar', action='store_false')
 	>>> parser.add_argument('--baz', action='store_false')
 	'''
-	parser.add_argument('--list_analysis_method', required=False, action='store_true', help='List each analysis method and exit')
-	parser.add_argument('--list_sheet_set_category', required=False, action='store_true', help='List each stock set and exit')
-	parser.add_argument('--update_database', required=False, action='store_true', help='Update database and exit')
-	parser.add_argument('--update_database_multiple', required=False, action='store_true', help='Update database from multiple XLS files and exit. Caution: The format of the XLS filename: {0}@20YY-mm-DD. Ex: {0}_2022-07-29'.format(StockChipAnalysis.DEFAULT_SOURCE_FILENAME))
-	parser.add_argument('--find_database', required=False, action='store_true', help='Find database and exit')
-	parser.add_argument('--delete_database', required=False, action='store_true', help='Delete database and exit')
-	parser.add_argument('--list_database_date', required=False, action='store_true', help='List database date and exit')
-	parser.add_argument('--database_date', required=False, help='The date of the data in the database. Ex: 2022-05-18. Caution: Update/Find/Delete Database')
-	parser.add_argument('--database_date_range', required=False, help='The date range of the data in the database. Format: start_date,end_date. Ex: (1) 2022-05-18,2022-05-30 ; (2) 2022-05-18, ; (3) ,2022-05-30. Caution: Find/Delete Database')
-	parser.add_argument('--database_all_date_range', required=False, action='store_true', help='The all date range of the data in the database')
-	parser.add_argument('--create_report_by_sheet_set_category', required=False, help='Create a report by certain a sheet set category and exit')
-	parser.add_argument('--check_data_source_difference', required=False, help='Check data source difference on a specific day and exit')
-	parser.add_argument('-m', '--analysis_method', required=False, help='The method for chip analysis. Default: 0')	
-	parser.add_argument('-d', '--show_detail', required=False, action='store_true', help='Show detailed data for each stock')
-	parser.add_argument('-g', '--generate_report', required=False, action='store_true', help='Generate the report of the detailed data for each stock to the XLS file.')
-	parser.add_argument('-r', '--report_filename', required=False, help='The filename of chip analysis report')
-	parser.add_argument('-t', '--stock_list_filename', required=False, help='The filename of stock list for chip analysis')
-	parser.add_argument('-l', '--stock_list', required=False, help='The list string of stock list for chip analysis. Ex: 2330,2317,2454,2308')
-	parser.add_argument('--source_folderpath', required=False, help='Update database from the XLS files in the designated folder path. Ex: %s' % StockChipAnalysis.DEFAULT_SOURCE_FOLDERPATH)
-	parser.add_argument('--source_filename', required=False, help='The filename of chip analysis data source')
-	parser.add_argument('-c', '--sheet_set_category', required=False, help='The category for sheet set. Default: 0')	
-	parser.add_argument('-n', '--need_all_sheet', required=False, action='store_true', help='The stock should be found in all sheets in the sheet name list')
-	parser.add_argument('--search_history', required=False, action='store_true', help='The data source is from the database, otherwise from the excel file')
-	parser.add_argument('-a', '--search_result_filename', required=False, help='The filename of stock list for search result')
-	parser.add_argument('-o', '--output_search_result', required=False, action='store_true', help='Ouput the search result')
-	parser.add_argument('-q', '--quiet', required=False, action='store_true', help="Don't print string on the screen")
-	parser.add_argument('-s', '--sort', required=False, action='store_true', help="Show the data in order")
-	parser.add_argument('-f', '--sort_limit', required=False, help="Limit the sorted data")
-	# parser.add_argument('-f', '--update_datebase', required=False, help="Limit the sorted data")
+	# parser.add_argument('--list_analysis_method', required=False, action='store_true', help='List each analysis method and exit')
+	# parser.add_argument('--list_sheet_set_category', required=False, action='store_true', help='List each stock set and exit')
+	# parser.add_argument('--update_database', required=False, action='store_true', help='Update database and exit')
+	# parser.add_argument('--update_database_multiple', required=False, action='store_true', help='Update database from multiple XLS files and exit. Caution: The format of the XLS filename: {0}@20YY-mm-DD. Ex: {0}_2022-07-29'.format(StockChipAnalysis.DEFAULT_SOURCE_FILENAME))
+	# parser.add_argument('--find_database', required=False, action='store_true', help='Find database and exit')
+	# parser.add_argument('--delete_database', required=False, action='store_true', help='Delete database and exit')
+	# parser.add_argument('--list_database_date', required=False, action='store_true', help='List database date and exit')
+	# parser.add_argument('--database_date', required=False, help='The date of the data in the database. Ex: 2022-05-18. Caution: Update/Find/Delete Database')
+	# parser.add_argument('--database_date_range', required=False, help='The date range of the data in the database. Format: start_date,end_date. Ex: (1) 2022-05-18,2022-05-30 ; (2) 2022-05-18, ; (3) ,2022-05-30. Caution: Find/Delete Database')
+	# parser.add_argument('--database_all_date_range', required=False, action='store_true', help='The all date range of the data in the database')
+	# parser.add_argument('--create_report_by_sheet_set_category', required=False, help='Create a report by certain a sheet set category and exit')
+	# parser.add_argument('--check_data_source_difference', required=False, help='Check data source difference on a specific day and exit')
+	# parser.add_argument('-m', '--analysis_method', required=False, help='The method for chip analysis. Default: 0')	
+	# parser.add_argument('-d', '--show_detail', required=False, action='store_true', help='Show detailed data for each stock')
+	# parser.add_argument('-g', '--generate_report', required=False, action='store_true', help='Generate the report of the detailed data for each stock to the XLS file.')
+	# parser.add_argument('-r', '--report_filename', required=False, help='The filename of chip analysis report')
+	# parser.add_argument('-t', '--stock_list_filename', required=False, help='The filename of stock list for chip analysis')
+	# parser.add_argument('-l', '--stock_list', required=False, help='The list string of stock list for chip analysis. Ex: 2330,2317,2454,2308')
+	# parser.add_argument('--source_folderpath', required=False, help='Update database from the XLS files in the designated folder path. Ex: %s' % StockChipAnalysis.DEFAULT_SOURCE_FOLDERPATH)
+	# parser.add_argument('--source_filename', required=False, help='The filename of chip analysis data source')
+	# parser.add_argument('-c', '--sheet_set_category', required=False, help='The category for sheet set. Default: 0')	
+	# parser.add_argument('-n', '--need_all_sheet', required=False, action='store_true', help='The stock should be found in all sheets in the sheet name list')
+	# parser.add_argument('--search_history', required=False, action='store_true', help='The data source is from the database, otherwise from the excel file')
+	# parser.add_argument('-a', '--search_result_filename', required=False, help='The filename of stock list for search result')
+	# parser.add_argument('-o', '--output_search_result', required=False, action='store_true', help='Ouput the search result')
+	# parser.add_argument('-q', '--quiet', required=False, action='store_true', help="Don't print string on the screen")
+	# parser.add_argument('-s', '--sort', required=False, action='store_true', help="Show the data in order")
+	# parser.add_argument('-f', '--sort_limit', required=False, help="Limit the sorted data")
+	# # parser.add_argument('-f', '--update_datebase', required=False, help="Limit the sorted data")
 	args = parser.parse_args()
 
 	# if args.list_analysis_method:
