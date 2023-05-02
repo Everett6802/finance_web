@@ -19,6 +19,8 @@ from datetime import timedelta
 import math
 import csv
 import collections
+import time
+import json
 
 
 class ConvertibleBondAnalysis(object):
@@ -135,11 +137,20 @@ class ConvertibleBondAnalysis(object):
 
 
 	@classmethod
-	def __get_web_driver(cls, web_driver_filepath="C:\chromedriver.exe"):
-		module = __import__("selenium.webdriver")
-		web_driver_class = getattr(module, "webdriver")
-		web_driver_obj = web_driver_class.Chrome(web_driver_filepath)
-		return web_driver_obj
+	def __check_wget_module_installed(cls):
+		try:
+			module = __import__("wget")
+		except ModuleNotFoundError:
+			return False
+		return True
+
+
+	# @classmethod
+	# def __get_web_driver(cls, web_driver_filepath="C:\chromedriver.exe"):
+	# 	module = __import__("selenium.webdriver")
+	# 	web_driver_class = getattr(module, "webdriver")
+	# 	web_driver_obj = web_driver_class.Chrome(web_driver_filepath)
+	# 	return web_driver_obj
 
 
 	def __init__(self, cfg):
@@ -194,6 +205,8 @@ class ConvertibleBondAnalysis(object):
 		self.can_scrape = self.__can_scrape()
 		self.requests_module = None
 		self.beautifulsoup_class = None
+		self.web_driver = None
+		self.wget_module = None
 		self.cb_publish_detail = {}
 
 
@@ -234,6 +247,24 @@ class ConvertibleBondAnalysis(object):
 			bs4_module = __import__("bs4")
 			self.beautifulsoup_class = getattr(bs4_module, "BeautifulSoup")
 		return self.beautifulsoup_class
+
+
+	def __get_web_driver(self, web_driver_filepath="C:\chromedriver.exe"):
+		if not self.__check_selenium_module_installed():
+			raise RuntimeError("The selenium module is NOT installed!!!")
+		if self.web_driver is None:
+			module = __import__("selenium.webdriver")
+			web_driver_class = getattr(module, "webdriver")
+			self.web_driver = web_driver_class.Chrome(web_driver_filepath)
+		return self.web_driver
+
+
+	def __get_wget_module(self):
+		if not self.__check_wget_module_installed():
+			raise RuntimeError("The wget module is NOT installed!!!")
+		if self.wget_module is None:
+			self.wget_module = __import__("wget")
+		return self.wget_module
 
 
 	def __read_cb_summary(self):
@@ -686,6 +717,140 @@ class ConvertibleBondAnalysis(object):
 		return cb_publish_detail_dict
 
 
+	def scrape_stock_info(self, cb_id):
+		driver = self.__get_web_driver()
+		data_dict = {}
+		cb_stock_id = cb_id[:4]
+		try:
+			driver.get("https://concords.moneydj.com/Z/ZC/ZCX/ZCX_%s.djhtm" % cb_stock_id)
+			time.sleep(5)
+			table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/table[1]/tbody/tr/td/table[6]')
+			trs = table.find_elements("tag name", "tr")
+			# import pdb; pdb.set_trace()
+			mobj = re.search("融資融券", trs[0].find_element("tag name", "td").text)
+			if mobj is not None:
+				title_tmp_list1 = []
+				td1s = trs[1].find_elements("tag name", "td")
+				for td in td1s[1:3]:
+					title_tmp_list1.append(td.text)
+				title_tmp_list2 = []
+				td2s = trs[2].find_elements("tag name", "td")
+				for td in td2s[1:]:
+					title_tmp_list2.append(td.text)
+				# import pdb; pdb.set_trace()
+				title_list = []
+				title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[0], x), title_tmp_list2[1:7])))
+				title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[1], x), title_tmp_list2[7:])))
+				title_list.append(title_tmp_list2[-1])
+				# import pdb; pdb.set_trace()
+				for tr in trs[3:]:
+					tds = tr.find_elements("tag name", "td")
+					td_text_list = []
+					for td in tds[1:]:
+						td_text_list.append(td.text)
+					# import pdb; pdb.set_trace()
+					data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
+			# import pdb; pdb.set_trace()
+			print(data_dict)
+		except Exception as e:
+			print(e)
+		finally:
+			driver.close()
+		return data_dict
+
+
+	def scrape_cb_monthly_convert_data(self):
+		driver = self.__get_web_driver()
+		url = "https://www.tdcc.com.tw/portal/zh/QStatWAR/indm004"
+		filename_prefix = "可轉換公司債月分析表" 
+		try:		
+			driver.get(url)
+			time.sleep(5)
+			btn = driver.find_element("xpath", '//*[@id="form1"]/table/tbody/tr[4]/td/input')
+			btn.click()
+			time.sleep(5)
+			table = driver.find_element("xpath", '//*[@id="body"]/div/main/div[6]/div/table')
+			data_dict = {}
+# Check the table time
+			# import pdb; pdb.set_trace()
+			span = driver.find_element("xpath", '//*[@id="body"]/div/main/div[5]/span')
+			mobj = re.search(".+([\d]{5})", span.text)
+			if mobj is None:
+				raise RuntimeError("Fail to find the month of the table")
+			table_month = mobj.group(1)
+			filename = filename_prefix + table_month
+			filepath = os.path.join(self.xcfg["cb_folderpath"], filename)
+			# import pdb; pdb.set_trace()
+			if self.__check_file_exist(filepath):
+				# print ("The file[%s] already exist !!!" % filepath)
+				with open(filepath, "r", encoding='utf8') as f:
+					data_dict = json.load(f)
+			else:
+# thead
+				print ("The file[%s] does NOT exist. Scrape the data from website" % filepath)
+				table_head = table.find_element("tag name", "thead")
+				trs = table_head.find_elements("tag name", "tr")
+				table_title_list = []
+				ths = trs[1].find_elements("tag name", "th")
+				for th in ths:
+					table_title_list.append(th.text)
+				ths = trs[0].find_elements("tag name", "th")
+				for th in ths[1:]:
+					table_title_list.append(th.text.split('\n')[0])
+				# print(table_title_list)
+# tbody
+				table_body = table.find_element("tag name", "tbody")
+				trs = table_body.find_elements("tag name", "tr")
+				for tr in trs:
+					tds = tr.find_elements("tag name", "td")
+					td_text_list = []
+					for td in tds:
+						td_text_list.append(td.text)
+					# print(", ".join(td_text_list))
+					data_dict[td_text_list[0]] = dict(zip(table_title_list[1:], td_text_list[1:]))
+				# time.sleep(5)
+				# import pdb; pdb.set_trace()
+# Writing to file
+				with open(filepath, "w", encoding='utf-8') as f:
+				    json.dump(data_dict, f, indent=3, ensure_ascii=False)	
+		except Exception as e:
+			print ("Exception occurs while scraping [%s], due to: %s" % (url, str(e)))
+			raise e
+		finally:
+			driver.close()
+		# for key, value in data_dict.items():
+		# 	value_str_list = list(map(lambda x: "%s(%s)" % (x[0], x[1]), value.items()))
+		# 	print("%s: %s" % (key, ", ".join(value_str_list)))
+		return data_dict
+
+
+	def get_cb_monthly_convert_data(self, table_month=None):
+		import pdb; pdb.set_trace()
+		scrapy_data_dict = None
+		if table_month is not None:
+			filename_prefix = "可轉換公司債月分析表"
+			filename = filename_prefix + table_month
+			filepath = os.path.join(self.xcfg["cb_folderpath"], filename)
+			if self.__check_file_exist(filepath):
+				with open(filepath, 'r', encoding='utf-8') as f:
+					scrapy_data_dict = json.load(f)
+		if scrapy_data_dict is None:
+			scrapy_data_dict = self.scrape_cb_monthly_convert_data()
+# Fails to read from the TXT file
+		# url = "https://m.tdcc.com.tw/tcdata/sm/bimon92.txt"
+		# data_filename = "monthly_convert_data.txt"
+		# resp = self.__get_wget_module().download(url, data_filename)
+		# data_filepath = os.path.join(os.getcwd(), data_filename)
+		# # import pdb; pdb.set_trace()
+		# if not self.__check_file_exist(data_filepath):
+		# 	raise RuntimeError("Fails to download the file: %s" % data_filepath)
+		# # import pdb; pdb.set_trace()
+		# with open(data_filepath, "rb") as f:
+		# 	for line in f:
+		# 		print(line)
+		return scrapy_data_dict
+			
+
 	def get_publish_detail(self, cb_id):
 		if cb_id not in self.cb_publish_detail:
 			self.cb_publish_detail[cb_id] = self.scrape_publish_detail(cb_id)
@@ -826,65 +991,121 @@ if __name__ == "__main__":
 	# parser.add_argument('--list_analysis_method', required=False, action='store_true', help='List each analysis method and exit')
 	# args = parser.parse_args()
 
-	# cfg = {
-	# }
-	# with ConvertibleBondAnalysis(cfg) as obj:
-	# 	obj.test()
+	cfg = {
+	}
+	with ConvertibleBondAnalysis(cfg) as obj:
+		# obj.test()
+		obj.get_cb_monthly_convert_data("11203")
 
-	from selenium import webdriver
-	import time
-	# from selenium.webdriver.common.by import By
 
-	driver = webdriver.Chrome("C:\chromedriver.exe")
+# 	from selenium import webdriver
+# 	import time
+# 	# from selenium.webdriver.common.by import By
+
+
+
+# 	driver = webdriver.Chrome("C:\chromedriver.exe")
+# 	driver.get("https://www.tdcc.com.tw/portal/zh/QStatWAR/indm004")
+# 	time.sleep(5)
+# 	btn = driver.find_element("xpath", '//*[@id="form1"]/table/tbody/tr[4]/td/input')
+# 	btn.click()
+# 	time.sleep(5)
+# 	table = driver.find_element("xpath", '//*[@id="body"]/div/main/div[6]/div/table')
+# 	data_dict = {}
+# # thead
+# 	table_head = table.find_element("tag name", "thead")
+# 	trs = table_head.find_elements("tag name", "tr")
+# 	table_title_list = []
+# 	ths = trs[1].find_elements("tag name", "th")
+# 	for th in ths:
+# 		table_title_list.append(th.text)
+# 	ths = trs[0].find_elements("tag name", "th")
+# 	for th in ths[1:]:
+# 		table_title_list.append(th.text.split('\n')[0])
+# 	print(table_title_list)
+# # tbody
+# 	table_body = table.find_element("tag name", "tbody")
+# 	trs = table_body.find_elements("tag name", "tr")
+# 	for tr in trs:
+# 		tds = tr.find_elements("tag name", "td")
+# 		td_text_list = []
+# 		for td in tds:
+# 			td_text_list.append(td.text)
+# 		# print(", ".join(td_text_list))
+# 		data_dict[td_text_list[0]] = dict(zip(table_title_list[1:], td_text_list[1:]))
+# 	time.sleep(5)
+# 	driver.close()
+
+# 	for key, value in data_dict.items():
+# 		value_str_list = list(map(lambda x: "%s(%s)" % (x[0], x[1]), value.items()))
+# 		print("%s: %s" % (key, ", ".join(value_str_list)))
+
+	# import pdb; pdb.set_trace()
+	# import requests
+	# image_url = "https://m.tdcc.com.tw/tcdata/sm/bimon92.txt"
+	# # URL of the image to be downloaded is defined as image_url
+	# r = requests.get(image_url) # create HTTP response object
+	  
+	# # send a HTTP request to the server and save
+	# # the HTTP response in a response object called r
+	# with open("python_logo.png",'wb') as f:
+	  
+	#     # Saving received content as a png file in
+	#     # binary format
+	  
+	#     # write the contents of the response (r.content)
+	#     # to a new file in binary mode.
+	#     f.write(r.content)
+
 	# driver.get("https://www.tpex.org.tw/web/bond/publish/convertible_bond_search/memo.php?l=zh-tw")
-	# driver.get("https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=45552&bond_kind=5&bond_subn=%24M00000001&bond_yrn=2&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=4555&monyr_reg=202302&pg=&step=0&tg=k_code=4555&monyr_reg=202302&pg=&step=0&tg=")
-	# driver.get("https://www.tdcc.com.tw/portal/zh/QStatWAR/indm004")
-	driver.get("https://concords.moneydj.com/Z/ZC/ZCX/ZCX_2330.djhtm")
-	time.sleep(5)
-	# #找到輸入框
-	# # element = driver.find_element_by_name("q");
-	# #form1 > table > tbody > tr:nth-child(4) > td > input[type=submit]
-	# link = driver.find_element("xpath", '//*[@id="table01"]/center/table[2]/tbody/tr[46]/td/a')
-	# # btn = driver.find_element("xpath", '/html/body/div[1]/div[1]/div/main/div[4]/form/table/tbody/tr[4]/td/input')
+	# # driver.get("https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=45552&bond_kind=5&bond_subn=%24M00000001&bond_yrn=2&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=4555&monyr_reg=202302&pg=&step=0&tg=k_code=4555&monyr_reg=202302&pg=&step=0&tg=")
+	# # driver.get("https://www.tdcc.com.tw/portal/zh/QStatWAR/indm004")
+	# driver.get("https://concords.moneydj.com/Z/ZC/ZCX/ZCX_2330.djhtm")
 	# time.sleep(5)
-	# btn.click()
-	table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/table[1]/tbody/tr/td/table[6]')
-	trs = table.find_elements("tag name", "tr")
-	# import pdb; pdb.set_trace()
-	data_dict = {}
-	mobj = re.search("融資融券", trs[0].find_element("tag name", "td").text)
-	if mobj is not None:
-		title_tmp_list1 = []
-		td1s = trs[1].find_elements("tag name", "td")
-		for td in td1s[1:3]:
-			title_tmp_list1.append(td.text)
-		title_tmp_list2 = []
-		td2s = trs[2].find_elements("tag name", "td")
-		for td in td2s[1:]:
-			title_tmp_list2.append(td.text)
-		# import pdb; pdb.set_trace()
-		title_list = []
-		title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[0], x), title_tmp_list2[1:7])))
-		title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[1], x), title_tmp_list2[7:])))
-		title_list.append(title_tmp_list2[-1])
-		# import pdb; pdb.set_trace()
-		for tr in trs[3:]:
-			tds = tr.find_elements("tag name", "td")
-			td_text_list = []
-			for td in tds[1:]:
-				td_text_list.append(td.text)
-			# import pdb; pdb.set_trace()
-			data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
-	# import pdb; pdb.set_trace()
-	print(data_dict)
-			# print("%s\n" % (", ".join(td_text_list)))
+	# # #找到輸入框
+	# # # element = driver.find_element_by_name("q");
+	# # #form1 > table > tbody > tr:nth-child(4) > td > input[type=submit]
+	# # link = driver.find_element("xpath", '//*[@id="table01"]/center/table[2]/tbody/tr[46]/td/a')
+	# # # btn = driver.find_element("xpath", '/html/body/div[1]/div[1]/div/main/div[4]/form/table/tbody/tr[4]/td/input')
+	# # time.sleep(5)
+	# # btn.click()
+	# table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/table[1]/tbody/tr/td/table[6]')
+	# trs = table.find_elements("tag name", "tr")
+	# # import pdb; pdb.set_trace()
+	# data_dict = {}
+	# mobj = re.search("融資融券", trs[0].find_element("tag name", "td").text)
+	# if mobj is not None:
+	# 	title_tmp_list1 = []
+	# 	td1s = trs[1].find_elements("tag name", "td")
+	# 	for td in td1s[1:3]:
+	# 		title_tmp_list1.append(td.text)
+	# 	title_tmp_list2 = []
+	# 	td2s = trs[2].find_elements("tag name", "td")
+	# 	for td in td2s[1:]:
+	# 		title_tmp_list2.append(td.text)
+	# 	# import pdb; pdb.set_trace()
+	# 	title_list = []
+	# 	title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[0], x), title_tmp_list2[1:7])))
+	# 	title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[1], x), title_tmp_list2[7:])))
+	# 	title_list.append(title_tmp_list2[-1])
+	# 	# import pdb; pdb.set_trace()
+	# 	for tr in trs[3:]:
+	# 		tds = tr.find_elements("tag name", "td")
+	# 		td_text_list = []
+	# 		for td in tds[1:]:
+	# 			td_text_list.append(td.text)
+	# 		# import pdb; pdb.set_trace()
+	# 		data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
+	# # import pdb; pdb.set_trace()
+	# print(data_dict)
+	# 		# print("%s\n" % (", ".join(td_text_list)))
 
 
-	# #輸入內容
-	# element.send_keys("hello world");
-	# #提交表單
-	# element.submit();
-	driver.close()
+	# # #輸入內容
+	# # element.send_keys("hello world");
+	# # #提交表單
+	# # element.submit();
+	# driver.close()
 
 		# # # web_driver = self.__get_web_driver()
 		# # # driver.get(url)
