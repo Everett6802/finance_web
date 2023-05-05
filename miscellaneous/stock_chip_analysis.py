@@ -27,9 +27,13 @@ class StockChipAnalysis(object):
 	DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
 	DEFAULT_SEARCH_RESULT_FILENAME = "search_result_stock_list.txt"
 	SHEET_METADATA_DICT = {
-		u"短線多空": {
-			"key_mode": 0, # 2504 國產
-			"data_start_column_index": 1,
+		# u"短線多空": {
+		# 	"key_mode": 0, # 2504 國產
+		# 	"data_start_column_index": 1,
+		# },
+		u"夏普值": {
+			"key_mode": 1, # 1476
+			"data_start_column_index": 2,
 		},
 		u"主法量率": {
 			"key_mode": 0, # 2504 國產
@@ -39,18 +43,18 @@ class StockChipAnalysis(object):
 			"key_mode": 0, # 2504 國產
 			"data_start_column_index": 1,
 		},
-		u"大戶持股變化": {
-			"key_mode": 0, # 2504 國產
-			"data_start_column_index": 1,
-		},
+		# u"大戶持股變化": {
+		# 	"key_mode": 0, # 2504 國產
+		# 	"data_start_column_index": 1,
+		# },
 		u"主力買超天數累計": {
 			"key_mode": 0, # 2504 國產
 			"data_start_column_index": 1,
 		},
-		u"法人買超天數累計": {
-			"key_mode": 0, # 2504 國產
-			"data_start_column_index": 1,
-		},
+		# u"法人買超天數累計": {
+		# 	"key_mode": 0, # 2504 國產
+		# 	"data_start_column_index": 1,
+		# },
 		u"法人共同買超累計": {
 			"key_mode": 1, # 1476
 			"data_start_column_index": 2,
@@ -73,18 +77,18 @@ class StockChipAnalysis(object):
 		},
 	}
 	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
-	DEFAULT_SHEET_NAME_LIST = [u"短線多空", u"主法量率", u"六大買超", u"大戶持股變化", u"主力買超天數累計", u"法人買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計", u"上市融資增加", u"上櫃融資增加",]
+	DEFAULT_SHEET_NAME_LIST = [u"夏普值", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計", u"上市融資增加", u"上櫃融資增加",]
 	SHEET_SET_LIST = [
-		[u"法人共同買超累計", u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
+		[u"法人共同買超累計", u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"外資買超天數累計", u"投信買超天數累計",],
 	]
 	DEFAULT_CONSECUTIVE_OVER_BUY_DAYS = 3
-	CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST = [u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
-	CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST = [u"主力買超累計天數", u"法人買超累計天數", u"外資買超累計天數", u"投信買超累計天數",]
+	CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST = [u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
+	CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST = [u"主力買超累計天數", u"外資買超累計天數", u"投信買超累計天數",]
 	DEFAULT_MINIMUM_VOLUME = 1000
-	MINIMUM_VOLUME_SHEETNAME_LIST = [u"主力買超天數累計", u"法人買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
-	MINIMUM_VOLUME_FIELDNAME_LIST = [u"主力買超張數", u"法人累計買超張數", u"外資累計買超張數", u"投信累計買超張數",]
+	MINIMUM_VOLUME_SHEETNAME_LIST = [u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
+	MINIMUM_VOLUME_FIELDNAME_LIST = [u"主力買超張數", u"外資累計買超張數", u"投信累計買超張數",]
 	DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_THRESHOLD = 10.0
 	DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS = 3
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_SHEETNAME = "主法量率"
@@ -349,26 +353,22 @@ class StockChipAnalysis(object):
 
 	def search_targets(self, stock_chip_data_dict, search_rule_index=0):
 		stock_set1 = set(stock_chip_data_dict[u"主力買超天數累計"].keys())
-		stock_set2 = set(stock_chip_data_dict[u"法人買超天數累計"].keys())
-		stock_set3 = set(stock_chip_data_dict[u"主法量率"].keys())
-		stock_set4 = set(stock_chip_data_dict[u"外資買超天數累計"].keys())
-		stock_set5 = set(stock_chip_data_dict[u"投信買超天數累計"].keys())
+		stock_set2 = set(stock_chip_data_dict[u"主法量率"].keys())
+		stock_set3 = set(stock_chip_data_dict[u"外資買超天數累計"].keys())
+		stock_set4 = set(stock_chip_data_dict[u"投信買超天數累計"].keys())
 # https://blog.csdn.net/qq_37195276/article/details/79467917
 # & != and ; | != or
 # python中&、|代表的是位運算符，and、or代表的是邏輯運算符
 		search_rule_list = None
 		stock_list = None
 		if search_rule_index == 0:
-			search_rule_list = ["主力買超天數累計", "法人買超天數累計", "主法量率", "外資買超天數累計", "投信買超天數累計",]
-			stock_list = list(stock_set1 & stock_set2 & stock_set3 & stock_set4 & stock_set5)
-		elif search_rule_index == 1:
-			search_rule_list = ["主力買超天數累計", "法人買超天數累計", "主法量率", "外資買超天數累計",]
+			search_rule_list = ["主力買超天數累計", "主法量率", "外資買超天數累計", "投信買超天數累計",]
 			stock_list = list(stock_set1 & stock_set2 & stock_set3 & stock_set4)
-		elif search_rule_index == 2:
-			search_rule_list = ["主力買超天數累計", "法人買超天數累計", "主法量率",]
+		elif search_rule_index == 1:
+			search_rule_list = ["主力買超天數累計", "主法量率", "外資買超天數累計",]
 			stock_list = list(stock_set1 & stock_set2 & stock_set3)
-		elif search_rule_index == 3:
-			search_rule_list = ["主力買超天數累計", "法人買超天數累計",]
+		elif search_rule_index == 2:
+			search_rule_list = ["主力買超天數累計", "主法量率",]
 			stock_list = list(stock_set1 & stock_set2)
 		else:
 			raise ValueError("Unsupport search_rule_index: %d" % search_rule_index)
@@ -378,7 +378,7 @@ class StockChipAnalysis(object):
 		stock_name_list = [stock_chip_data_dict[u"主力買超天數累計"][stock]["商品"] for stock in stock_list]
 		stock_list_str = ", ".join(map(lambda x: "%s[%s]" % (x[0], x[1]), zip(stock_list, stock_name_list)))
 		print (stock_list_str + "\n")
-		sheet_name_list = ["短線多空", "主法量率", "六大買超",]
+		sheet_name_list = ["夏普值", "主法量率", "六大買超",]
 		for index, stock in enumerate(stock_list):
 			print ("*** %s[%s] ***" % (stock, stock_name_list[index]))
 			global_item_list = None
