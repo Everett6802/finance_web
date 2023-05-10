@@ -805,7 +805,7 @@ class ConvertibleBondAnalysis(object):
 					tds = tr.find_elements("tag name", "td")
 					td_text_list = []
 					for td in tds:
-						td_text_list.append(td.text)
+						td_text_list.append(td.text.replace(",",""))
 					# print(", ".join(td_text_list))
 					data_dict[td_text_list[0]] = dict(zip(table_title_list[1:], td_text_list[1:]))
 				# time.sleep(5)
@@ -825,7 +825,8 @@ class ConvertibleBondAnalysis(object):
 
 
 	def get_cb_monthly_convert_data(self, table_month=None):
-		import pdb; pdb.set_trace()
+		# import pdb; pdb.set_trace()
+		filepath = None
 		scrapy_data_dict = None
 		if table_month is not None:
 			filename_prefix = "可轉換公司債月分析表"
@@ -836,6 +837,10 @@ class ConvertibleBondAnalysis(object):
 					scrapy_data_dict = json.load(f)
 		if scrapy_data_dict is None:
 			scrapy_data_dict = self.scrape_cb_monthly_convert_data()
+			if table_month is not None:
+				if not self.__check_file_exist(filepath):
+					raise ValueError("The data of %s is NOT found" % os.path.basename(filepath))
+
 # Fails to read from the TXT file
 		# url = "https://m.tdcc.com.tw/tcdata/sm/bimon92.txt"
 		# data_filename = "monthly_convert_data.txt"
@@ -850,6 +855,12 @@ class ConvertibleBondAnalysis(object):
 		# 		print(line)
 		return scrapy_data_dict
 			
+
+	def search_cb_mass_convert(self, table_month=None, mass_convert_threshold=-10.0):
+		convert_cb_dict = self.get_cb_monthly_convert_data(table_month)
+		mass_convert_cb_dict = dict(filter(lambda x: float(x[1]["增減百分比"]) < mass_convert_threshold, convert_cb_dict.items()))
+		return mass_convert_cb_dict
+
 
 	def get_publish_detail(self, cb_id):
 		if cb_id not in self.cb_publish_detail:
@@ -952,6 +963,12 @@ class ConvertibleBondAnalysis(object):
 				# print("  最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
 				print(" *************")
 			print("=================================================================\n")
+		mass_convert_cb_dict = self.search_cb_mass_convert("11204")
+		if bool(mass_convert_cb_dict):
+			print("=== CB大量轉換 ==================================================")
+			for cb_key, cb_data in mass_convert_cb_dict.items():
+				print ("%s[%s]:  %.2f  %d  %d  %d" % (cb_data["名稱"], cb_key, float(cb_data["增減百分比"]), int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
+
 
 		# multiple_publish_dict = self.search_multiple_publish()
 		# if bool(multiple_publish_dict):
@@ -994,8 +1011,8 @@ if __name__ == "__main__":
 	cfg = {
 	}
 	with ConvertibleBondAnalysis(cfg) as obj:
-		# obj.test()
-		obj.get_cb_monthly_convert_data("11203")
+		obj.test()
+		# obj.get_cb_monthly_convert_data("11201")
 
 
 # 	from selenium import webdriver
