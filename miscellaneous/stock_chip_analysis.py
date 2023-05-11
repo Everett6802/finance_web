@@ -12,6 +12,7 @@ Answer : The latest version of xlrd(2.01) only supports .xls files. Installing t
 import xlrd
 import xlsxwriter
 import argparse
+import copy
 from datetime import datetime
 # from pymongo import MongoClient
 from collections import OrderedDict
@@ -83,7 +84,8 @@ class StockChipAnalysis(object):
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"外資買超天數累計", u"投信買超天數累計",],
 	]
-	DEFAULT_CONSECUTIVE_OVER_BUY_DAYS = 3
+	DEFAULT_MIN_CONSECUTIVE_OVER_BUY_DAYS = 3
+	DEFAULT_MAX_CONSECUTIVE_OVER_BUY_DAYS = 12
 	CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST = [u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
 	CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST = [u"主力買超累計天數", u"外資買超累計天數", u"投信買超累計天數",]
 	DEFAULT_MINIMUM_VOLUME = 1000
@@ -93,9 +95,6 @@ class StockChipAnalysis(object):
 	DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS = 3
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_SHEETNAME = "主法量率"
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_FIELDNAME = "主法量率 D"
-
-	WEIGHTED_STOCK_LIST = ["2330", "2317", "2454", "2308", "0050", ]
-	DEFENSE_STOCK_LIST = ["2412", "3045", "4904", "2801", "2809", "2812", "2823", "2834", "2880", "2881", "2882", "2883", "2884", "2885", "2886", "2887", "2888", "2889", "2890", "2891", "2892", "5776", "5880", ]
 
 	DEFAULT_DB_NAME = "StockChipAnalysis"
 	DEFAULT_DB_USERNAME = "root"
@@ -187,7 +186,8 @@ class StockChipAnalysis(object):
 			"stock_list": None,
 			"sheet_name_list": None,
 			"sheet_set_category": -1,
-			"consecutive_over_buy_days": self.DEFAULT_CONSECUTIVE_OVER_BUY_DAYS,
+			"min_consecutive_over_buy_days": self.DEFAULT_MIN_CONSECUTIVE_OVER_BUY_DAYS,
+			"max_consecutive_over_buy_days": self.DEFAULT_MAX_CONSECUTIVE_OVER_BUY_DAYS,
 			"minimum_volume": self.DEFAULT_MINIMUM_VOLUME,
 			"main_force_instuitional_investors_ratio_threshold": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_THRESHOLD,
 			"main_force_instuitional_investors_ratio_consecutive_days": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS,
@@ -310,12 +310,20 @@ class StockChipAnalysis(object):
 # The data
 		csv_data_dict = self.__read_from_worksheet(worksheet, sheet_metadata)
 # Filter the data if necessary
-		if self.xcfg["consecutive_over_buy_days"] is not None:
+		if (self.xcfg["min_consecutive_over_buy_days"] is not None) or (self.xcfg["max_consecutive_over_buy_days"] is not None):
 			try:
 				sheet_index = self.CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST.index(sheet_name)
 				# import pdb; pdb.set_trace()
 				field_name = self.CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST[sheet_index]
-				csv_data_dict = dict(filter(lambda x: int(x[1][field_name]) >= self.xcfg["consecutive_over_buy_days"], csv_data_dict.items()))
+				filter_func_ptr = None
+				if (self.xcfg["min_consecutive_over_buy_days"] is not None) and (self.xcfg["max_consecutive_over_buy_days"] is not None):
+					filter_func_ptr = lambda x: (self.xcfg["max_consecutive_over_buy_days"] >= int(x[1][field_name]) >= self.xcfg["min_consecutive_over_buy_days"])
+				elif self.xcfg["min_consecutive_over_buy_days"] is not None:
+					filter_func_ptr = lambda x: (int(x[1][field_name]) >= self.xcfg["min_consecutive_over_buy_days"])
+				elif self.xcfg["max_consecutive_over_buy_days"] is not None:
+					filter_func_ptr = lambda x: (self.xcfg["max_consecutive_over_buy_days"] >= int(x[1][field_name]))
+				if filter_func_ptr is not None:
+					csv_data_dict = dict(filter(filter_func_ptr, csv_data_dict.items()))
 			except ValueError as e: 
 				pass
 		if self.xcfg["minimum_volume"] is not None:
@@ -351,9 +359,9 @@ class StockChipAnalysis(object):
 		return stock_chip_data_dict
 
 
-	def search_targets(self, stock_chip_data_dict, search_rule_index=0):
-		stock_set1 = set(stock_chip_data_dict[u"主力買超天數累計"].keys())
-		stock_set2 = set(stock_chip_data_dict[u"主法量率"].keys())
+	def search_targets(self, stock_chip_data_dict, search_rule_index=1):
+		stock_set1 = set(stock_chip_data_dict[u"主法量率"].keys())
+		stock_set2 = set(stock_chip_data_dict[u"主力買超天數累計"].keys())
 		stock_set3 = set(stock_chip_data_dict[u"外資買超天數累計"].keys())
 		stock_set4 = set(stock_chip_data_dict[u"投信買超天數累計"].keys())
 # https://blog.csdn.net/qq_37195276/article/details/79467917
@@ -362,13 +370,16 @@ class StockChipAnalysis(object):
 		search_rule_list = None
 		stock_list = None
 		if search_rule_index == 0:
-			search_rule_list = ["主力買超天數累計", "主法量率", "外資買超天數累計", "投信買超天數累計",]
+			search_rule_list = ["主法量率", "主力買超天數累計", "外資買超天數累計", "投信買超天數累計",]
 			stock_list = list(stock_set1 & stock_set2 & stock_set3 & stock_set4)
 		elif search_rule_index == 1:
-			search_rule_list = ["主力買超天數累計", "主法量率", "外資買超天數累計",]
+			search_rule_list = ["主法量率", "主力買超天數累計", "外資買超天數累計",]
 			stock_list = list(stock_set1 & stock_set2 & stock_set3)
 		elif search_rule_index == 2:
-			search_rule_list = ["主力買超天數累計", "主法量率",]
+			search_rule_list = ["主法量率", "主力買超天數累計", "投信買超天數累計",]
+			stock_list = list(stock_set1 & stock_set2 & stock_set4)
+		elif search_rule_index == 3:
+			search_rule_list = ["主法量率", "主力買超天數累計",]
 			stock_list = list(stock_set1 & stock_set2)
 		else:
 			raise ValueError("Unsupport search_rule_index: %d" % search_rule_index)
@@ -378,9 +389,17 @@ class StockChipAnalysis(object):
 		stock_name_list = [stock_chip_data_dict[u"主力買超天數累計"][stock]["商品"] for stock in stock_list]
 		stock_list_str = ", ".join(map(lambda x: "%s[%s]" % (x[0], x[1]), zip(stock_list, stock_name_list)))
 		print (stock_list_str + "\n")
+		# import pdb; pdb.set_trace()
 		sheet_name_list = ["夏普值", "主法量率", "六大買超",]
 		for index, stock in enumerate(stock_list):
-			print ("*** %s[%s] ***" % (stock, stock_name_list[index]))
+			search_rule_data_str_list = []
+			for search_rule in search_rule_list[1:]:
+				sheet_index = self.CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST.index(search_rule)
+				field_name = self.CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST[sheet_index]
+				sheet_data_dict = stock_chip_data_dict[search_rule]
+				stock_sheet_data_dict = sheet_data_dict[stock]
+				search_rule_data_str_list.append("%s(%d)" % (field_name, int(stock_sheet_data_dict[field_name])))
+			print ("*** %s[%s]  %s ***" % (stock, stock_name_list[index], ",".join(search_rule_data_str_list)))
 			global_item_list = None
 			for sheet_name in sheet_name_list:				
 				sheet_data_dict = stock_chip_data_dict[sheet_name]
@@ -394,7 +413,7 @@ class StockChipAnalysis(object):
 					global_item_list.extend(map(lambda x: (x[0], str(int(x[1]))), filter(lambda x: x[0] in ["成交量", "總量",], item_list)))
 					print(" ==>" + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), global_item_list)))
 				item_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_list)
-				if sheet_name == "六大買超":
+				if sheet_name in ["六大買超", "法人共同買超累計",]:
 					print("  " + " ".join(map(lambda x: "%s(%d)" % (x[0], int(x[1])), item_list)))
 				else:
 					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
@@ -420,66 +439,6 @@ class StockChipAnalysis(object):
 				raise RuntimeError("The stock list should NOT be None")
 			self.xcfg['stock_list'] = self.xcfg['stock_list'].split(",")
 		self.__search_stock_sheets()
-
-
-
-	# @property
-	# def StockList(self):
-	# 	return self.xcfg["stock_list"]
-
-
-	# @StockList.setter
-	# def StockList(self, stock_list):
-	# 	self.xcfg["stock_list"] = stock_list
-
-
-	# @property
-	# def StockListFilepath(self):
-	# 	return self.xcfg["stock_list_filepath"]
-
-
-	# @property
-	# def DatabaseDate(self):
-	# 	return self.xcfg["database_date"]
-
-
-	# @DatabaseDate.setter
-	# def DatabaseDate(self, database_date):
-	# 	self.xcfg["database_date"] = self.get_data_date(database_date)
-
-
-	# @property
-	# def SourceFolderpath(self):
-	# 	assert self.xcfg["source_folderpath"] is not None, "source_folderpath should NOT be NONE"
-	# 	return self.xcfg["source_folderpath"]
-
-
-	# @SourceFolderpath.setter
-	# def SourceFolderpath(self, source_folderpath):
-	# 	self.xcfg["source_folderpath"] = source_folderpath
-	# 	self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
-	# 	# print ("SourceFolderpath: %s" % self.xcfg["source_filepath"])
-	# 	if self.workbook is not None:
-	# 		self.workbook.release_resources()
-	# 		del self.workbook
-	# 		self.workbook = None
-
-
-	# @property
-	# def SourceFilename(self):
-	# 	assert self.xcfg["source_filename"] is not None, "source_filename should NOT be NONE"
-	# 	return self.xcfg["source_filename"]
-
-
-	# @SourceFilename.setter
-	# def SourceFilename(self, source_filename):
-	# 	self.xcfg["source_filename"] = source_filename
-	# 	self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
-	# 	# print ("SourceFilename: %s" % self.xcfg["source_filepath"])
-	# 	if self.workbook is not None:
-	# 		self.workbook.release_resources()
-	# 		del self.workbook
-	# 		self.workbook = None
 
 
 if __name__ == "__main__":

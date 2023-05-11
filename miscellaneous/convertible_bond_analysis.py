@@ -840,7 +840,6 @@ class ConvertibleBondAnalysis(object):
 			if table_month is not None:
 				if not self.__check_file_exist(filepath):
 					raise ValueError("The data of %s is NOT found" % os.path.basename(filepath))
-
 # Fails to read from the TXT file
 		# url = "https://m.tdcc.com.tw/tcdata/sm/bimon92.txt"
 		# data_filename = "monthly_convert_data.txt"
