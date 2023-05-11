@@ -85,7 +85,7 @@ class StockChipAnalysis(object):
 		[u"外資買超天數累計", u"投信買超天數累計",],
 	]
 	DEFAULT_MIN_CONSECUTIVE_OVER_BUY_DAYS = 3
-	DEFAULT_MAX_CONSECUTIVE_OVER_BUY_DAYS = 12
+	DEFAULT_MAX_CONSECUTIVE_OVER_BUY_DAYS = 15
 	CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST = [u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
 	CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST = [u"主力買超累計天數", u"外資買超累計天數", u"投信買超累計天數",]
 	DEFAULT_MINIMUM_VOLUME = 1000
@@ -392,14 +392,14 @@ class StockChipAnalysis(object):
 		# import pdb; pdb.set_trace()
 		sheet_name_list = ["夏普值", "主法量率", "六大買超",]
 		for index, stock in enumerate(stock_list):
-			search_rule_data_str_list = []
+			search_rule_item_list = []
 			for search_rule in search_rule_list[1:]:
 				sheet_index = self.CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST.index(search_rule)
 				field_name = self.CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST[sheet_index]
 				sheet_data_dict = stock_chip_data_dict[search_rule]
 				stock_sheet_data_dict = sheet_data_dict[stock]
-				search_rule_data_str_list.append("%s(%d)" % (field_name, int(stock_sheet_data_dict[field_name])))
-			print ("*** %s[%s]  %s ***" % (stock, stock_name_list[index], ",".join(search_rule_data_str_list)))
+				search_rule_item_list.append((field_name, str(int(stock_sheet_data_dict[field_name]))))
+			print ("*** %s[%s] ***" % (stock, stock_name_list[index]))
 			global_item_list = None
 			for sheet_name in sheet_name_list:				
 				sheet_data_dict = stock_chip_data_dict[sheet_name]
@@ -411,6 +411,7 @@ class StockChipAnalysis(object):
 					global_item_list = []
 					global_item_list.extend(filter(lambda x: x[0] in ["成交", "漲幅%", "漲跌幅",], item_list))
 					global_item_list.extend(map(lambda x: (x[0], str(int(x[1]))), filter(lambda x: x[0] in ["成交量", "總量",], item_list)))
+					global_item_list.extend(search_rule_item_list)
 					print(" ==>" + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), global_item_list)))
 				item_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_list)
 				if sheet_name in ["六大買超", "法人共同買超累計",]:
