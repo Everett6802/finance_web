@@ -33,8 +33,8 @@ class StockChipAnalysis(object):
 		# 	"data_start_column_index": 1,
 		# },
 		u"夏普值": {
-			"key_mode": 1, # 1476
-			"data_start_column_index": 2,
+			"key_mode": 0, # 2489 瑞軒
+			"data_start_column_index": 1,
 		},
 		u"主法量率": {
 			"key_mode": 0, # 2504 國產
@@ -95,6 +95,13 @@ class StockChipAnalysis(object):
 	DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS = 3
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_SHEETNAME = "主法量率"
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_FIELDNAME = "主法量率 D"
+
+	SEARCH_RULE_DATASHEET_LIST = [
+		["主法量率", "主力買超天數累計", "外資買超天數累計", "投信買超天數累計",],
+		["主法量率", "主力買超天數累計", "外資買超天數累計",],
+		["主法量率", "主力買超天數累計", "投信買超天數累計",],
+		["主法量率", "主力買超天數累計",],
+	]
 
 	DEFAULT_DB_NAME = "StockChipAnalysis"
 	DEFAULT_DB_USERNAME = "root"
@@ -173,6 +180,14 @@ class StockChipAnalysis(object):
 			# print "%d -- %s" % (row_index, stock_number)
 			csv_data_dict[stock_number] = dict(zip(title_list, data_list))
 		return csv_data_dict
+
+
+	@classmethod
+	def show_search_targets_list(cls):
+		print("*****************************************")
+		for index, search_rule_dataset in enumerate(cls.SEARCH_RULE_DATASHEET_LIST):
+			print(" %d: %s" % (index, ",".join(search_rule_dataset)))
+		print("*****************************************")
 
 
 	def __init__(self, cfg):
@@ -301,8 +316,9 @@ class StockChipAnalysis(object):
 
 	def __read_sheet_data(self, sheet_name):
 		# import pdb; pdb.set_trace()
-		sheet_metadata = self.SHEET_METADATA_DICT[sheet_name]
+		sheet_metadata = self.SHEET_METADATA_DICT[sheet_name]		
 		# print (u"Read sheet: %s" % sheet_name)
+
 		# assert self.workbook is not None, "self.workbook should NOT be None"
 		worksheet = self.__get_workbook().sheet_by_name(sheet_name)
 		# https://www.itread01.com/content/1549650266.html
@@ -359,30 +375,16 @@ class StockChipAnalysis(object):
 		return stock_chip_data_dict
 
 
-	def search_targets(self, stock_chip_data_dict, search_rule_index=1):
-		stock_set1 = set(stock_chip_data_dict[u"主法量率"].keys())
-		stock_set2 = set(stock_chip_data_dict[u"主力買超天數累計"].keys())
-		stock_set3 = set(stock_chip_data_dict[u"外資買超天數累計"].keys())
-		stock_set4 = set(stock_chip_data_dict[u"投信買超天數累計"].keys())
-# https://blog.csdn.net/qq_37195276/article/details/79467917
-# & != and ; | != or
-# python中&、|代表的是位運算符，and、or代表的是邏輯運算符
-		search_rule_list = None
-		stock_list = None
-		if search_rule_index == 0:
-			search_rule_list = ["主法量率", "主力買超天數累計", "外資買超天數累計", "投信買超天數累計",]
-			stock_list = list(stock_set1 & stock_set2 & stock_set3 & stock_set4)
-		elif search_rule_index == 1:
-			search_rule_list = ["主法量率", "主力買超天數累計", "外資買超天數累計",]
-			stock_list = list(stock_set1 & stock_set2 & stock_set3)
-		elif search_rule_index == 2:
-			search_rule_list = ["主法量率", "主力買超天數累計", "投信買超天數累計",]
-			stock_list = list(stock_set1 & stock_set2 & stock_set4)
-		elif search_rule_index == 3:
-			search_rule_list = ["主法量率", "主力買超天數累計",]
-			stock_list = list(stock_set1 & stock_set2)
-		else:
+	def search_targets(self, stock_chip_data_dict=None, search_rule_index=0):
+		if stock_chip_data_dict is None:
+			stock_chip_data_dict = self.get_stock_chip_data()
+		if search_rule_index < 0 or search_rule_index >= len(self.SEARCH_RULE_DATASHEET_LIST):
 			raise ValueError("Unsupport search_rule_index: %d" % search_rule_index)
+		search_rule_list = self.SEARCH_RULE_DATASHEET_LIST[search_rule_index]
+		stock_set = set(stock_chip_data_dict[search_rule_list[0]].keys())
+		for search_rule in search_rule_list[1:]:
+			stock_set &= set(stock_chip_data_dict[search_rule].keys())
+		stock_list = list(stock_set)
 
 		search_rule_list_str = ", ".join(search_rule_list)
 		print ("搜尋規則: " + search_rule_list_str )
@@ -464,152 +466,13 @@ if __name__ == "__main__":
 	>>> parser.add_argument('--bar', action='store_false')
 	>>> parser.add_argument('--baz', action='store_false')
 	'''
-	# parser.add_argument('--list_analysis_method', required=False, action='store_true', help='List each analysis method and exit')
-	# parser.add_argument('--list_sheet_set_category', required=False, action='store_true', help='List each stock set and exit')
-	# parser.add_argument('--update_database', required=False, action='store_true', help='Update database and exit')
-	# parser.add_argument('--update_database_multiple', required=False, action='store_true', help='Update database from multiple XLS files and exit. Caution: The format of the XLS filename: {0}@20YY-mm-DD. Ex: {0}_2022-07-29'.format(StockChipAnalysis.DEFAULT_SOURCE_FILENAME))
-	# parser.add_argument('--find_database', required=False, action='store_true', help='Find database and exit')
-	# parser.add_argument('--delete_database', required=False, action='store_true', help='Delete database and exit')
-	# parser.add_argument('--list_database_date', required=False, action='store_true', help='List database date and exit')
-	# parser.add_argument('--database_date', required=False, help='The date of the data in the database. Ex: 2022-05-18. Caution: Update/Find/Delete Database')
-	# parser.add_argument('--database_date_range', required=False, help='The date range of the data in the database. Format: start_date,end_date. Ex: (1) 2022-05-18,2022-05-30 ; (2) 2022-05-18, ; (3) ,2022-05-30. Caution: Find/Delete Database')
-	# parser.add_argument('--database_all_date_range', required=False, action='store_true', help='The all date range of the data in the database')
-	# parser.add_argument('--create_report_by_sheet_set_category', required=False, help='Create a report by certain a sheet set category and exit')
-	# parser.add_argument('--check_data_source_difference', required=False, help='Check data source difference on a specific day and exit')
-	# parser.add_argument('-m', '--analysis_method', required=False, help='The method for chip analysis. Default: 0')	
-	# parser.add_argument('-d', '--show_detail', required=False, action='store_true', help='Show detailed data for each stock')
-	# parser.add_argument('-g', '--generate_report', required=False, action='store_true', help='Generate the report of the detailed data for each stock to the XLS file.')
-	# parser.add_argument('-r', '--report_filename', required=False, help='The filename of chip analysis report')
-	# parser.add_argument('-t', '--stock_list_filename', required=False, help='The filename of stock list for chip analysis')
-	# parser.add_argument('-l', '--stock_list', required=False, help='The list string of stock list for chip analysis. Ex: 2330,2317,2454,2308')
-	# parser.add_argument('--source_folderpath', required=False, help='Update database from the XLS files in the designated folder path. Ex: %s' % StockChipAnalysis.DEFAULT_SOURCE_FOLDERPATH)
-	# parser.add_argument('--source_filename', required=False, help='The filename of chip analysis data source')
-	# parser.add_argument('-c', '--sheet_set_category', required=False, help='The category for sheet set. Default: 0')	
-	# parser.add_argument('-n', '--need_all_sheet', required=False, action='store_true', help='The stock should be found in all sheets in the sheet name list')
-	# parser.add_argument('--search_history', required=False, action='store_true', help='The data source is from the database, otherwise from the excel file')
-	# parser.add_argument('-a', '--search_result_filename', required=False, help='The filename of stock list for search result')
-	# parser.add_argument('-o', '--output_search_result', required=False, action='store_true', help='Ouput the search result')
-	# parser.add_argument('-q', '--quiet', required=False, action='store_true', help="Don't print string on the screen")
-	# parser.add_argument('-s', '--sort', required=False, action='store_true', help="Show the data in order")
-	# parser.add_argument('-f', '--sort_limit', required=False, help="Limit the sorted data")
-	# # parser.add_argument('-f', '--update_datebase', required=False, help="Limit the sorted data")
+	parser.add_argument('-l', '--list_search_rule', required=False, action='store_true', help='List each search rule and exit')
+	parser.add_argument('-r', '--search_rule', required=False, help='The rule for selecing targets. Default: 0')
 	args = parser.parse_args()
 
-	# if args.list_analysis_method:
-	# 	help_str_list = [
-	# 		"Search data for the specific stocks from the file",
-	# 		"Search data for the specific stocks",
-	# 		"Search data for the whole stocks",
-	# 		"Evaluate the TAIEX bull or bear",
-	# 	]
-	# 	help_str_list_len = len(help_str_list)
-	# 	print ("************ Analysis Method ************")
-	# 	for index, help_str in enumerate(help_str_list):
-	# 		print ("%d  %s" % (index, help_str))
-	# 	print ("*****************************************")
-	# 	sys.exit(0)
-	# if args.list_sheet_set_category:
-	# 	StockChipAnalysis.list_sheet_set()
-	# 	sys.exit(0)
-	# if args.check_data_source_difference:
-	# 	StockChipAnalysis.check_data_source_difference(args.check_data_source_difference)
-	# 	sys.exit(0)
-	# if args.create_report_by_sheet_set_category:
-	# 	search_result_filename = "tmp1.txt"
-	# 	cfg_step1 = {
-	# 		"sheet_set_category": int(args.create_report_by_sheet_set_category),
-	# 		"need_all_sheet": True,
-	# 		"search_result_filename": search_result_filename,
-	# 		"output_search_result": True,
-	# 		"quiet": True,
-	# 	}
-	# 	with StockChipAnalysis(cfg_step1) as obj_step1: 
-	# 		obj_step1.search_sheets(True)
-	# 	cfg_step2 = {
-	# 		"generate_report": True,
-	# 		"stock_list_filename": search_result_filename,
-	# 		"quiet": True,
-	# 	}
-	# 	with StockChipAnalysis(cfg_step2) as obj_step2: 
-	# 		obj_step2.search_sheets_from_file()
-	# 		os.remove(obj_step2.StockListFilepath)
-	# 	sys.exit(0)
-
-	# # import pdb; pdb.set_trace()
-	# cfg = {}
-	# cfg['analysis_method'] = int(args.analysis_method) if args.analysis_method is not None else 0
-	# if args.database_date is not None: cfg['database_date'] = args.database_date
-	# if args.database_date_range is not None: cfg['database_date_range'] = args.database_date_range
-	# if args.database_all_date_range: cfg['database_all_date_range'] = True
-	# if args.show_detail: cfg['show_detail'] = True
-	# if args.generate_report: cfg['generate_report'] = True
-	# if args.report_filename is not None: cfg['report_filename'] = args.report_filename
-	# if args.stock_list_filename is not None: cfg['stock_list_filename'] = args.stock_list_filename
-	# if args.stock_list is not None: cfg['stock_list'] = args.stock_list
-	# if args.source_folderpath is not None: cfg['source_folderpath'] = args.source_folderpath
-	# if args.source_filename is not None: cfg['source_filename'] = args.source_filename
-	# cfg['sheet_set_category'] = int(args.sheet_set_category) if args.sheet_set_category is not None else -1
-	# if args.need_all_sheet: cfg['need_all_sheet'] = True
-	# if args.report_filename is not None: cfg['report_filename'] = args.report_filename
-	# if args.search_history: cfg['search_history'] = True
-	# if args.search_result_filename is not None: cfg['search_result_filename'] = args.search_result_filename
-	# if args.output_search_result: cfg['output_search_result'] = True
-	# if args.quiet: cfg['quiet'] = True
-	# if args.sort: cfg['sort'] = True
-	# if args.sort_limit is not None: cfg['sort_limit'] = int(args.sort_limit)
-
-	# # import pdb; pdb.set_trace()
-	# with StockChipAnalysis(cfg) as obj:
-	# 	if args.update_database:
-	# 		 obj.update_database()
-	# 	elif args.update_database_multiple:
-	# 		fliename_dict = {}
-	# 		pattern = "%s.xlsm|%s@(20[\d]{2}-[\d]{2}-[\d]{2}).xlsm" % (StockChipAnalysis.DEFAULT_SOURCE_FILENAME, StockChipAnalysis.DEFAULT_SOURCE_FILENAME)
-	# 		# print (pattern)
-	# 		regex = re.compile(pattern)
-	# 		for filename in os.listdir(obj.SourceFolderpath):
-	# 			mobj = re.match(regex, filename)
-	# 			if mobj is None: continue
-	# 			# print (mobj.group(1))
-	# 			filepath = os.path.join(obj.SourceFolderpath, filename)
-	# 			if not os.path.isfile(filepath): continue
-	# 			file_date = obj.get_data_date(mobj.group(1))
-	# 			fliename_dict[file_date] = filename
-	# 			# print(f)
-	# 		# print (fliename_ordereddict)
-	# 		fliename_ordereddict = OrderedDict(sorted(fliename_dict.items(), key=lambda x: x[0]))
-	# 		for filedate, filename in fliename_ordereddict.items():
-	# 			print ("%s: %s" % (filedate, filename))
-	# 			# import pdb; pdb.set_trace()
-	# 			obj.DatabaseDate = filedate
-	# 			obj.SourceFilename = filename
-	# 			obj.update_database()
-	# 	elif args.find_database:
-	# 		obj.find_database()
-	# 	elif args.delete_database:
-	# 		obj.delete_database()
-	# 	elif args.list_database_date:
-	# 		obj.list_database_date()
-	# 	elif cfg['analysis_method'] == 0:
-	# 		obj.search_sheets_from_file()
-	# 	elif cfg['analysis_method'] == 1:
-	# 		obj.search_sheets()
-	# 	elif cfg['analysis_method'] == 2:
-	# 		obj.search_sheets(True)
-	# 	elif cfg['analysis_method'] == 3:
-	# 		obj.evaluate_bull_bear()
-	# 	else:
-	# 		raise ValueError("Incorrect Analysis Method Index")
+	if args.list_search_rule:
+		StockChipAnalysis.show_search_targets_list()
+		sys.exit(0)
 	cfg = {}
 	with StockChipAnalysis(cfg) as obj:
-		stock_chip_data_dict = obj.get_stock_chip_data()
-		obj.search_targets(stock_chip_data_dict)
-# 		stock_set1 = set(stock_chip_data_dict[u"主力買超天數累計"].keys())
-# 		stock_set2 = set(stock_chip_data_dict[u"法人買超天數累計"].keys())
-# 		stock_set3 = set(stock_chip_data_dict[u"外資買超天數累計"].keys())
-# 		stock_set4 = set(stock_chip_data_dict[u"投信買超天數累計"].keys())
-# # https://blog.csdn.net/qq_37195276/article/details/79467917
-# # & != and ; | != or
-# # python中&、|代表的是位運算符，and、or代表的是邏輯運算符
-# 		stock_set = stock_set1 & stock_set2 & stock_set3 & stock_set4
-# 		print (list(stock_set))
+		obj.search_targets(search_rule_index=int(args.search_rule))
