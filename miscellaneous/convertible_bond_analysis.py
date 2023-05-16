@@ -907,30 +907,41 @@ class ConvertibleBondAnalysis(object):
 		irr_dict = self.get_positive_internal_rate_of_return(data_dict_quotation)
 		if bool(irr_dict):
 			print("=== 年化報酬率 ==================================================")
+			title_list = ["年化報酬率", "賣出一", "到期日",]
+			print("  ===> %s" % ", ".join(title_list))
 			for irr_key, irr_data in irr_dict.items():
 				print ("%s[%s]: %.2f  %.2f  %s" % (irr_data["商品"], irr_key, float(irr_data["年化報酬率"]), float(irr_data["賣出一"]), irr_data["到期日"]))
 			print("=================================================================\n")
 		premium_dict = self.get_negative_premium(data_dict_quotation, stock_data_dict_quotation)
 		if bool(premium_dict):
 			print("=== 溢價率(套利) ================================================")
-			for premium_key, premium_dict in premium_dict.items():
-				print ("%s[%s]: %.2f  %d  %d" % (premium_dict["商品"], premium_key, float(premium_dict["溢價率"]), premium_dict["融資餘額"], premium_dict["融券餘額"]))
+			title_list = ["溢價率", "融資餘額", "融券餘額",]
+			print("  ===> %s" % ", ".join(title_list))
+			# import pdb; pdb.set_trace()
+			for premium_key, premium_data in premium_dict.items():
+				print ("%s[%s]: %.2f  %d  %d" % (premium_data["商品"], premium_key, float(premium_data["溢價率"]), premium_data["融資餘額"], premium_data["融券餘額"]))
 			print("=================================================================\n")
 		stock_premium_dict = self.get_absolute_stock_premium(data_dict_quotation, stock_data_dict_quotation)
 		if bool(stock_premium_dict):
 			print("=== 股票溢價率 ==================================================")
-			for stock_premium_key, stock_premium_dict in stock_premium_dict.items():
-				print ("%s[%s]: %.2f" % (stock_premium_dict["商品"], stock_premium_key, float(stock_premium_dict["股票溢價率"])))
+			title_list = ["股票溢價率",]
+			print("  ===> %s" % ", ".join(title_list))
+			for stock_premium_key, stock_premium_data in stock_premium_dict.items():
+				print ("%s[%s]: %.2f" % (stock_premium_data["商品"], stock_premium_key, float(stock_premium_data["股票溢價率"])))
 			print("=================================================================\n")
 		cb_dict = self.get_low_premium_and_breakeven(data_dict_quotation, stock_data_dict_quotation)
 		if bool(cb_dict):
 			print("=== 低溢價且保本 ================================================")
+			title_list = ["溢價率", "成交", "賣出一", "到期日",]
+			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in cb_dict.items():
 				print ("%s[%s]: %.2f  %.2f  %.2f  %s" % (cb_data["商品"], cb_key, float(cb_data["溢價率"]), float(cb_data["成交"]), float(cb_data["賣出一"]), cb_data["到期日"]))
 			print("=================================================================\n")
 		issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict = self.search_cb_opportunity_dates(data_dict_quotation, stock_data_dict_quotation)
 		if bool(issuing_date_cb_dict):
 			print("=== 近發行日期 ==================================================")
+			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數",]
+			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in issuing_date_cb_dict.items():
 				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"])))
 				cb_publish_detail_dict = self.get_publish_detail(cb_key)
@@ -942,6 +953,8 @@ class ConvertibleBondAnalysis(object):
 			print("=================================================================\n")
 		if bool(convertible_date_cb_dict):
 			print("=== 近可轉換日 ==================================================")
+			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數",]
+			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in convertible_date_cb_dict.items():
 				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"])))
 				cb_publish_detail_dict = self.get_publish_detail(cb_key)
@@ -953,6 +966,8 @@ class ConvertibleBondAnalysis(object):
 			print("=================================================================\n")
 		if bool(maturity_date_cb_dict):
 			print("=== 近到期日期 ==================================================")
+			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數",]
+			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in maturity_date_cb_dict.items():
 				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"])))
 				cb_publish_detail_dict = self.get_publish_detail(cb_key)
@@ -965,6 +980,8 @@ class ConvertibleBondAnalysis(object):
 		mass_convert_cb_dict = self.search_cb_mass_convert("11204")
 		if bool(mass_convert_cb_dict):
 			print("=== CB大量轉換 ==================================================")
+			title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
+			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in mass_convert_cb_dict.items():
 				print ("%s[%s]:  %.2f  %d  %d  %d" % (cb_data["名稱"], cb_key, float(cb_data["增減百分比"]), int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
 

@@ -136,6 +136,7 @@ class StockChipAnalysis(object):
 		# import pdb; pdb.set_trace()
 		csv_data_dict = {}
 
+		sheet_name = worksheet.name
 		start_column_index = sheet_metadata["data_start_column_index"]
 		title_list = ["商品",]
 		for column_index in range(start_column_index, worksheet.ncols):
@@ -273,16 +274,6 @@ class StockChipAnalysis(object):
 		# self.workbook = xlrd.open_workbook(self.xcfg["source_filepath"])
 		if self.xcfg["output_search_result"]:
 			self.search_result_txtfile = open(self.xcfg["search_result_filepath"], "w")
-
-# mongodb://root:lab4man1@localhost:27017/StockChipAnalysis
-		# db_url = 'mongodb://%s:%s@%s:27017' % (self.xcfg["db_username"], self.xcfg["db_password"], self.xcfg["db_host"])
-		if self.xcfg["db_enable"]:
-			from pymongo import MongoClient
-			db_url = 'mongodb://%s:%s@%s:27017/%s' % (self.xcfg["db_username"], self.xcfg["db_password"], self.xcfg["db_host"], self.xcfg["db_name"])
-			# print ("DB URL: %s" % db_url)
-			self.db_client = MongoClient(db_url)
-# Database (Database -> Collection -> Document)
-			self.db_handle = self.db_client[self.xcfg["db_name"]]
 		return self
 
 
@@ -475,4 +466,5 @@ if __name__ == "__main__":
 		sys.exit(0)
 	cfg = {}
 	with StockChipAnalysis(cfg) as obj:
-		obj.search_targets(search_rule_index=int(args.search_rule))
+		search_rule_index = int(args.search_rule) if args.search_rule else 0
+		obj.search_targets(search_rule_index=search_rule_index)
