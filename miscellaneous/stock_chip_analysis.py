@@ -24,8 +24,8 @@ class StockChipAnalysis(object):
 	DEFAULT_SOURCE_FILENAME = "stock_chip_analysis"
 	DEFAULT_SOURCE_FULL_FILENAME = "%s.xlsm" % DEFAULT_SOURCE_FILENAME
 	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
-	DEFAULT_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
-	DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
+	DEFAULT_DISPLAY_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
+	# DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
 	DEFAULT_SEARCH_RESULT_FILENAME = "search_result_stock_list.txt"
 	SHEET_METADATA_DICT = {
 		# u"短線多空": {
@@ -103,10 +103,10 @@ class StockChipAnalysis(object):
 		["主法量率", "主力買超天數累計",],
 	]
 
-	DEFAULT_DB_NAME = "StockChipAnalysis"
-	DEFAULT_DB_USERNAME = "root"
-	DEFAULT_DB_PASSWORD = "lab4man1"
-	DEFAULT_DB_DATE_STRING_FORMAT = "%Y-%m-%d"
+	# DEFAULT_DB_NAME = "StockChipAnalysis"
+	# DEFAULT_DB_USERNAME = "root"
+	# DEFAULT_DB_PASSWORD = "lab4man1"
+	# DEFAULT_DB_DATE_STRING_FORMAT = "%Y-%m-%d"
 
 	@classmethod
 	def __is_string(cls, value):
@@ -193,37 +193,37 @@ class StockChipAnalysis(object):
 
 	def __init__(self, cfg):
 		self.xcfg = {
-			"show_detail": False,
-			"generate_report": False,
+			# "show_detail": False,
+			# "generate_report": False,
 			"source_folderpath": None,
 			"source_filename": self.DEFAULT_SOURCE_FULL_FILENAME,
-			"stock_list_filename": self.DEFAULT_STOCK_LIST_FILENAME,
-			"report_filename": self.DEFAULT_REPORT_FILENAME,
-			"stock_list": None,
-			"sheet_name_list": None,
-			"sheet_set_category": -1,
+			"display_stock_list_filename": self.DEFAULT_DISPLAY_STOCK_LIST_FILENAME,
+			# "report_filename": self.DEFAULT_REPORT_FILENAME,
+			"display_stock_list": ["2377", "2376", "2353", "2382", "2385",],
+			# "sheet_name_list": None,
+			# "sheet_set_category": -1,
 			"min_consecutive_over_buy_days": self.DEFAULT_MIN_CONSECUTIVE_OVER_BUY_DAYS,
 			"max_consecutive_over_buy_days": self.DEFAULT_MAX_CONSECUTIVE_OVER_BUY_DAYS,
 			"minimum_volume": self.DEFAULT_MINIMUM_VOLUME,
 			"main_force_instuitional_investors_ratio_threshold": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_THRESHOLD,
 			"main_force_instuitional_investors_ratio_consecutive_days": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS,
-			"need_all_sheet": False,
-			"search_history": False,
+			# "need_all_sheet": False,
+			# "search_history": False,
 			"search_result_filename": self.DEFAULT_SEARCH_RESULT_FILENAME,
 			"output_search_result": False,
 			"quiet": False,
-			"sort": False,
-			"sort_limit": None,
-			"db_enable": False,
-			"db_host": "localhost",
-			"db_name": self.DEFAULT_DB_NAME,
-			"db_username": self.DEFAULT_DB_USERNAME,
-			"db_password": self.DEFAULT_DB_PASSWORD,
-			"database_date": None,
-			"database_date_range": None,
-			"database_date_range_start": None,
-			"database_date_range_end": None,
-			"database_all_date_range": False,
+			# "sort": False,
+			# "sort_limit": None,
+			# "db_enable": False,
+			# "db_host": "localhost",
+			# "db_name": self.DEFAULT_DB_NAME,
+			# "db_username": self.DEFAULT_DB_USERNAME,
+			# "db_password": self.DEFAULT_DB_PASSWORD,
+			# "database_date": None,
+			# "database_date_range": None,
+			# "database_date_range_start": None,
+			# "database_date_range_end": None,
+			# "database_all_date_range": False,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -231,35 +231,35 @@ class StockChipAnalysis(object):
 		self.xcfg["source_filename"] = self.DEFAULT_SOURCE_FULL_FILENAME if self.xcfg["source_filename"] is None else self.xcfg["source_filename"]
 		self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
 		# print ("__init__: %s" % self.xcfg["source_filepath"])
-		self.xcfg["stock_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["stock_list_filename"])
-		self.xcfg["report_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["report_filename"])
+		self.xcfg["display_stock_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["display_stock_list_filename"])
+		# self.xcfg["report_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["report_filename"])
 		self.xcfg["search_result_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["search_result_filename"])
-		if self.xcfg["generate_report"]:
-			if not self.xcfg["show_detail"]:
-				print ("WARNING: The 'show_detail' parameter is enabled while the 'generate_report' one is true")
-				self.xcfg["show_detail"] = True
+		# if self.xcfg["generate_report"]:
+		# 	if not self.xcfg["show_detail"]:
+		# 		print ("WARNING: The 'show_detail' parameter is enabled while the 'generate_report' one is true")
+		# 		self.xcfg["show_detail"] = True
 
-		if self.xcfg["sheet_set_category"] != -1:
-			if self.xcfg["sheet_name_list"] is not None:
-				print ("WARNING: The 'sheet_set_category' setting overwrite the 'sheet_name_list' one")
-			self.xcfg["sheet_name_list"] = self.SHEET_SET_LIST[self.xcfg["sheet_set_category"]]
-		if self.xcfg["database_date"] is not None:
-			if re.match("20[\d]{2}-[\d]{2}-[\d]{2}", self.xcfg["database_date"]) is None:
-				raise ValueError("Incorrect date format: %s" % self.xcfg["database_date"])
-		check_date_input = (self.xcfg["database_date"] is not None) and (self.xcfg["database_date_range"] is not None)
-		assert not check_date_input, "database_date/database_date_range can NOT be set simultaneously"
-		if self.xcfg["database_date_range"] is not None:
-			elem_list = self.xcfg["database_date_range"].split(",")
-			if len(elem_list) != 2:
-				raise ValueError("Incorrect date range format: %s" % self.xcfg["database_date_range"])
-			if len(elem_list[0]) != 0:
-				if re.match("20[\d]{2}-[\d]{2}-[\d]{2}", elem_list[0]) is None:
-					raise ValueError("Incorrect start date format: %s" % elem_list[0])
-				self.xcfg["database_date_range_start"] = elem_list[0]
-			if len(elem_list[1]) != 0:
-				if re.match("20[\d]{2}-[\d]{2}-[\d]{2}", elem_list[1]) is None:
-					raise ValueError("Incorrect end date format: %s" % elem_list[1])
-				self.xcfg["database_date_range_end"] = elem_list[1]
+		# if self.xcfg["sheet_set_category"] != -1:
+		# 	if self.xcfg["sheet_name_list"] is not None:
+		# 		print ("WARNING: The 'sheet_set_category' setting overwrite the 'sheet_name_list' one")
+		# 	self.xcfg["sheet_name_list"] = self.SHEET_SET_LIST[self.xcfg["sheet_set_category"]]
+		# if self.xcfg["database_date"] is not None:
+		# 	if re.match("20[\d]{2}-[\d]{2}-[\d]{2}", self.xcfg["database_date"]) is None:
+		# 		raise ValueError("Incorrect date format: %s" % self.xcfg["database_date"])
+		# check_date_input = (self.xcfg["database_date"] is not None) and (self.xcfg["database_date_range"] is not None)
+		# assert not check_date_input, "database_date/database_date_range can NOT be set simultaneously"
+		# if self.xcfg["database_date_range"] is not None:
+		# 	elem_list = self.xcfg["database_date_range"].split(",")
+		# 	if len(elem_list) != 2:
+		# 		raise ValueError("Incorrect date range format: %s" % self.xcfg["database_date_range"])
+		# 	if len(elem_list[0]) != 0:
+		# 		if re.match("20[\d]{2}-[\d]{2}-[\d]{2}", elem_list[0]) is None:
+		# 			raise ValueError("Incorrect start date format: %s" % elem_list[0])
+		# 		self.xcfg["database_date_range_start"] = elem_list[0]
+		# 	if len(elem_list[1]) != 0:
+		# 		if re.match("20[\d]{2}-[\d]{2}-[\d]{2}", elem_list[1]) is None:
+		# 			raise ValueError("Incorrect end date format: %s" % elem_list[1])
+		# 		self.xcfg["database_date_range_end"] = elem_list[1]
 
 		self.workbook = None
 		self.report_workbook = None
@@ -411,16 +411,49 @@ class StockChipAnalysis(object):
 					print("  " + " ".join(map(lambda x: "%s(%d)" % (x[0], int(x[1])), item_list)))
 				else:
 					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
+			print("\n")
+
+
+	def display_targets(self, stock_chip_data_dict=None):
+		if stock_chip_data_dict is None:
+			stock_chip_data_dict = self.get_stock_chip_data()
+		for display_stock in self.xcfg["display_stock_list"]:
+			# print ("*** %s[%s] ***" % (display_stock, stock_name_list[index]))
+			target_caption = None
+			global_item_list = None
+			need_new_line = False
+			for sheet_name in self.DEFAULT_SHEET_NAME_LIST:
+				sheet_data_dict = stock_chip_data_dict[sheet_name]
+				if display_stock not in sheet_data_dict.keys():
+					continue
+				if not need_new_line:
+					need_new_line = True
+				stock_sheet_data_dict = sheet_data_dict[display_stock]
+				if target_caption is None:
+					target_caption = "## *** %s[%s] *** ##" % (display_stock, stock_sheet_data_dict["商品"])
+					print(target_caption)
+				item_list = stock_sheet_data_dict.items()
+				if global_item_list is None:
+					global_item_list = []
+					global_item_list.extend(filter(lambda x: x[0] in ["成交", "漲幅%", "漲跌幅",], item_list))
+					global_item_list.extend(map(lambda x: (x[0], str(int(x[1]))), filter(lambda x: x[0] in ["成交量", "總量",], item_list)))
+					print(" ==>" + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), global_item_list)))
+				item_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_list)
+				if sheet_name in ["六大買超", "法人共同買超累計", "外資累計買超張數", "投信累計買超張數",]:
+					print("  " + " ".join(map(lambda x: "%s(%d)" % (x[0], int(x[1])), item_list)))
+				else:
+					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
+			if need_new_line: print("\n")
 
 
 	def search_sheets_from_file(self):
 		# import pdb; pdb.set_trace()
 		if not self.__check_file_exist(self.xcfg['stock_list_filepath']):
 			raise RuntimeError("The file[%s] does NOT exist" % self.xcfg['stock_list_filepath'])
-		self.xcfg["stock_list"] = []
+		self.xcfg["display_stock_list"] = []
 		with open(self.xcfg['stock_list_filepath'], 'r') as fp:
 			for line in fp:
-				self.xcfg["stock_list"].append(line.strip("\n"))
+				self.xcfg["display_stock_list"].append(line.strip("\n"))
 		self.__search_stock_sheets()
 
 
@@ -468,3 +501,4 @@ if __name__ == "__main__":
 	with StockChipAnalysis(cfg) as obj:
 		search_rule_index = int(args.search_rule) if args.search_rule else 0
 		obj.search_targets(search_rule_index=search_rule_index)
+		obj.display_targets()
