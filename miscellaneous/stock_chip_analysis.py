@@ -199,7 +199,7 @@ class StockChipAnalysis(object):
 			"source_filename": self.DEFAULT_SOURCE_FULL_FILENAME,
 			"display_stock_list_filename": self.DEFAULT_DISPLAY_STOCK_LIST_FILENAME,
 			# "report_filename": self.DEFAULT_REPORT_FILENAME,
-			"display_stock_list": ["2377", "2376", "2353", "2382", "2385",],
+			"display_stock_list": None,
 			# "sheet_name_list": None,
 			# "sheet_set_category": -1,
 			"min_consecutive_over_buy_days": self.DEFAULT_MIN_CONSECUTIVE_OVER_BUY_DAYS,
@@ -415,6 +415,8 @@ class StockChipAnalysis(object):
 
 
 	def display_targets(self, stock_chip_data_dict=None):
+		if self.xcfg["display_stock_list"] is None:
+			self.__get_display_stock_list_from_file()
 		if stock_chip_data_dict is None:
 			stock_chip_data_dict = self.get_stock_chip_data()
 		for display_stock in self.xcfg["display_stock_list"]:
@@ -439,22 +441,21 @@ class StockChipAnalysis(object):
 					global_item_list.extend(map(lambda x: (x[0], str(int(x[1]))), filter(lambda x: x[0] in ["成交量", "總量",], item_list)))
 					print(" ==>" + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), global_item_list)))
 				item_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_list)
-				if sheet_name in ["六大買超", "法人共同買超累計", "外資累計買超張數", "投信累計買超張數",]:
+				if sheet_name in ["六大買超", "主力買超天數累計", "法人共同買超累計", "外資買超天數累計", "投信買超天數累計",]:
 					print("  " + " ".join(map(lambda x: "%s(%d)" % (x[0], int(x[1])), item_list)))
 				else:
 					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
 			if need_new_line: print("\n")
 
 
-	def search_sheets_from_file(self):
+	def __get_display_stock_list_from_file(self):
 		# import pdb; pdb.set_trace()
-		if not self.__check_file_exist(self.xcfg['stock_list_filepath']):
-			raise RuntimeError("The file[%s] does NOT exist" % self.xcfg['stock_list_filepath'])
+		if not self.__check_file_exist(self.xcfg['display_stock_list_filepath']):
+			raise RuntimeError("The file[%s] does NOT exist" % self.xcfg['display_stock_list_filepath'])
 		self.xcfg["display_stock_list"] = []
-		with open(self.xcfg['stock_list_filepath'], 'r') as fp:
+		with open(self.xcfg['display_stock_list_filepath'], 'r') as fp:
 			for line in fp:
 				self.xcfg["display_stock_list"].append(line.strip("\n"))
-		self.__search_stock_sheets()
 
 
 	def search_sheets(self, search_whole=False):
@@ -492,6 +493,8 @@ if __name__ == "__main__":
 	'''
 	parser.add_argument('-l', '--list_search_rule', required=False, action='store_true', help='List each search rule and exit')
 	parser.add_argument('-r', '--search_rule', required=False, help='The rule for selecing targets. Default: 0')
+	parser.add_argument('-s', '--search', required=False, help='The rule for selecing targets. Default: 0')
+	parser.add_argument('-d', '--display', required=False, help='The rule for selecing targets. Default: 0')
 	args = parser.parse_args()
 
 	if args.list_search_rule:
@@ -499,6 +502,6 @@ if __name__ == "__main__":
 		sys.exit(0)
 	cfg = {}
 	with StockChipAnalysis(cfg) as obj:
-		search_rule_index = int(args.search_rule) if args.search_rule else 0
-		obj.search_targets(search_rule_index=search_rule_index)
+		# search_rule_index = int(args.search_rule) if args.search_rule else 0
+		# obj.search_targets(search_rule_index=search_rule_index)
 		obj.display_targets()
