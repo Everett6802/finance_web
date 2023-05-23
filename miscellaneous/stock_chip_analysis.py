@@ -103,11 +103,6 @@ class StockChipAnalysis(object):
 		["主法量率", "主力買超天數累計",],
 	]
 
-	# DEFAULT_DB_NAME = "StockChipAnalysis"
-	# DEFAULT_DB_USERNAME = "root"
-	# DEFAULT_DB_PASSWORD = "lab4man1"
-	# DEFAULT_DB_DATE_STRING_FORMAT = "%Y-%m-%d"
-
 	@classmethod
 	def __is_string(cls, value):
 		is_string = False
@@ -193,37 +188,18 @@ class StockChipAnalysis(object):
 
 	def __init__(self, cfg):
 		self.xcfg = {
-			# "show_detail": False,
-			# "generate_report": False,
 			"source_folderpath": None,
 			"source_filename": self.DEFAULT_SOURCE_FULL_FILENAME,
 			"display_stock_list_filename": self.DEFAULT_DISPLAY_STOCK_LIST_FILENAME,
-			# "report_filename": self.DEFAULT_REPORT_FILENAME,
 			"display_stock_list": None,
-			# "sheet_name_list": None,
-			# "sheet_set_category": -1,
 			"min_consecutive_over_buy_days": self.DEFAULT_MIN_CONSECUTIVE_OVER_BUY_DAYS,
 			"max_consecutive_over_buy_days": self.DEFAULT_MAX_CONSECUTIVE_OVER_BUY_DAYS,
 			"minimum_volume": self.DEFAULT_MINIMUM_VOLUME,
 			"main_force_instuitional_investors_ratio_threshold": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_THRESHOLD,
 			"main_force_instuitional_investors_ratio_consecutive_days": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS,
-			# "need_all_sheet": False,
-			# "search_history": False,
 			"search_result_filename": self.DEFAULT_SEARCH_RESULT_FILENAME,
 			"output_search_result": False,
 			"quiet": False,
-			# "sort": False,
-			# "sort_limit": None,
-			# "db_enable": False,
-			# "db_host": "localhost",
-			# "db_name": self.DEFAULT_DB_NAME,
-			# "db_username": self.DEFAULT_DB_USERNAME,
-			# "db_password": self.DEFAULT_DB_PASSWORD,
-			# "database_date": None,
-			# "database_date_range": None,
-			# "database_date_range_start": None,
-			# "database_date_range_end": None,
-			# "database_all_date_range": False,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -232,34 +208,19 @@ class StockChipAnalysis(object):
 		self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
 		# print ("__init__: %s" % self.xcfg["source_filepath"])
 		self.xcfg["display_stock_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["display_stock_list_filename"])
-		# self.xcfg["report_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["report_filename"])
-		self.xcfg["search_result_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["search_result_filename"])
-		# if self.xcfg["generate_report"]:
-		# 	if not self.xcfg["show_detail"]:
-		# 		print ("WARNING: The 'show_detail' parameter is enabled while the 'generate_report' one is true")
-		# 		self.xcfg["show_detail"] = True
+		if self.xcfg["display_stock_list"] is not None:
+			if type(self.xcfg["display_stock_list"]) is str:
+				display_stock_list = []
+				for display_stock in self.xcfg["display_stock_list"].split(","):
+					display_stock_list.append(display_stock)
+				self.xcfg["display_stock_list"] = display_stock_list
 
-		# if self.xcfg["sheet_set_category"] != -1:
-		# 	if self.xcfg["sheet_name_list"] is not None:
-		# 		print ("WARNING: The 'sheet_set_category' setting overwrite the 'sheet_name_list' one")
-		# 	self.xcfg["sheet_name_list"] = self.SHEET_SET_LIST[self.xcfg["sheet_set_category"]]
-		# if self.xcfg["database_date"] is not None:
-		# 	if re.match("20[\d]{2}-[\d]{2}-[\d]{2}", self.xcfg["database_date"]) is None:
-		# 		raise ValueError("Incorrect date format: %s" % self.xcfg["database_date"])
-		# check_date_input = (self.xcfg["database_date"] is not None) and (self.xcfg["database_date_range"] is not None)
-		# assert not check_date_input, "database_date/database_date_range can NOT be set simultaneously"
-		# if self.xcfg["database_date_range"] is not None:
-		# 	elem_list = self.xcfg["database_date_range"].split(",")
-		# 	if len(elem_list) != 2:
-		# 		raise ValueError("Incorrect date range format: %s" % self.xcfg["database_date_range"])
-		# 	if len(elem_list[0]) != 0:
-		# 		if re.match("20[\d]{2}-[\d]{2}-[\d]{2}", elem_list[0]) is None:
-		# 			raise ValueError("Incorrect start date format: %s" % elem_list[0])
-		# 		self.xcfg["database_date_range_start"] = elem_list[0]
-		# 	if len(elem_list[1]) != 0:
-		# 		if re.match("20[\d]{2}-[\d]{2}-[\d]{2}", elem_list[1]) is None:
-		# 			raise ValueError("Incorrect end date format: %s" % elem_list[1])
-		# 		self.xcfg["database_date_range_end"] = elem_list[1]
+		self.xcfg["search_result_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["search_result_filename"])
+
+		self.filepath_dict = OrderedDict()
+		self.filepath_dict["source"] = self.xcfg["source_filepath"]
+		self.filepath_dict["display_stock_list"] = self.xcfg["display_stock_list_filepath"]
+		# self.filepath_dict["search_result"] = self.xcfg["search_result_filepath"]
 
 		self.workbook = None
 		self.report_workbook = None
@@ -278,10 +239,10 @@ class StockChipAnalysis(object):
 
 
 	def __exit__(self, type, msg, traceback):
-		if self.db_client is not None:
-			self.db_handle = None
-			self.db_client.close()
-			self.db_client = None
+		# if self.db_client is not None:
+		# 	self.db_handle = None
+		# 	self.db_client.close()
+		# 	self.db_client = None
 		if self.search_result_txtfile is not None:
 			self.search_result_txtfile.close()
 			self.search_result_txtfile = None
@@ -432,7 +393,7 @@ class StockChipAnalysis(object):
 					need_new_line = True
 				stock_sheet_data_dict = sheet_data_dict[display_stock]
 				if target_caption is None:
-					target_caption = "## *** %s[%s] *** ##" % (display_stock, stock_sheet_data_dict["商品"])
+					target_caption = "*** %s[%s] ***" % (display_stock, stock_sheet_data_dict["商品"])
 					print(target_caption)
 				item_list = stock_sheet_data_dict.items()
 				if global_item_list is None:
@@ -445,7 +406,8 @@ class StockChipAnalysis(object):
 					print("  " + " ".join(map(lambda x: "%s(%d)" % (x[0], int(x[1])), item_list)))
 				else:
 					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
-			if need_new_line: print("\n")
+			if need_new_line: 
+				print("\n")
 
 
 	def __get_display_stock_list_from_file(self):
@@ -467,6 +429,14 @@ class StockChipAnalysis(object):
 				raise RuntimeError("The stock list should NOT be None")
 			self.xcfg['stock_list'] = self.xcfg['stock_list'].split(",")
 		self.__search_stock_sheets()
+
+
+	def print_filepath(self):
+		print("************** File Path **************")
+		for key, value in self.filepath_dict.items():
+			print("%s: %s" % (key, value))
+
+
 
 
 if __name__ == "__main__":
@@ -491,17 +461,29 @@ if __name__ == "__main__":
 	>>> parser.add_argument('--bar', action='store_false')
 	>>> parser.add_argument('--baz', action='store_false')
 	'''
-	parser.add_argument('-l', '--list_search_rule', required=False, action='store_true', help='List each search rule and exit')
-	parser.add_argument('-r', '--search_rule', required=False, help='The rule for selecing targets. Default: 0')
-	parser.add_argument('-s', '--search', required=False, help='The rule for selecing targets. Default: 0')
-	parser.add_argument('-d', '--display', required=False, help='The rule for selecing targets. Default: 0')
+	parser.add_argument('-l', '--list_search_rule', required=False, action='store_true', help='List each search rule and exit.')
+	parser.add_argument('-r', '--search_rule', required=False, help='The rule for selecting targets. Default: 0.')
+	parser.add_argument('-s', '--search', required=False, action='store_true', help='Select targets based on the search rule.')
+	parser.add_argument('-d', '--display', required=False, action='store_true', help='Display specific targets.')
+	parser.add_argument('--display_stock_list', required=False, help='The list of specific targets to be displayed.')
+	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	args = parser.parse_args()
 
 	if args.list_search_rule:
 		StockChipAnalysis.show_search_targets_list()
 		sys.exit(0)
+
 	cfg = {}
+	if args.display_stock_list:
+		cfg['display_stock_list'] = args.display_stock_list
 	with StockChipAnalysis(cfg) as obj:
-		# search_rule_index = int(args.search_rule) if args.search_rule else 0
-		# obj.search_targets(search_rule_index=search_rule_index)
-		obj.display_targets()
+		if args.print_filepath:
+			obj.print_filepath()
+			sys.exit(0)
+		if args.search:
+			print("************** Search **************")
+			search_rule_index = int(args.search_rule) if args.search_rule else 0
+			obj.search_targets(search_rule_index=search_rule_index)
+		if args.display:
+			print("************** Display **************")
+			obj.display_targets()
