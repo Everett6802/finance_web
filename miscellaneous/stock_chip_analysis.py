@@ -26,7 +26,7 @@ class StockChipAnalysis(object):
 	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
 	DEFAULT_DISPLAY_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
 	# DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
-	DEFAULT_SEARCH_RESULT_FILENAME = "search_result_stock_list.txt"
+	DEFAULT_OUTPUT_RESULT_FILENAME = "output_result.txt"
 	SHEET_METADATA_DICT = {
 		# u"短線多空": {
 		# 	"key_mode": 0, # 2504 國產
@@ -197,8 +197,8 @@ class StockChipAnalysis(object):
 			"minimum_volume": self.DEFAULT_MINIMUM_VOLUME,
 			"main_force_instuitional_investors_ratio_threshold": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_THRESHOLD,
 			"main_force_instuitional_investors_ratio_consecutive_days": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS,
-			"search_result_filename": self.DEFAULT_SEARCH_RESULT_FILENAME,
-			"output_search_result": False,
+			"output_result_filename": self.DEFAULT_OUTPUT_RESULT_FILENAME,
+			"output_result": False,
 			"quiet": False,
 		}
 		# import pdb; pdb.set_trace()
@@ -215,37 +215,31 @@ class StockChipAnalysis(object):
 					display_stock_list.append(display_stock)
 				self.xcfg["display_stock_list"] = display_stock_list
 
-		self.xcfg["search_result_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["search_result_filename"])
+		# import pdb; pdb.set_trace()
+		self.xcfg["output_result_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["output_result_filename"])
 
 		self.filepath_dict = OrderedDict()
 		self.filepath_dict["source"] = self.xcfg["source_filepath"]
 		self.filepath_dict["display_stock_list"] = self.xcfg["display_stock_list_filepath"]
-		# self.filepath_dict["search_result"] = self.xcfg["search_result_filepath"]
+		self.filepath_dict["output_result"] = self.xcfg["output_result_filepath"]
 
 		self.workbook = None
-		self.report_workbook = None
-		self.search_result_txtfile = None
-		self.sheet_title_bar_dict = {}
-		self.db_client = None
-		self.db_handle = None
+		self.output_result_file = None
+		self.stdout_tmp = None
 
 
 	def __enter__(self):
 		# Open the workbook
 		# self.workbook = xlrd.open_workbook(self.xcfg["source_filepath"])
-		if self.xcfg["output_search_result"]:
-			self.search_result_txtfile = open(self.xcfg["search_result_filepath"], "w")
+		# if self.xcfg["output_result"]:
+		# 	self.output_result_file = open(self.xcfg["output_result_filepath"], "w")
 		return self
 
 
 	def __exit__(self, type, msg, traceback):
-		# if self.db_client is not None:
-		# 	self.db_handle = None
-		# 	self.db_client.close()
-		# 	self.db_client = None
-		if self.search_result_txtfile is not None:
-			self.search_result_txtfile.close()
-			self.search_result_txtfile = None
+		if self.output_result_file is not None:
+			self.output_result_file.close()
+			self.output_result_file = None
 		if self.workbook is not None:
 			self.workbook.release_resources()
 			del self.workbook
@@ -261,9 +255,19 @@ class StockChipAnalysis(object):
 		return self.workbook
 
 
-	def __print_string(self, outpug_str):
-		if self.xcfg["quiet"]: return
-		print (outpug_str)
+	def __redirect_stdout2file(self):
+# The output is now directed to the file
+		if self.output_result_file is None:
+			self.output_result_file = open(self.xcfg["output_result_filepath"], 'w')
+# Store the current STDOUT object for later use
+		self.stdout_tmp = sys.stdout
+# Redirect STDOUT to the file
+		sys.stdout = self.output_result_file
+
+
+	def __redirect_file2stdout(self):
+# Restore the original STDOUT
+		sys.stdout = self.stdout_tmp
 
 
 	def __read_sheet_data(self, sheet_name):
@@ -338,6 +342,9 @@ class StockChipAnalysis(object):
 			stock_set &= set(stock_chip_data_dict[search_rule].keys())
 		stock_list = list(stock_set)
 
+		if self.xcfg["output_result"]:
+			self.__redirect_stdout2file()
+		print("************** Search **************")
 		search_rule_list_str = ", ".join(search_rule_list)
 		print ("搜尋規則: " + search_rule_list_str )
 		stock_name_list = [stock_chip_data_dict[u"主力買超天數累計"][stock]["商品"] for stock in stock_list]
@@ -373,6 +380,8 @@ class StockChipAnalysis(object):
 				else:
 					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
 			print("\n")
+		if self.xcfg["output_result"]:
+			self.__redirect_file2stdout()
 
 
 	def display_targets(self, stock_chip_data_dict=None):
@@ -380,6 +389,10 @@ class StockChipAnalysis(object):
 			self.__get_display_stock_list_from_file()
 		if stock_chip_data_dict is None:
 			stock_chip_data_dict = self.get_stock_chip_data()
+
+		if self.xcfg["output_result"]:
+			self.__redirect_stdout2file()
+		print("************** Display **************")
 		for display_stock in self.xcfg["display_stock_list"]:
 			# print ("*** %s[%s] ***" % (display_stock, stock_name_list[index]))
 			target_caption = None
@@ -408,6 +421,8 @@ class StockChipAnalysis(object):
 					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
 			if need_new_line: 
 				print("\n")
+		if self.xcfg["output_result"]:
+			self.__redirect_file2stdout()
 
 
 	def __get_display_stock_list_from_file(self):
@@ -467,6 +482,8 @@ if __name__ == "__main__":
 	parser.add_argument('-d', '--display', required=False, action='store_true', help='Display specific targets.')
 	parser.add_argument('--display_stock_list', required=False, help='The list of specific targets to be displayed.')
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
+	parser.add_argument('-o', '--output_result', required=False, action='store_true', help='Output the result to the file instead of STDOUT.')
+	parser.add_argument('--output_result_filename', required=False, action='store_true', help='The filename of outputing the result to the file instead of STDOUT.')
 	args = parser.parse_args()
 
 	if args.list_search_rule:
@@ -476,14 +493,16 @@ if __name__ == "__main__":
 	cfg = {}
 	if args.display_stock_list:
 		cfg['display_stock_list'] = args.display_stock_list
+	if args.output_result:
+		cfg['output_result'] = True
+	if args.output_result_filename:
+		cfg['output_result_filename'] = args.output_result_filename
 	with StockChipAnalysis(cfg) as obj:
 		if args.print_filepath:
 			obj.print_filepath()
 			sys.exit(0)
 		if args.search:
-			print("************** Search **************")
 			search_rule_index = int(args.search_rule) if args.search_rule else 0
 			obj.search_targets(search_rule_index=search_rule_index)
 		if args.display:
-			print("************** Display **************")
 			obj.display_targets()
