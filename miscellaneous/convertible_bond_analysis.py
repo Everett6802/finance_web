@@ -44,7 +44,7 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, int, int,]
 
 	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
-
+	CB_TRADING_SUSPENSION_SET = {"30184"}
 
 	@classmethod
 	def __is_string(cls, value):
@@ -459,16 +459,22 @@ class ConvertibleBondAnalysis(object):
 
 	def check_cb_quotation_table_field(self, cb_quotation_data):
 		# import pdb; pdb.set_trace()
-		cb_summary_id_set = set(self.cb_summary.keys())
-		cb_publish_id_set = set(self.cb_publish.keys())
-		cb_quotation_id_set = set(self.cb_id_list)
+		cb_summary_id_set = set(self.cb_summary.keys()) - self.CB_TRADING_SUSPENSION_SET
+		cb_publish_id_set = set(self.cb_publish.keys()) - self.CB_TRADING_SUSPENSION_SET
+		cb_quotation_id_set = set(self.cb_id_list) - self.CB_TRADING_SUSPENSION_SET
 		cb_summary_diff_quotation_id_set = cb_summary_id_set - cb_quotation_id_set
+		stock_changed = False
 		if len(cb_summary_diff_quotation_id_set) > 0:
 			print("The CB IDs are NOT identical[1]: %s" % cb_summary_diff_quotation_id_set)
+			# if not stock_changed: stock_changed = True
 		cb_publish_diff_quotation_id_set = cb_publish_id_set - cb_quotation_id_set
 		if len(cb_publish_diff_quotation_id_set) > 0:
-			print("The CB IDs are NOT identical[2]: %s" % cb_publish_diff_quotation_id_set)
-		stock_changed = False
+			cb_publish_diff_quotation_id_list = list(cb_publish_diff_quotation_id_set)
+			cb_publish_diff_quotation_id_list.sort(key=lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%Y/%m/%d"))
+			new_public_cb_str_list = ["%s[%s]: %s" % (self.cb_publish[cb_publish_id]['債券簡稱'], cb_publish_id, self.cb_publish[cb_publish_id]['發行日期']) for cb_publish_id in cb_publish_diff_quotation_id_list]
+			print("=== 新發行 ===")
+			for new_public_cb_str in new_public_cb_str_list: print(new_public_cb_str)
+			# print("The CB IDs are NOT identical[2]: %s" % cb_publish_diff_quotation_id_set)
 		cb_quotation_diff_summary_id_set = cb_quotation_id_set - cb_summary_id_set
 		if len(cb_quotation_diff_summary_id_set) > 0:
 			print("The CB IDs are NOT identical[3]: %s" % cb_quotation_diff_summary_id_set)
