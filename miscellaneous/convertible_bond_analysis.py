@@ -46,6 +46,14 @@ class ConvertibleBondAnalysis(object):
 	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
 	CB_TRADING_SUSPENSION_SET = {"30184"}
 
+	STOCK_INFO_SCRPY_URL_FORMAT_DICT = {
+		"獲利能力": "https://concords.moneydj.com/z/zc/zce/zce_%s.djhtm",
+		"營收盈餘": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
+		"法人持股": "https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
+		"主力進出": "https://concords.moneydj.com/z/zc/zco/zco_%s.djhtm",
+		"https://concords.moneydj.com/Z/ZC/ZCX/ZCX_%s.djhtm",
+	}
+
 	@classmethod
 	def __is_string(cls, value):
 		is_string = False
