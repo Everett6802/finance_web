@@ -46,12 +46,16 @@ class ConvertibleBondAnalysis(object):
 	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
 	CB_TRADING_SUSPENSION_SET = {"30184"}
 
-	STOCK_INFO_SCRPY_URL_FORMAT_DICT = {
+	STOCK_INFO_SCRAPY_URL_FORMAT_DICT = {
 		"獲利能力": "https://concords.moneydj.com/z/zc/zce/zce_%s.djhtm",
 		"營收盈餘": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
 		"法人持股": "https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
 		"主力進出": "https://concords.moneydj.com/z/zc/zco/zco_%s.djhtm",
-		"https://concords.moneydj.com/Z/ZC/ZCX/ZCX_%s.djhtm",
+		# "融資融券": "https://concords.moneydj.com/z/zc/zcx/zcx_%s.djhtm",
+		"融資融券": "https://concords.moneydj.com/z/zc/zcn/zcn_%s.djhtm",
+		"資產負債簡表": "https://concords.moneydj.com/z/zc/zcp/zcp_%s.djhtm",
+		"財務比率表": "https://concords.moneydj.com/z/zc/zcr/zcra/zcra_%s.djhtm",
+		"現金流量表": "https://concords.moneydj.com/z/zc/zc3/zc3_%s.djhtm",
 	}
 
 	@classmethod
@@ -731,40 +735,119 @@ class ConvertibleBondAnalysis(object):
 		return cb_publish_detail_dict
 
 
-	def scrape_stock_info(self, cb_id):
-		driver = self.__get_web_driver()
+	def __stock_info_profitability_scrapy_funcptr(self, driver):
+		pass
+
+
+	# def __stock_info_margin_trading_scrapy_funcptr(self, driver):
+	# 	data_dict = {}
+	# 	table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/table[1]/tbody/tr/td/table[6]')
+	# 	trs = table.find_elements("tag name", "tr")
+	# 	import pdb; pdb.set_trace()
+	# 	mobj = re.search("融資融券", trs[0].find_element("tag name", "td").text)
+	# 	if mobj is not None:
+	# 		title_tmp_list1 = []
+	# 		td1s = trs[1].find_elements("tag name", "td")
+	# 		for td in td1s[1:3]:
+	# 			title_tmp_list1.append(td.text)
+	# 		title_tmp_list2 = []
+	# 		td2s = trs[2].find_elements("tag name", "td")
+	# 		for td in td2s[1:]:
+	# 			title_tmp_list2.append(td.text)
+	# 		# import pdb; pdb.set_trace()
+	# 		title_list = []
+	# 		title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[0], x), title_tmp_list2[1:7])))
+	# 		title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[1], x), title_tmp_list2[7:])))
+	# 		title_list.append(title_tmp_list2[-1])
+	# 		# import pdb; pdb.set_trace()
+	# 		for tr in trs[3:]:
+	# 			tds = tr.find_elements("tag name", "td")
+	# 			td_text_list = []
+	# 			for td in tds[1:]:
+	# 				td_text_list.append(td.text)
+	# 			# import pdb; pdb.set_trace()
+	# 			data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
+	# 	return data_dict
+
+
+	def __stock_info_margin_trading_scrapy_funcptr(self, driver):
 		data_dict = {}
+		table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/form/table/tbody/tr/td/table')
+		trs = table.find_elements("tag name", "tr")
+
+		title_tmp_list1 = []
+		td1s = trs[5].find_elements("tag name", "td")
+		for td in td1s:
+			title_tmp_list1.append(td.text)
+		title_tmp_list2 = []
+		td2s = trs[6].find_elements("tag name", "td")
+		for td in td2s:
+			title_tmp_list2.append(td.text)
+		# import pdb; pdb.set_trace()
+		title_list = []
+		title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[1], x), title_tmp_list2[1:8])))
+		title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[2], x), title_tmp_list2[8:-1])))
+		title_list.append("%s%s" % (title_tmp_list1[-1], title_tmp_list2[-1]))
+		# import pdb; pdb.set_trace()
+		for tr in trs[3:]:
+			tds = tr.find_elements("tag name", "td")
+			td_text_list = []
+			for td in tds[1:]:
+				td_text_list.append(td.text)
+			# import pdb; pdb.set_trace()
+			data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
+		return data_dict
+
+
+	def scrape_stock_info(self, cb_id):
+		STOCK_INFO_SCRAPY_FUNCPTR_DICT = {
+			# "獲利能力": self.__stock_info_profitability_scrapy_funcptr,
+			# "營收盈餘": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
+			# "法人持股": "https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
+			# "主力進出": "https://concords.moneydj.com/z/zc/zco/zco_%s.djhtm",
+			"融資融券": self.__stock_info_margin_trading_scrapy_funcptr,
+			# "資產負債簡表": "https://concords.moneydj.com/z/zc/zcp/zcp_%s.djhtm",
+			# "財務比率表": "https://concords.moneydj.com/z/zc/zcr/zcra/zcra_%s.djhtm",
+			# "現金流量表": "https://concords.moneydj.com/z/zc/zc3/zc3_%s.djhtm",
+		}
+		data_dict = {}
+		driver = self.__get_web_driver()
 		cb_stock_id = cb_id[:4]
 		try:
-			driver.get("https://concords.moneydj.com/Z/ZC/ZCX/ZCX_%s.djhtm" % cb_stock_id)
-			time.sleep(5)
-			table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/table[1]/tbody/tr/td/table[6]')
-			trs = table.find_elements("tag name", "tr")
-			# import pdb; pdb.set_trace()
-			mobj = re.search("融資融券", trs[0].find_element("tag name", "td").text)
-			if mobj is not None:
-				title_tmp_list1 = []
-				td1s = trs[1].find_elements("tag name", "td")
-				for td in td1s[1:3]:
-					title_tmp_list1.append(td.text)
-				title_tmp_list2 = []
-				td2s = trs[2].find_elements("tag name", "td")
-				for td in td2s[1:]:
-					title_tmp_list2.append(td.text)
-				# import pdb; pdb.set_trace()
-				title_list = []
-				title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[0], x), title_tmp_list2[1:7])))
-				title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[1], x), title_tmp_list2[7:])))
-				title_list.append(title_tmp_list2[-1])
-				# import pdb; pdb.set_trace()
-				for tr in trs[3:]:
-					tds = tr.find_elements("tag name", "td")
-					td_text_list = []
-					for td in tds[1:]:
-						td_text_list.append(td.text)
-					# import pdb; pdb.set_trace()
-					data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
-			# import pdb; pdb.set_trace()
+			for scrapy_key, scrapy_funcptr in STOCK_INFO_SCRAPY_FUNCPTR_DICT.items():
+				url = self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT[scrapy_key] % cb_stock_id
+				driver.get(url)
+				time.sleep(5)
+				data_dict[scrapy_key] = scrapy_funcptr(driver)
+			# driver.get("https://concords.moneydj.com/Z/ZC/ZCX/ZCX_%s.djhtm" % cb_stock_id)
+			# time.sleep(5)
+			# table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/table[1]/tbody/tr/td/table[6]')
+			# trs = table.find_elements("tag name", "tr")
+			# # import pdb; pdb.set_trace()
+			# mobj = re.search("融資融券", trs[0].find_element("tag name", "td").text)
+			# if mobj is not None:
+			# 	title_tmp_list1 = []
+			# 	td1s = trs[1].find_elements("tag name", "td")
+			# 	for td in td1s[1:3]:
+			# 		title_tmp_list1.append(td.text)
+			# 	title_tmp_list2 = []
+			# 	td2s = trs[2].find_elements("tag name", "td")
+			# 	for td in td2s[1:]:
+			# 		title_tmp_list2.append(td.text)
+			# 	# import pdb; pdb.set_trace()
+			# 	title_list = []
+			# 	title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[0], x), title_tmp_list2[1:7])))
+			# 	title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[1], x), title_tmp_list2[7:])))
+			# 	title_list.append(title_tmp_list2[-1])
+			# 	# import pdb; pdb.set_trace()
+			# 	for tr in trs[3:]:
+			# 		tds = tr.find_elements("tag name", "td")
+			# 		td_text_list = []
+			# 		for td in tds[1:]:
+			# 			td_text_list.append(td.text)
+			# 		# import pdb; pdb.set_trace()
+			# 		data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
+			# # import pdb; pdb.set_trace()
 			print(data_dict)
 		except Exception as e:
 			print(e)
@@ -774,67 +857,68 @@ class ConvertibleBondAnalysis(object):
 
 
 	def scrape_cb_monthly_convert_data(self):
-		driver = self.__get_web_driver()
-		url = "https://www.tdcc.com.tw/portal/zh/QStatWAR/indm004"
-		filename_prefix = "可轉換公司債月分析表" 
-		try:		
-			driver.get(url)
-			time.sleep(5)
-			btn = driver.find_element("xpath", '//*[@id="form1"]/table/tbody/tr[4]/td/input')
-			btn.click()
-			time.sleep(5)
-			table = driver.find_element("xpath", '//*[@id="body"]/div/main/div[6]/div/table')
-			data_dict = {}
-# Check the table time
-			# import pdb; pdb.set_trace()
-			span = driver.find_element("xpath", '//*[@id="body"]/div/main/div[5]/span')
-			mobj = re.search(".+([\d]{5})", span.text)
-			if mobj is None:
-				raise RuntimeError("Fail to find the month of the table")
-			table_month = mobj.group(1)
-			filename = filename_prefix + table_month
-			filepath = os.path.join(self.xcfg["cb_folderpath"], filename)
-			# import pdb; pdb.set_trace()
-			if self.__check_file_exist(filepath):
-				# print ("The file[%s] already exist !!!" % filepath)
-				with open(filepath, "r", encoding='utf8') as f:
-					data_dict = json.load(f)
-			else:
-# thead
-				print ("The file[%s] does NOT exist. Scrape the data from website" % filepath)
-				table_head = table.find_element("tag name", "thead")
-				trs = table_head.find_elements("tag name", "tr")
-				table_title_list = []
-				ths = trs[1].find_elements("tag name", "th")
-				for th in ths:
-					table_title_list.append(th.text)
-				ths = trs[0].find_elements("tag name", "th")
-				for th in ths[1:]:
-					table_title_list.append(th.text.split('\n')[0])
-				# print(table_title_list)
-# tbody
-				table_body = table.find_element("tag name", "tbody")
-				trs = table_body.find_elements("tag name", "tr")
-				for tr in trs:
-					tds = tr.find_elements("tag name", "td")
-					td_text_list = []
-					for td in tds:
-						td_text_list.append(td.text.replace(",",""))
-					# print(", ".join(td_text_list))
-					data_dict[td_text_list[0]] = dict(zip(table_title_list[1:], td_text_list[1:]))
-				# time.sleep(5)
-				# import pdb; pdb.set_trace()
-# Writing to file
-				with open(filepath, "w", encoding='utf-8') as f:
-				    json.dump(data_dict, f, indent=3, ensure_ascii=False)	
-		except Exception as e:
-			print ("Exception occurs while scraping [%s], due to: %s" % (url, str(e)))
-			raise e
-		finally:
-			driver.close()
-		# for key, value in data_dict.items():
-		# 	value_str_list = list(map(lambda x: "%s(%s)" % (x[0], x[1]), value.items()))
-		# 	print("%s: %s" % (key, ", ".join(value_str_list)))
+		data_dict = {}
+		self.__stock_info_profitability_scrapy_funcptr
+		# driver = self.__get_web_driver()
+		# url = "https://www.tdcc.com.tw/portal/zh/QStatWAR/indm004"
+		# filename_prefix = "可轉換公司債月分析表" 
+# 		try:		
+# 			driver.get(url)
+# 			time.sleep(5)
+# 			btn = driver.find_element("xpath", '//*[@id="form1"]/table/tbody/tr[4]/td/input')
+# 			btn.click()
+# 			time.sleep(5)
+# 			table = driver.find_element("xpath", '//*[@id="body"]/div/main/div[6]/div/table')
+# # Check the table time
+# 			# import pdb; pdb.set_trace()
+# 			span = driver.find_element("xpath", '//*[@id="body"]/div/main/div[5]/span')
+# 			mobj = re.search(".+([\d]{5})", span.text)
+# 			if mobj is None:
+# 				raise RuntimeError("Fail to find the month of the table")
+# 			table_month = mobj.group(1)
+# 			filename = filename_prefix + table_month
+# 			filepath = os.path.join(self.xcfg["cb_folderpath"], filename)
+# 			# import pdb; pdb.set_trace()
+# 			if self.__check_file_exist(filepath):
+# 				# print ("The file[%s] already exist !!!" % filepath)
+# 				with open(filepath, "r", encoding='utf8') as f:
+# 					data_dict = json.load(f)
+# 			else:
+# # thead
+# 				print ("The file[%s] does NOT exist. Scrape the data from website" % filepath)
+# 				table_head = table.find_element("tag name", "thead")
+# 				trs = table_head.find_elements("tag name", "tr")
+# 				table_title_list = []
+# 				ths = trs[1].find_elements("tag name", "th")
+# 				for th in ths:
+# 					table_title_list.append(th.text)
+# 				ths = trs[0].find_elements("tag name", "th")
+# 				for th in ths[1:]:
+# 					table_title_list.append(th.text.split('\n')[0])
+# 				# print(table_title_list)
+# # tbody
+# 				table_body = table.find_element("tag name", "tbody")
+# 				trs = table_body.find_elements("tag name", "tr")
+# 				for tr in trs:
+# 					tds = tr.find_elements("tag name", "td")
+# 					td_text_list = []
+# 					for td in tds:
+# 						td_text_list.append(td.text.replace(",",""))
+# 					# print(", ".join(td_text_list))
+# 					data_dict[td_text_list[0]] = dict(zip(table_title_list[1:], td_text_list[1:]))
+# 				# time.sleep(5)
+# 				# import pdb; pdb.set_trace()
+# # Writing to file
+# 				with open(filepath, "w", encoding='utf-8') as f:
+# 				    json.dump(data_dict, f, indent=3, ensure_ascii=False)	
+# 		except Exception as e:
+# 			print ("Exception occurs while scraping [%s], due to: %s" % (url, str(e)))
+# 			raise e
+# 		finally:
+# 			driver.close()
+# 		# for key, value in data_dict.items():
+# 		# 	value_str_list = list(map(lambda x: "%s(%s)" % (x[0], x[1]), value.items()))
+# 		# 	print("%s: %s" % (key, ", ".join(value_str_list)))
 		return data_dict
 
 
@@ -1041,7 +1125,9 @@ if __name__ == "__main__":
 	cfg = {
 	}
 	with ConvertibleBondAnalysis(cfg) as obj:
-		obj.test()
+		data_dict = obj.scrape_stock_info("2330")
+		print(data_dict)
+		# obj.test()
 		# obj.get_cb_monthly_convert_data("11201")
 
 
