@@ -738,7 +738,26 @@ class ConvertibleBondAnalysis(object):
 
 
 	def __stock_info_profitability_scrapy_funcptr(self, driver):
-		pass
+		# import pdb; pdb.set_trace()
+		data_dict = {}
+		table = driver.find_element("xpath", '//*[@id="oMainTable"]')
+		trs = table.find_elements("tag name", "tr")
+
+		table_row_start_index = 2
+		title_list = []
+		tds = trs[table_row_start_index].find_elements("tag name", "td")
+		for td in tds[1:]:
+			title_list.append(td.text)
+		# import pdb; pdb.set_trace()
+		for tr in trs[table_row_start_index + 1:]:
+			tds = tr.find_elements("tag name", "td")
+			td_text_list = []
+			for td in tds[1:]:
+				td_text_list.append(td.text)
+			# import pdb; pdb.set_trace()
+			data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
+		# import pdb; pdb.set_trace()
+		return data_dict
 
 
 	# def __stock_info_margin_trading_scrapy_funcptr(self, driver):
@@ -806,7 +825,7 @@ class ConvertibleBondAnalysis(object):
 
 	def scrape_stock_info(self, cb_id):
 		STOCK_INFO_SCRAPY_FUNCPTR_DICT = {
-			# "獲利能力": self.__stock_info_profitability_scrapy_funcptr,
+			"獲利能力": self.__stock_info_profitability_scrapy_funcptr,
 			# "營收盈餘": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
 			# "法人持股": "https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
 			# "主力進出": "https://concords.moneydj.com/z/zc/zco/zco_%s.djhtm",
@@ -824,7 +843,7 @@ class ConvertibleBondAnalysis(object):
 				driver.get(url)
 				time.sleep(5)
 				data_dict[scrapy_key] = scrapy_funcptr(driver)
-			print(data_dict)
+			# print(data_dict)
 		except Exception as e:
 			print(e)
 		finally:
