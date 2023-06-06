@@ -773,16 +773,18 @@ class ConvertibleBondAnalysis(object):
 
 
 	def __stock_info_margin_trading_scrapy_funcptr(self, driver):
+		# import pdb; pdb.set_trace()
 		data_dict = {}
 		table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/form/table/tbody/tr/td/table')
 		trs = table.find_elements("tag name", "tr")
 
+		table_row_start_index = 5
 		title_tmp_list1 = []
-		td1s = trs[5].find_elements("tag name", "td")
+		td1s = trs[table_row_start_index].find_elements("tag name", "td")
 		for td in td1s:
 			title_tmp_list1.append(td.text)
 		title_tmp_list2 = []
-		td2s = trs[6].find_elements("tag name", "td")
+		td2s = trs[table_row_start_index + 1].find_elements("tag name", "td")
 		for td in td2s:
 			title_tmp_list2.append(td.text)
 		# import pdb; pdb.set_trace()
@@ -791,13 +793,14 @@ class ConvertibleBondAnalysis(object):
 		title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[2], x), title_tmp_list2[8:-1])))
 		title_list.append("%s%s" % (title_tmp_list1[-1], title_tmp_list2[-1]))
 		# import pdb; pdb.set_trace()
-		for tr in trs[3:]:
+		for tr in trs[table_row_start_index + 2:]:
 			tds = tr.find_elements("tag name", "td")
 			td_text_list = []
 			for td in tds[1:]:
 				td_text_list.append(td.text)
 			# import pdb; pdb.set_trace()
 			data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
+		# import pdb; pdb.set_trace()
 		return data_dict
 
 
@@ -821,35 +824,6 @@ class ConvertibleBondAnalysis(object):
 				driver.get(url)
 				time.sleep(5)
 				data_dict[scrapy_key] = scrapy_funcptr(driver)
-			# driver.get("https://concords.moneydj.com/Z/ZC/ZCX/ZCX_%s.djhtm" % cb_stock_id)
-			# time.sleep(5)
-			# table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/table[1]/tbody/tr/td/table[6]')
-			# trs = table.find_elements("tag name", "tr")
-			# # import pdb; pdb.set_trace()
-			# mobj = re.search("融資融券", trs[0].find_element("tag name", "td").text)
-			# if mobj is not None:
-			# 	title_tmp_list1 = []
-			# 	td1s = trs[1].find_elements("tag name", "td")
-			# 	for td in td1s[1:3]:
-			# 		title_tmp_list1.append(td.text)
-			# 	title_tmp_list2 = []
-			# 	td2s = trs[2].find_elements("tag name", "td")
-			# 	for td in td2s[1:]:
-			# 		title_tmp_list2.append(td.text)
-			# 	# import pdb; pdb.set_trace()
-			# 	title_list = []
-			# 	title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[0], x), title_tmp_list2[1:7])))
-			# 	title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[1], x), title_tmp_list2[7:])))
-			# 	title_list.append(title_tmp_list2[-1])
-			# 	# import pdb; pdb.set_trace()
-			# 	for tr in trs[3:]:
-			# 		tds = tr.find_elements("tag name", "td")
-			# 		td_text_list = []
-			# 		for td in tds[1:]:
-			# 			td_text_list.append(td.text)
-			# 		# import pdb; pdb.set_trace()
-			# 		data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
-			# # import pdb; pdb.set_trace()
 			print(data_dict)
 		except Exception as e:
 			print(e)
@@ -1131,9 +1105,9 @@ if __name__ == "__main__":
 	cfg = {
 	}
 	with ConvertibleBondAnalysis(cfg) as obj:
-		# data_dict = obj.scrape_stock_info("2330")
-		# print(data_dict)
-		obj.test()
+		data_dict = obj.scrape_stock_info("2330")
+		print(data_dict)
+		# obj.test()
 		# obj.get_cb_monthly_convert_data("11201")
 
 
