@@ -706,6 +706,8 @@ class ConvertibleBondAnalysis(object):
 		# import pdb; pdb.set_trace()
 		url = self.cb_publish[cb_id]["發行資料"]
 		resp = self.__get_requests_module().get(url)
+		if re.search("查無債券基本資料", resp.text) is not None:
+			return None
 		# print(resp.text)
 		beautifulsoup_class = self.__get_beautifulsoup_class()
 		soup = beautifulsoup_class(resp.text, "html.parser")
@@ -954,6 +956,7 @@ class ConvertibleBondAnalysis(object):
 			
 
 	def search_cb_mass_convert(self, table_month=None, mass_convert_threshold=-10.0):
+		import pdb; pdb.set_trace()
 		convert_cb_dict = self.get_cb_monthly_convert_data(table_month)
 		mass_convert_cb_dict = dict(filter(lambda x: float(x[1]["增減百分比"]) < mass_convert_threshold, convert_cb_dict.items()))
 		return mass_convert_cb_dict
@@ -1044,9 +1047,12 @@ class ConvertibleBondAnalysis(object):
 				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"])))
 				cb_publish_detail_dict = self.get_publish_detail(cb_key)
 				print(" *************")
-				print("  本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
-				print("  最新轉(交)換價格: %s" % (cb_publish_detail_dict["最新轉(交)換價格"]))
-				# print("  最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
+				if cb_publish_detail_dict is None:
+					print("  查無債券基本資料......")
+				else:
+					print("  本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
+					print("  最新轉(交)換價格: %s" % (cb_publish_detail_dict["最新轉(交)換價格"]))
+					# print("  最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
 				print(" *************")
 			print("=================================================================\n")
 		if bool(convertible_date_cb_dict):
@@ -1075,7 +1081,7 @@ class ConvertibleBondAnalysis(object):
 				# print("  最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
 				print(" *************")
 			print("=================================================================\n")
-		mass_convert_cb_dict = self.search_cb_mass_convert("11204")
+		mass_convert_cb_dict = self.search_cb_mass_convert()
 		if bool(mass_convert_cb_dict):
 			print("=== CB大量轉換 ==================================================")
 			title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
@@ -1125,9 +1131,9 @@ if __name__ == "__main__":
 	cfg = {
 	}
 	with ConvertibleBondAnalysis(cfg) as obj:
-		data_dict = obj.scrape_stock_info("2330")
-		print(data_dict)
-		# obj.test()
+		# data_dict = obj.scrape_stock_info("2330")
+		# print(data_dict)
+		obj.test()
 		# obj.get_cb_monthly_convert_data("11201")
 
 
