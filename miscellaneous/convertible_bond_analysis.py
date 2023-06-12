@@ -822,6 +822,38 @@ class ConvertibleBondAnalysis(object):
 		return data_dict
 
 
+	def __stock_info_cooperate_shareholding_scrapy_funcptr(self, driver):
+		# import pdb; pdb.set_trace()
+		data_dict = {}
+		table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/form/table/tbody/tr/td/table')
+		trs = table.find_elements("tag name", "tr")
+
+		table_row_start_index = 5
+		title_tmp_list1 = []
+		td1s = trs[table_row_start_index].find_elements("tag name", "td")
+		for td in td1s:
+			title_tmp_list1.append(td.text)
+		title_tmp_list2 = []
+		td2s = trs[table_row_start_index + 1].find_elements("tag name", "td")
+		for td in td2s:
+			title_tmp_list2.append(td.text)
+		# import pdb; pdb.set_trace()
+		title_list = []
+		title_list.extend(list(map(lambda x: "%s%s" % (x, title_tmp_list1[1]), title_tmp_list2[1:5])))
+		title_list.extend(list(map(lambda x: "%s%s" % (x, title_tmp_list1[2]), title_tmp_list2[5:9])))
+		title_list.extend(list(map(lambda x: "%s%s" % (x, title_tmp_list1[3]), title_tmp_list2[9:])))
+		# import pdb; pdb.set_trace()
+		for tr in trs[table_row_start_index + 2:]:
+			tds = tr.find_elements("tag name", "td")
+			td_text_list = []
+			for td in tds[1:]:
+				td_text_list.append(td.text)
+			# import pdb; pdb.set_trace()
+			data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
+		# import pdb; pdb.set_trace()
+		return data_dict
+
+
 	# def __stock_info_margin_trading_scrapy_funcptr(self, driver):
 	# 	data_dict = {}
 	# 	table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/table[1]/tbody/tr/td/table[6]')
@@ -885,13 +917,38 @@ class ConvertibleBondAnalysis(object):
 		return data_dict
 
 
+	def __stock_info_major_inflow_outflow_scrapy_funcptr(self, driver):
+		# import pdb; pdb.set_trace()
+		data_dict = {}
+		table = driver.find_element("xpath", '//*[@id="oMainTable"]')
+		trs = table.find_elements("tag name", "tr")
+
+		table_row_start_index = 5
+		title_list = []
+		tds = trs[table_row_start_index].find_elements("tag name", "td")
+		for td in tds[1:]:
+			title_list.append(td.text)
+		# import pdb; pdb.set_trace()
+		table_row_start_index += 1
+		table_row_end_index = table_row_start_index + 15
+		for tr in trs[table_row_start_index:table_row_end_index]:
+			tds = tr.find_elements("tag name", "td")
+			td_text_list = []
+			for td in tds:
+				td_text_list.append(td.text)
+			# import pdb; pdb.set_trace()
+			data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
+		# import pdb; pdb.set_trace()
+		return data_dict
+
+
 	def scrape_stock_info(self, cb_id):
 		STOCK_INFO_SCRAPY_FUNCPTR_DICT = {
-			# "獲利能力": self.__stock_info_profitability_scrapy_funcptr,
-			# "月營收": self.__stock_info_revenue_scrapy_funcptr,
+			"獲利能力": self.__stock_info_profitability_scrapy_funcptr,
+			"月營收": self.__stock_info_revenue_scrapy_funcptr,
 			"季盈餘": self.__stock_info_earning_scrapy_funcptr,
-			# "法人持股": "https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
-			# "主力進出": "https://concords.moneydj.com/z/zc/zco/zco_%s.djhtm",
+			"法人持股": self.__stock_info_cooperate_shareholding_scrapy_funcptr,
+			"主力進出": self.__stock_info_major_inflow_outflow_scrapy_funcptr,
 			# "融資融券": self.__stock_info_margin_trading_scrapy_funcptr,
 			# "資產負債簡表": "https://concords.moneydj.com/z/zc/zcp/zcp_%s.djhtm",
 			# "財務比率表": "https://concords.moneydj.com/z/zc/zcr/zcra/zcra_%s.djhtm",
