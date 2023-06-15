@@ -452,8 +452,6 @@ class StockChipAnalysis(object):
 			print("%s: %s" % (key, value))
 
 
-
-
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Print help')
 	'''

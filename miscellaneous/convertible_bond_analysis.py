@@ -54,7 +54,8 @@ class ConvertibleBondAnalysis(object):
 		"主力進出": "https://concords.moneydj.com/z/zc/zco/zco_%s.djhtm",
 		# "融資融券": "https://concords.moneydj.com/z/zc/zcx/zcx_%s.djhtm",
 		"融資融券": "https://concords.moneydj.com/z/zc/zcn/zcn_%s.djhtm",
-		"資產負債簡表": "https://concords.moneydj.com/z/zc/zcp/zcp_%s.djhtm",
+		"資產負債簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Q",
+		"資產負債簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Y",
 		"財務比率表": "https://concords.moneydj.com/z/zc/zcr/zcra/zcra_%s.djhtm",
 		"現金流量表": "https://concords.moneydj.com/z/zc/zc3/zc3_%s.djhtm",
 	}
@@ -276,7 +277,7 @@ class ConvertibleBondAnalysis(object):
 	def __get_selenium_select_module(self):
 		if not self.__check_selenium_module_installed():
 			raise RuntimeError("The selenium module is NOT installed!!!")
-		import pdb; pdb.set_trace()
+		# import pdb; pdb.set_trace()
 		if self.selenium_select_module is None:
 			self.selenium_select_module = __import__('selenium.webdriver.support.ui', fromlist=['Select'])
 		return self.selenium_select_module
@@ -798,9 +799,10 @@ class ConvertibleBondAnalysis(object):
 		# import pdb; pdb.set_trace()
 		selenium_select_module = self.__get_selenium_select_module()
 		list_box = selenium_select_module.Select(driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/form/table/tbody/tr/td/table/tbody/tr[1]/td/select'))
-		list_box.select_by_index(2)  # Replace '2' with the desired option's index
+		list_box.select_by_index(1)  # Replace '2' with the desired option's index
 		time.sleep(3)
 
+		# import pdb; pdb.set_trace()
 		data_dict = {}
 		table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/form/table/tbody/tr/td/table')
 		trs = table.find_elements("tag name", "tr")
@@ -923,10 +925,16 @@ class ConvertibleBondAnalysis(object):
 		table = driver.find_element("xpath", '//*[@id="oMainTable"]')
 		trs = table.find_elements("tag name", "tr")
 
-		table_row_start_index = 5
+		table_row_start_index = 6
+		main_title_list = []
+		tds = trs[table_row_start_index].find_elements("tag name", "td")
+		for td in tds:
+			main_title_list.append(td.text)
+			data_dict[td.text] = {}
+		table_row_start_index += 1
 		title_list = []
 		tds = trs[table_row_start_index].find_elements("tag name", "td")
-		for td in tds[1:]:
+		for td in tds:
 			title_list.append(td.text)
 		# import pdb; pdb.set_trace()
 		table_row_start_index += 1
@@ -937,7 +945,36 @@ class ConvertibleBondAnalysis(object):
 			for td in tds:
 				td_text_list.append(td.text)
 			# import pdb; pdb.set_trace()
-			data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
+			data_dict[main_title_list[0]][tds[0].text] = dict(zip(title_list[1:5], td_text_list[1:5]))
+			data_dict[main_title_list[1]][tds[5].text] = dict(zip(title_list[6:], td_text_list[6:]))
+		table_row_start_index = table_row_end_index
+		# import pdb; pdb.set_trace()
+		for index in range(table_row_start_index, table_row_start_index + 2):
+			tds = trs[index].find_elements("tag name", "td")
+			data_dict[main_title_list[0]][tds[0].text] = tds[1].text
+			data_dict[main_title_list[1]][tds[2].text] = tds[3].text
+		# import pdb; pdb.set_trace()
+		return data_dict
+
+
+	def __stock_info_balance_sheet_scrapy_funcptr(self, driver):
+		# import pdb; pdb.set_trace()
+		data_dict = {}
+		table = driver.find_element("xpath", '//*[@id="oMainTable"]')
+		divs = table.find_elements("tag name", "div")
+
+		table_row_start_index = 4
+		period_list = []
+		spans = divs[table_row_start_index].find_elements("tag name", "span")
+		for span in spans[1:]:
+			data_dict[span.text] = {}
+			period_list.append(span.text)
+		table_row_start_index += 2
+		for div in divs[table_row_start_index:]:
+			spans = div.find_elements("tag name", "span")
+			title = spans[0].text
+			for index, span in enumerate(spans[1:]):
+				data_dict[period_list[index]][title] = span.text
 		# import pdb; pdb.set_trace()
 		return data_dict
 
@@ -949,8 +986,9 @@ class ConvertibleBondAnalysis(object):
 			"季盈餘": self.__stock_info_earning_scrapy_funcptr,
 			"法人持股": self.__stock_info_cooperate_shareholding_scrapy_funcptr,
 			"主力進出": self.__stock_info_major_inflow_outflow_scrapy_funcptr,
-			# "融資融券": self.__stock_info_margin_trading_scrapy_funcptr,
-			# "資產負債簡表": "https://concords.moneydj.com/z/zc/zcp/zcp_%s.djhtm",
+			"融資融券": self.__stock_info_margin_trading_scrapy_funcptr,
+			"資產負債簡表(季)": self.__stock_info_balance_sheet_scrapy_funcptr,
+			"資產負債簡表(年)": self.__stock_info_balance_sheet_scrapy_funcptr,
 			# "財務比率表": "https://concords.moneydj.com/z/zc/zcr/zcra/zcra_%s.djhtm",
 			# "現金流量表": "https://concords.moneydj.com/z/zc/zc3/zc3_%s.djhtm",
 		}
@@ -960,9 +998,13 @@ class ConvertibleBondAnalysis(object):
 		try:
 			for scrapy_key, scrapy_funcptr in STOCK_INFO_SCRAPY_FUNCPTR_DICT.items():
 				url = self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT[scrapy_key] % cb_stock_id
+				print("Scrape %s......" % scrapy_key)
+				start_time = time.time()
 				driver.get(url)
 				time.sleep(5)
 				data_dict[scrapy_key] = scrapy_funcptr(driver)
+				end_time = time.time()
+				print("Scrape %s...... Done in %d seconds" % (scrapy_key, (end_time - start_time)))
 			# print(data_dict)
 		except Exception as e:
 			print(e)
@@ -1193,7 +1235,7 @@ class ConvertibleBondAnalysis(object):
 				# print("  最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
 				print(" *************")
 			print("=================================================================\n")
-		mass_convert_cb_dict = self.search_cb_mass_convert()
+		mass_convert_cb_dict = self.search_cb_mass_convert("11205")
 		if bool(mass_convert_cb_dict):
 			print("=== CB大量轉換 ==================================================")
 			title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
@@ -1243,9 +1285,9 @@ if __name__ == "__main__":
 	cfg = {
 	}
 	with ConvertibleBondAnalysis(cfg) as obj:
-		# data_dict = obj.scrape_stock_info("2330")
-		# print(data_dict)
-		obj.test()
+		data_dict = obj.scrape_stock_info("2330")
+		print(data_dict)
+		# obj.test()
 		# obj.get_cb_monthly_convert_data("11201")
 
 
