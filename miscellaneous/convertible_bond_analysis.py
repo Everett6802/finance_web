@@ -46,19 +46,6 @@ class ConvertibleBondAnalysis(object):
 	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
 	CB_TRADING_SUSPENSION_SET = {"30184"}
 
-	STOCK_INFO_SCRAPY_URL_FORMAT_DICT = {
-		"獲利能力": "https://concords.moneydj.com/z/zc/zce/zce_%s.djhtm",
-		"月營收": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
-		"季盈餘": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
-		"法人持股": "https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
-		"主力進出": "https://concords.moneydj.com/z/zc/zco/zco_%s.djhtm",
-		# "融資融券": "https://concords.moneydj.com/z/zc/zcx/zcx_%s.djhtm",
-		"融資融券": "https://concords.moneydj.com/z/zc/zcn/zcn_%s.djhtm",
-		"資產負債簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Q",
-		"資產負債簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Y",
-		"財務比率表": "https://concords.moneydj.com/z/zc/zcr/zcra/zcra_%s.djhtm",
-		"現金流量表": "https://concords.moneydj.com/z/zc/zc3/zc3_%s.djhtm",
-	}
 
 	@classmethod
 	def __is_string(cls, value):
@@ -223,6 +210,37 @@ class ConvertibleBondAnalysis(object):
 		self.selenium_select_module = None
 		self.wget_module = None
 		self.cb_publish_detail = {}
+
+		STOCK_INFO_SCRAPY_URL_FORMAT_DICT = {
+			"獲利能力": "https://concords.moneydj.com/z/zc/zce/zce_%s.djhtm",
+			"月營收": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
+			"季盈餘": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
+			"法人持股": "https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
+			"主力進出": "https://concords.moneydj.com/z/zc/zco/zco_%s.djhtm",
+			# "融資融券": "https://concords.moneydj.com/z/zc/zcx/zcx_%s.djhtm",
+			"融資融券": "https://concords.moneydj.com/z/zc/zcn/zcn_%s.djhtm",
+			"資產負債簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Q",
+			"資產負債簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Y",
+			"財務比率簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Q",
+			"財務比率簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Q",
+			"現金流量簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Q",
+			"現金流量簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Y",
+		}
+
+		STOCK_INFO_SCRAPY_FUNCPTR_DICT = {
+			"獲利能力": self.__stock_info_profitability_scrapy_funcptr,
+			"月營收": self.__stock_info_revenue_scrapy_funcptr,
+			"季盈餘": self.__stock_info_earning_scrapy_funcptr,
+			"法人持股": self.__stock_info_cooperate_shareholding_scrapy_funcptr,
+			"主力進出": self.__stock_info_major_inflow_outflow_scrapy_funcptr,
+			"融資融券": self.__stock_info_margin_trading_scrapy_funcptr,
+			"資產負債簡表(季)": self.__stock_info_balance_sheet_scrapy_funcptr,
+			"資產負債簡表(年)": self.__stock_info_balance_sheet_scrapy_funcptr,
+			"現金流量簡表(季)": self.__stock_info_cash_flow_statement_scrapy_funcptr,
+			"現金流量簡表(年)": self.__stock_info_cash_flow_statement_scrapy_funcptr,
+			"財務比率簡表(季)": self.__stock_info_financial_ratio_statement_scrapy_funcptr,
+			"財務比率簡表(年)": self.__stock_info_financial_ratio_statement_scrapy_funcptr,
+		}
 
 
 	def __enter__(self):
@@ -979,19 +997,36 @@ class ConvertibleBondAnalysis(object):
 		return data_dict
 
 
+	def __stock_info_cash_flow_statement_scrapy_funcptr(self, driver):
+		# import pdb; pdb.set_trace()
+		data_dict = {}
+		table = driver.find_element("xpath", '//*[@id="oMainTable"]')
+		divs = table.find_elements("tag name", "div")
+
+		table_row_start_index = 4
+		period_list = []
+		spans = divs[table_row_start_index].find_elements("tag name", "span")
+		for span in spans[1:]:
+			data_dict[span.text] = {}
+			period_list.append(span.text)
+		table_row_start_index += 2
+		for div in divs[table_row_start_index:]:
+			spans = div.find_elements("tag name", "span")
+			title = spans[0].text
+			for index, span in enumerate(spans[1:]):
+				data_dict[period_list[index]][title] = span.text
+		# import pdb; pdb.set_trace()
+		return data_dict
+
+
+	def __stock_info_financial_ratio_statement_scrapy_funcptr(self, driver):
+		# import pdb; pdb.set_trace()
+		data_dict = {}
+		# import pdb; pdb.set_trace()
+		return data_dict
+
+
 	def scrape_stock_info(self, cb_id):
-		STOCK_INFO_SCRAPY_FUNCPTR_DICT = {
-			"獲利能力": self.__stock_info_profitability_scrapy_funcptr,
-			"月營收": self.__stock_info_revenue_scrapy_funcptr,
-			"季盈餘": self.__stock_info_earning_scrapy_funcptr,
-			"法人持股": self.__stock_info_cooperate_shareholding_scrapy_funcptr,
-			"主力進出": self.__stock_info_major_inflow_outflow_scrapy_funcptr,
-			"融資融券": self.__stock_info_margin_trading_scrapy_funcptr,
-			"資產負債簡表(季)": self.__stock_info_balance_sheet_scrapy_funcptr,
-			"資產負債簡表(年)": self.__stock_info_balance_sheet_scrapy_funcptr,
-			# "財務比率表": "https://concords.moneydj.com/z/zc/zcr/zcra/zcra_%s.djhtm",
-			# "現金流量表": "https://concords.moneydj.com/z/zc/zc3/zc3_%s.djhtm",
-		}
 		data_dict = {}
 		driver = self.__get_web_driver()
 		cb_stock_id = cb_id[:4]
@@ -1285,9 +1320,9 @@ if __name__ == "__main__":
 	cfg = {
 	}
 	with ConvertibleBondAnalysis(cfg) as obj:
-		data_dict = obj.scrape_stock_info("2330")
-		print(data_dict)
-		# obj.test()
+		# data_dict = obj.scrape_stock_info("2330")
+		# print(data_dict)
+		obj.test()
 		# obj.get_cb_monthly_convert_data("11201")
 
 
