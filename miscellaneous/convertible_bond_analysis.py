@@ -26,22 +26,26 @@ import json
 class ConvertibleBondAnalysis(object):
 
 	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"
-	DEFAULT_CB_SUMMARY_FILENAME = "可轉債總表"
+	DEFAULT_CB_SUMMARY_FILENAME = "可轉債總表"	
 	DEFAULT_CB_SUMMARY_FULL_FILENAME = "%s.csv" % DEFAULT_CB_SUMMARY_FILENAME
 # ['可轉債商品', '到期日', '可轉換日', '票面利率', '上次付息日', '轉換價格', '現股收盤價', '可轉債價格', '套利報酬', '年化殖利率', '']
 	DEFAULT_CB_SUMMARY_FIELD_TYPE = [str, str, str, float, str, float, float, float, float, float, str,]
+	DEFAULT_CB_SUMMARY_FIELD_TYPE_LEN = len(DEFAULT_CB_SUMMARY_FIELD_TYPE)
 	DEFAULT_CB_PUBLISH_FILENAME = "可轉債發行"
 	DEFAULT_CB_PUBLISH_FULL_FILENAME = "%s.csv" % DEFAULT_CB_PUBLISH_FILENAME
 # ['債券簡稱', '發行人', '發行日期', '到期日期', '年期', '發行總面額', '發行資料']
 	DEFAULT_CB_PUBLISH_FIELD_TYPE = [str, str, str, str, int, int, str,]
+	DEFAULT_CB_PUBLISH_FIELD_TYPE_LEN = len(DEFAULT_CB_PUBLISH_FIELD_TYPE)
 	DEFAULT_CB_QUOTATION_FILENAME = "可轉債報價"
 	DEFAULT_CB_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_QUOTATION_FILENAME
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
 	DEFAULT_CB_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, str,]
+	DEFAULT_CB_QUOTATION_FIELD_TYPE_LEN = len(DEFAULT_CB_QUOTATION_FIELD_TYPE)
 	DEFAULT_CB_STOCK_QUOTATION_FILENAME = "可轉債個股報價"
 	DEFAULT_CB_STOCK_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_STOCK_QUOTATION_FILENAME
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '融資餘額', '融券餘額']
 	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, int, int,]
+	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE_LEN = len(DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE)
 
 	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
 	CB_TRADING_SUSPENSION_SET = {"30184"}
@@ -327,6 +331,7 @@ class ConvertibleBondAnalysis(object):
 					assert title_list is not None, "title_list should NOT be None"
 					data_list = list(map(lambda x: x.lstrip("=\"").rstrip("\""), row))
 					for data_index, data_value in enumerate(data_list):
+						if data_index >= self.DEFAULT_CB_SUMMARY_FIELD_TYPE_LEN: break
 						try:
 							data_type = self.DEFAULT_CB_SUMMARY_FIELD_TYPE[data_index]
 							data_value = data_type(data_value)
@@ -367,6 +372,7 @@ class ConvertibleBondAnalysis(object):
 					data_list = []
 					data_key = row[0]
 					for data_index, data_value in enumerate(row[1:]):  # ignore 債券代號
+						if data_index >= self.DEFAULT_CB_PUBLISH_FIELD_TYPE_LEN: break
 						try:
 							if data_index == title_tenor_index:
 								mobj = re.match(regex, data_value)
@@ -419,6 +425,7 @@ class ConvertibleBondAnalysis(object):
 	def __check_cb_quotation_data(self, data_list):
 		data_index = 0
 		for data_value in data_list:
+			if data_index >= self.DEFAULT_CB_QUOTATION_FIELD_TYPE_LEN: break
 			try:
 				data_type = self.DEFAULT_CB_QUOTATION_FIELD_TYPE[data_index]
 				data_value = data_type(data_value)
@@ -444,6 +451,7 @@ class ConvertibleBondAnalysis(object):
 	def __check_cb_stock_quotation_data(self, data_list):
 		data_index = 0
 		for data_value in data_list:
+			if data_index >= self.DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE_LEN: break
 			try:
 				data_type = self.DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE[data_index]
 				data_value = data_type(data_value)
