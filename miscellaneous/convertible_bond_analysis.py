@@ -215,7 +215,7 @@ class ConvertibleBondAnalysis(object):
 		self.wget_module = None
 		self.cb_publish_detail = {}
 
-		STOCK_INFO_SCRAPY_URL_FORMAT_DICT = {
+		self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT = {
 			"獲利能力": "https://concords.moneydj.com/z/zc/zce/zce_%s.djhtm",
 			"月營收": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
 			"季盈餘": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
@@ -225,13 +225,13 @@ class ConvertibleBondAnalysis(object):
 			"融資融券": "https://concords.moneydj.com/z/zc/zcn/zcn_%s.djhtm",
 			"資產負債簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Q",
 			"資產負債簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Y",
-			"財務比率簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Q",
-			"財務比率簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Q",
 			"現金流量簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Q",
 			"現金流量簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Y",
+			"財務比率簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Q",
+			"財務比率簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Q",
 		}
 
-		STOCK_INFO_SCRAPY_FUNCPTR_DICT = {
+		self.STOCK_INFO_SCRAPY_FUNCPTR_DICT = {
 			"獲利能力": self.__stock_info_profitability_scrapy_funcptr,
 			"月營收": self.__stock_info_revenue_scrapy_funcptr,
 			"季盈餘": self.__stock_info_earning_scrapy_funcptr,
@@ -1030,6 +1030,34 @@ class ConvertibleBondAnalysis(object):
 	def __stock_info_financial_ratio_statement_scrapy_funcptr(self, driver):
 		# import pdb; pdb.set_trace()
 		data_dict = {}
+		table = driver.find_element("xpath", '//*[@id="oMainTable"]')
+		divs = table.find_elements("tag name", "div")
+
+		table_row_start_index = -1
+		period_list = None
+		# import pdb; pdb.set_trace()
+		for index, div in enumerate(divs):
+			# print(div.text)
+			spans = div.find_elements("tag name", "span")
+			if len(spans) != 0 and re.match("期別", spans[0].text):
+				period_list = []
+				for span in spans[1:]:
+					data_dict[span.text] = {}
+					period_list.append(span.text)
+				table_row_start_index = index + 1
+				break
+		if period_list is None:
+			raise RuntimeError('Fails to find the "期別" field in the table')
+		table_column_len = len(period_list) + 1
+		for div in divs[table_row_start_index:]:
+			spans = div.find_elements("tag name", "span")
+			if len(spans) != table_column_len:
+				continue
+			elif (re.match("期別", spans[0].text) is not None) or (re.match("種類", spans[0].text) is not None):
+				continue
+			title = spans[0].text
+			for index, span in enumerate(spans[1:]):
+				data_dict[period_list[index]][title] = span.text
 		# import pdb; pdb.set_trace()
 		return data_dict
 
@@ -1038,8 +1066,9 @@ class ConvertibleBondAnalysis(object):
 		data_dict = {}
 		driver = self.__get_web_driver()
 		cb_stock_id = cb_id[:4]
+		# import pdb; pdb.set_trace()
 		try:
-			for scrapy_key, scrapy_funcptr in STOCK_INFO_SCRAPY_FUNCPTR_DICT.items():
+			for scrapy_key, scrapy_funcptr in self.STOCK_INFO_SCRAPY_FUNCPTR_DICT.items():
 				url = self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT[scrapy_key] % cb_stock_id
 				print("Scrape %s......" % scrapy_key)
 				start_time = time.time()
@@ -1328,9 +1357,9 @@ if __name__ == "__main__":
 	cfg = {
 	}
 	with ConvertibleBondAnalysis(cfg) as obj:
-		# data_dict = obj.scrape_stock_info("2330")
-		# print(data_dict)
-		obj.test()
+		data_dict = obj.scrape_stock_info("2330")
+		print(data_dict)
+		# obj.test()
 		# obj.get_cb_monthly_convert_data("11201")
 
 
