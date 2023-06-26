@@ -21,6 +21,7 @@ import csv
 import collections
 import time
 import json
+from collections import OrderedDict
 
 
 class ConvertibleBondAnalysis(object):
@@ -216,34 +217,34 @@ class ConvertibleBondAnalysis(object):
 		self.cb_publish_detail = {}
 
 		self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT = {
-			"獲利能力": "https://concords.moneydj.com/z/zc/zce/zce_%s.djhtm",
+			# "獲利能力": "https://concords.moneydj.com/z/zc/zce/zce_%s.djhtm",
 			"月營收": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
-			"季盈餘": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
-			"法人持股": "https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
-			"主力進出": "https://concords.moneydj.com/z/zc/zco/zco_%s.djhtm",
-			# "融資融券": "https://concords.moneydj.com/z/zc/zcx/zcx_%s.djhtm",
-			"融資融券": "https://concords.moneydj.com/z/zc/zcn/zcn_%s.djhtm",
-			"資產負債簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Q",
-			"資產負債簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Y",
-			"現金流量簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Q",
-			"現金流量簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Y",
-			"財務比率簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Q",
-			"財務比率簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Q",
+			# "季盈餘": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
+			# "法人持股": "https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
+			# "主力進出": "https://concords.moneydj.com/z/zc/zco/zco_%s.djhtm",
+			# # "融資融券": "https://concords.moneydj.com/z/zc/zcx/zcx_%s.djhtm",
+			# "融資融券": "https://concords.moneydj.com/z/zc/zcn/zcn_%s.djhtm",
+			# "資產負債簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Q",
+			# "資產負債簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Y",
+			# "現金流量簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Q",
+			# "現金流量簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Y",
+			# "財務比率簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Q",
+			# "財務比率簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Y",
 		}
 
 		self.STOCK_INFO_SCRAPY_FUNCPTR_DICT = {
-			"獲利能力": self.__stock_info_profitability_scrapy_funcptr,
+			# "獲利能力": self.__stock_info_profitability_scrapy_funcptr,
 			"月營收": self.__stock_info_revenue_scrapy_funcptr,
-			"季盈餘": self.__stock_info_earning_scrapy_funcptr,
-			"法人持股": self.__stock_info_cooperate_shareholding_scrapy_funcptr,
-			"主力進出": self.__stock_info_major_inflow_outflow_scrapy_funcptr,
-			"融資融券": self.__stock_info_margin_trading_scrapy_funcptr,
-			"資產負債簡表(季)": self.__stock_info_balance_sheet_scrapy_funcptr,
-			"資產負債簡表(年)": self.__stock_info_balance_sheet_scrapy_funcptr,
-			"現金流量簡表(季)": self.__stock_info_cash_flow_statement_scrapy_funcptr,
-			"現金流量簡表(年)": self.__stock_info_cash_flow_statement_scrapy_funcptr,
-			"財務比率簡表(季)": self.__stock_info_financial_ratio_statement_scrapy_funcptr,
-			"財務比率簡表(年)": self.__stock_info_financial_ratio_statement_scrapy_funcptr,
+			# "季盈餘": self.__stock_info_earning_scrapy_funcptr,
+			# "法人持股": self.__stock_info_cooperate_shareholding_scrapy_funcptr,
+			# "主力進出": self.__stock_info_major_inflow_outflow_scrapy_funcptr,
+			# "融資融券": self.__stock_info_margin_trading_scrapy_funcptr,
+			# "資產負債簡表(季)": self.__stock_info_balance_sheet_scrapy_funcptr,
+			# "資產負債簡表(年)": self.__stock_info_balance_sheet_scrapy_funcptr,
+			# "現金流量簡表(季)": self.__stock_info_cash_flow_statement_scrapy_funcptr,
+			# "現金流量簡表(年)": self.__stock_info_cash_flow_statement_scrapy_funcptr,
+			# "財務比率簡表(季)": self.__stock_info_financial_ratio_statement_scrapy_funcptr,
+			# "財務比率簡表(年)": self.__stock_info_financial_ratio_statement_scrapy_funcptr,
 		}
 
 
@@ -777,7 +778,8 @@ class ConvertibleBondAnalysis(object):
 
 	def __stock_info_profitability_scrapy_funcptr(self, driver):
 		# import pdb; pdb.set_trace()
-		data_dict = {}
+		MAX_ENTRY_COUNT = 4 * 5  # 4 quaters per year * 5 years
+		data_dict = OrderedDict()
 		table = driver.find_element("xpath", '//*[@id="oMainTable"]')
 		trs = table.find_elements("tag name", "tr")
 
@@ -787,7 +789,8 @@ class ConvertibleBondAnalysis(object):
 		for td in tds[1:]:
 			title_list.append(td.text)
 		# import pdb; pdb.set_trace()
-		for tr in trs[table_row_start_index + 1:]:
+		for index, tr in enumerate(trs[table_row_start_index + 1:]):
+			if index == MAX_ENTRY_COUNT: break
 			tds = tr.find_elements("tag name", "td")
 			td_text_list = []
 			for td in tds[1:]:
@@ -795,12 +798,14 @@ class ConvertibleBondAnalysis(object):
 			# import pdb; pdb.set_trace()
 			data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
 		# import pdb; pdb.set_trace()
+		# print("Data Count: %d" % len(data_dict.items()))
 		return data_dict
 
 
 	def __stock_info_revenue_scrapy_funcptr(self, driver):
 		# import pdb; pdb.set_trace()
-		data_dict = {}
+		MAX_ENTRY_COUNT = 12 * 3  # 12 months per year * 3 years
+		data_dict = OrderedDict()
 		table = driver.find_element("xpath", '//*[@id="oMainTable"]')
 		trs = table.find_elements("tag name", "tr")
 
@@ -810,7 +815,8 @@ class ConvertibleBondAnalysis(object):
 		for td in tds[1:]:
 			title_list.append(td.text)
 		# import pdb; pdb.set_trace()
-		for tr in trs[table_row_start_index + 1:]:
+		for index, tr in enumerate(trs[table_row_start_index + 1:]):
+			if index == MAX_ENTRY_COUNT: break
 			tds = tr.find_elements("tag name", "td")
 			td_text_list = []
 			for td in tds[1:]:
@@ -823,13 +829,14 @@ class ConvertibleBondAnalysis(object):
 
 	def __stock_info_earning_scrapy_funcptr(self, driver):
 		# import pdb; pdb.set_trace()
+		MAX_ENTRY_COUNT = 4 * 5  # 4 quaters per year * 5 years
 		selenium_select_module = self.__get_selenium_select_module()
 		list_box = selenium_select_module.Select(driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/form/table/tbody/tr/td/table/tbody/tr[1]/td/select'))
 		list_box.select_by_index(1)  # Replace '2' with the desired option's index
 		time.sleep(3)
 
 		# import pdb; pdb.set_trace()
-		data_dict = {}
+		data_dict = OrderedDict()
 		table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/form/table/tbody/tr/td/table')
 		trs = table.find_elements("tag name", "tr")
 
@@ -839,7 +846,8 @@ class ConvertibleBondAnalysis(object):
 		for td in tds[1:]:
 			title_list.append(td.text)
 		# import pdb; pdb.set_trace()
-		for tr in trs[table_row_start_index + 1:]:
+		for index, tr in enumerate(trs[table_row_start_index + 1:]):
+			if index == MAX_ENTRY_COUNT: break
 			tds = tr.find_elements("tag name", "td")
 			td_text_list = []
 			for td in tds[1:]:
