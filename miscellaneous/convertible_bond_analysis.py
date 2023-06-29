@@ -166,6 +166,7 @@ class ConvertibleBondAnalysis(object):
 			"cb_publish_filename": None,
 			"cb_quotation_filename": None,
 			"cb_stock_quotation_filename": None,
+			"cb_id_list": None
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -208,6 +209,19 @@ class ConvertibleBondAnalysis(object):
 		self.cb_stock_worksheet = None
 		self.cb_id_list = None  # list(self.cb_summary.keys())
 		self.cb_stock_id_list = None
+		self.cb_full_search = False
+		if self.xcfg["cb_id_list"] is None:
+			self.cb_full_search = True
+		else:
+			# import pdb; pdb.set_trace()
+			self.cb_id_list = self.xcfg["cb_id_list"]
+			if type(self.cb_id_list) is str:
+				self.cb_id_list = self.cb_id_list.split(",")
+# Check if the incorrect CB IDs exist
+			illegal_cb_id_list = list(filter(lambda x: re.match("[\d]{5}", x) is None, self.cb_id_list))
+			assert len(illegal_cb_id_list) == 0, "Illegal CB ID list: %s" % illegal_cb_id_list
+			self.cb_stock_id_list = list(set(list(map(lambda x: x[:4], self.cb_id_list))))
+
 		self.can_scrape = self.__can_scrape()
 		self.requests_module = None
 		self.beautifulsoup_class = None
@@ -445,6 +459,7 @@ class ConvertibleBondAnalysis(object):
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
 		cb_data_dict = self.__read_worksheet(self.cb_worksheet, self.__check_cb_quotation_data)
 		if self.cb_id_list is None:
+			assert self.cb_full_search, "Incorrect setting: CB ID list"
 			cb_id_list = list(cb_data_dict.keys())
 			self.cb_id_list = list(filter(self.__is_cb, cb_id_list))
 		return cb_data_dict
@@ -505,6 +520,7 @@ class ConvertibleBondAnalysis(object):
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '融資餘額', '融券餘額']
 		cb_stock_data_dict = self.__read_worksheet(self.cb_stock_worksheet, self.__check_cb_stock_quotation_data)
 		if self.cb_stock_id_list is None:
+			assert self.cb_full_search, "Incorrect setting: CB stock ID list"
 			self.cb_stock_id_list = list(cb_stock_data_dict.keys())
 		return cb_stock_data_dict
 
@@ -1230,17 +1246,18 @@ class ConvertibleBondAnalysis(object):
 		return self.can_scrape
 
 
-	def test(self):
+	def search(self):
 		# data_dict_summary = self.__read_cb_summary()
 		# # print (data_dict_summary)
-		data_dict_quotation = self.__read_cb_quotation()
-		stock_data_dict_quotation = self.__read_cb_stock_quotation()
-		self.check_data_source(data_dict_quotation, stock_data_dict_quotation)
+		quotation_data_dict = self.__read_cb_quotation()
+		stock_quotation_data_dict = self.__read_cb_stock_quotation()
+		if self.cb_full_search:
+			self.check_data_source(quotation_data_dict, stock_quotation_data_dict)
 		print("\n*****************************************************************\n")
 
-		# print (data_dict_quotation)
-		# print(self.calculate_internal_rate_of_return(data_dict_quotation))
-		irr_dict = self.get_positive_internal_rate_of_return(data_dict_quotation)
+		# print (quotation_data_dict)
+		# print(self.calculate_internal_rate_of_return(quotation_data_dict))
+		irr_dict = self.get_positive_internal_rate_of_return(quotation_data_dict)
 		if bool(irr_dict):
 			print("=== 年化報酬率 ==================================================")
 			title_list = ["年化報酬率", "賣出一", "到期日",]
@@ -1248,7 +1265,7 @@ class ConvertibleBondAnalysis(object):
 			for irr_key, irr_data in irr_dict.items():
 				print ("%s[%s]: %.2f  %.2f  %s" % (irr_data["商品"], irr_key, float(irr_data["年化報酬率"]), float(irr_data["賣出一"]), irr_data["到期日"]))
 			print("=================================================================\n")
-		premium_dict = self.get_negative_premium(data_dict_quotation, stock_data_dict_quotation)
+		premium_dict = self.get_negative_premium(quotation_data_dict, stock_quotation_data_dict)
 		if bool(premium_dict):
 			print("=== 溢價率(套利) ================================================")
 			title_list = ["溢價率", "融資餘額", "融券餘額",]
@@ -1257,7 +1274,7 @@ class ConvertibleBondAnalysis(object):
 			for premium_key, premium_data in premium_dict.items():
 				print ("%s[%s]: %.2f  %d  %d" % (premium_data["商品"], premium_key, float(premium_data["溢價率"]), premium_data["融資餘額"], premium_data["融券餘額"]))
 			print("=================================================================\n")
-		stock_premium_dict = self.get_absolute_stock_premium(data_dict_quotation, stock_data_dict_quotation)
+		stock_premium_dict = self.get_absolute_stock_premium(quotation_data_dict, stock_quotation_data_dict)
 		if bool(stock_premium_dict):
 			print("=== 股票溢價率 ==================================================")
 			title_list = ["股票溢價率",]
@@ -1265,7 +1282,7 @@ class ConvertibleBondAnalysis(object):
 			for stock_premium_key, stock_premium_data in stock_premium_dict.items():
 				print ("%s[%s]: %.2f" % (stock_premium_data["商品"], stock_premium_key, float(stock_premium_data["股票溢價率"])))
 			print("=================================================================\n")
-		cb_dict = self.get_low_premium_and_breakeven(data_dict_quotation, stock_data_dict_quotation)
+		cb_dict = self.get_low_premium_and_breakeven(quotation_data_dict, stock_quotation_data_dict)
 		if bool(cb_dict):
 			print("=== 低溢價且保本 ================================================")
 			title_list = ["溢價率", "成交", "賣出一", "到期日",]
@@ -1273,7 +1290,7 @@ class ConvertibleBondAnalysis(object):
 			for cb_key, cb_data in cb_dict.items():
 				print ("%s[%s]: %.2f  %.2f  %.2f  %s" % (cb_data["商品"], cb_key, float(cb_data["溢價率"]), float(cb_data["成交"]), float(cb_data["賣出一"]), cb_data["到期日"]))
 			print("=================================================================\n")
-		issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict = self.search_cb_opportunity_dates(data_dict_quotation, stock_data_dict_quotation)
+		issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict = self.search_cb_opportunity_dates(quotation_data_dict, stock_quotation_data_dict)
 		if bool(issuing_date_cb_dict):
 			print("=== 近發行日期 ==================================================")
 			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數",]
@@ -1338,6 +1355,29 @@ class ConvertibleBondAnalysis(object):
 				# print("\n")
 
 
+	def display(self):
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
+		quotation_data_dict = self.__read_cb_quotation()
+		stock_quotation_data_dict = self.__read_cb_stock_quotation()
+		if self.cb_full_search:
+			self.check_data_source(quotation_data_dict, stock_quotation_data_dict)
+
+		irr_dict = self.calculate_internal_rate_of_return(quotation_data_dict, use_percentage=True)
+		premium_dict = self.calculate_premium(quotation_data_dict, stock_quotation_data_dict, use_percentage=True)
+		stock_premium_dict = self.calculate_stock_premium(quotation_data_dict, stock_quotation_data_dict, use_percentage=True)
+
+		title_list = ["溢價率", "成交", "賣出一",]
+		print("%s" % ", ".join(title_list))
+		for cb_id in self.cb_id_list:
+			cb_stock_id = cb_id[:4]
+			quotation_data = quotation_data_dict[cb_id]
+			stock_quotation_data = stock_quotation_data_dict[cb_stock_id]
+			irr_data = irr_dict[cb_id]
+			premium_data = premium_dict[cb_id]
+			stock_premium_data = stock_premium_dict[cb_id]
+			print ("%s[%s]: %.2f  %.2f  %.2f" % (quotation_data["商品"], cb_id, float(premium_data["溢價率"]), float(quotation_data["成交"]), float(quotation_data["賣出一"])))
+
+
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Print help')
 	'''
@@ -1364,11 +1404,13 @@ if __name__ == "__main__":
 	# args = parser.parse_args()
 
 	cfg = {
+		"cb_id_list": "62822,62791,61965,54342"
 	}
 	with ConvertibleBondAnalysis(cfg) as obj:
-		data_dict = obj.scrape_stock_info("2330")
-		print(data_dict)
-		# obj.test()
+		# data_dict = obj.scrape_stock_info("2330")
+		# print(data_dict)
+		# obj.search()
+		obj.display()
 		# obj.get_cb_monthly_convert_data("11201")
 
 
