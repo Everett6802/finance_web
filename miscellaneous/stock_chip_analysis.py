@@ -478,7 +478,7 @@ if __name__ == "__main__":
 	parser.add_argument('-r', '--search_rule', required=False, help='The rule for selecting targets. Default: 0.')
 	parser.add_argument('-s', '--search', required=False, action='store_true', help='Select targets based on the search rule.')
 	parser.add_argument('-d', '--display', required=False, action='store_true', help='Display specific targets.')
-	parser.add_argument('--display_stock_list', required=False, help='The list of specific targets to be displayed.')
+	parser.add_argument('--display_stock_list', required=False, help='The list of specific stock targets to be displayed.')
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	parser.add_argument('-o', '--output_result', required=False, action='store_true', help='Output the result to the file instead of STDOUT.')
 	parser.add_argument('--output_result_filename', required=False, action='store_true', help='The filename of outputing the result to the file instead of STDOUT.')
