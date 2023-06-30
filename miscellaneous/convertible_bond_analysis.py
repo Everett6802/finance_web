@@ -26,6 +26,9 @@ from collections import OrderedDict
 
 class ConvertibleBondAnalysis(object):
 
+	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
+	DEFAULT_DISPLAY_CB_LIST_FILENAME = "convertible_bond_list.txt"
+
 	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"
 	DEFAULT_CB_SUMMARY_FILENAME = "可轉債總表"	
 	DEFAULT_CB_SUMMARY_FULL_FILENAME = "%s.csv" % DEFAULT_CB_SUMMARY_FILENAME
@@ -166,7 +169,8 @@ class ConvertibleBondAnalysis(object):
 			"cb_publish_filename": None,
 			"cb_quotation_filename": None,
 			"cb_stock_quotation_filename": None,
-			"cb_id_list": None
+			"display_cb_list_filename": None,
+			"display_cb_list": None
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -179,6 +183,14 @@ class ConvertibleBondAnalysis(object):
 		self.xcfg["cb_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_quotation_filename"])
 		self.xcfg["cb_stock_quotation_filename"] = self.DEFAULT_CB_STOCK_QUOTATION_FULL_FILENAME if self.xcfg["cb_stock_quotation_filename"] is None else self.xcfg["cb_stock_quotation_filename"]
 		self.xcfg["cb_stock_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_stock_quotation_filename"])
+		self.xcfg["display_cb_list_filename"] = self.DEFAULT_DISPLAY_CB_LIST_FILENAME if self.xcfg["display_cb_list_filename"] is None else self.xcfg["display_cb_list_filename"]
+		self.xcfg["display_cb_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["display_cb_list_filename"])
+		if self.xcfg["display_cb_list"] is not None:
+			if type(self.xcfg["display_cb_list"]) is str:
+				display_cb_list = []
+				for display_cb in self.xcfg["display_cb_list"].split(","):
+					display_cb_list.append(display_cb)
+				self.xcfg["display_cb_list"] = display_cb_list
 
 		file_not_exist_list = []
 		if not self. __check_file_exist(self.xcfg["cb_summary_filepath"]):
@@ -210,11 +222,11 @@ class ConvertibleBondAnalysis(object):
 		self.cb_id_list = None  # list(self.cb_summary.keys())
 		self.cb_stock_id_list = None
 		self.cb_full_search = False
-		if self.xcfg["cb_id_list"] is None:
+		if self.xcfg["display_cb_list"] is None:
 			self.cb_full_search = True
 		else:
 			# import pdb; pdb.set_trace()
-			self.cb_id_list = self.xcfg["cb_id_list"]
+			self.cb_id_list = self.xcfg["display_cb_list"]
 			if type(self.cb_id_list) is str:
 				self.cb_id_list = self.cb_id_list.split(",")
 # Check if the incorrect CB IDs exist
@@ -1355,7 +1367,20 @@ class ConvertibleBondAnalysis(object):
 				# print("\n")
 
 
+	def __get_display_cb_list_from_file(self):
+		# import pdb; pdb.set_trace()
+		if not self.__check_file_exist(self.xcfg['display_cb_list_filepath']):
+			raise RuntimeError("The file[%s] does NOT exist" % self.xcfg['display_cb_list_filepath'])
+		self.xcfg["display_cb_list"] = []
+		with open(self.xcfg['display_cb_list_filepath'], 'r') as fp:
+			for line in fp:
+				self.xcfg["display_cb_list"].append(line.strip("\n"))
+
+
 	def display(self):
+		if self.xcfg["display_stock_list"] is None:
+			self.__get_display_stock_list_from_file()
+
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
 		quotation_data_dict = self.__read_cb_quotation()
 		stock_quotation_data_dict = self.__read_cb_stock_quotation()
@@ -1400,17 +1425,22 @@ if __name__ == "__main__":
 	>>> parser.add_argument('--bar', action='store_false')
 	>>> parser.add_argument('--baz', action='store_false')
 	'''
-	# parser.add_argument('--list_analysis_method', required=False, action='store_true', help='List each analysis method and exit')
-	# args = parser.parse_args()
+	parser.add_argument('-s', '--search', required=False, action='store_true', help='Select targets based on the search rule.')
+	parser.add_argument('-d', '--display', required=False, action='store_true', help='Display specific targets.')
+	parser.add_argument('--display_cb_list', required=False, help='The list of specific CB targets to be displayed.')
+	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
+	args = parser.parse_args()
 
 	cfg = {
-		"cb_id_list": "62822,62791,61965,54342"
+		# "display_cb_list": "62822,62791,61965,54342"
 	}
+	if args.display_cb_list:
+		cfg['display_cb_list'] = args.display_cb_list
 	with ConvertibleBondAnalysis(cfg) as obj:
 		# data_dict = obj.scrape_stock_info("2330")
 		# print(data_dict)
-		# obj.search()
-		obj.display()
+		obj.search()
+		# obj.display()
 		# obj.get_cb_monthly_convert_data("11201")
 
 
