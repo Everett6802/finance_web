@@ -169,8 +169,9 @@ class ConvertibleBondAnalysis(object):
 			"cb_publish_filename": None,
 			"cb_quotation_filename": None,
 			"cb_stock_quotation_filename": None,
-			"display_cb_list_filename": None,
-			"display_cb_list": None
+			"cb_all": False,
+			"cb_list_filename": None,
+			"cb_list": None
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -183,15 +184,9 @@ class ConvertibleBondAnalysis(object):
 		self.xcfg["cb_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_quotation_filename"])
 		self.xcfg["cb_stock_quotation_filename"] = self.DEFAULT_CB_STOCK_QUOTATION_FULL_FILENAME if self.xcfg["cb_stock_quotation_filename"] is None else self.xcfg["cb_stock_quotation_filename"]
 		self.xcfg["cb_stock_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_stock_quotation_filename"])
-		self.xcfg["display_cb_list_filename"] = self.DEFAULT_DISPLAY_CB_LIST_FILENAME if self.xcfg["display_cb_list_filename"] is None else self.xcfg["display_cb_list_filename"]
-		self.xcfg["display_cb_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["display_cb_list_filename"])
-		if self.xcfg["display_cb_list"] is not None:
-			if type(self.xcfg["display_cb_list"]) is str:
-				display_cb_list = []
-				for display_cb in self.xcfg["display_cb_list"].split(","):
-					display_cb_list.append(display_cb)
-				self.xcfg["display_cb_list"] = display_cb_list
-
+		self.xcfg["cb_list_filename"] = self.DEFAULT_DISPLAY_CB_LIST_FILENAME if self.xcfg["cb_list_filename"] is None else self.xcfg["cb_list_filename"]
+		self.xcfg["cb_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["cb_list_filename"])
+# Check file exist
 		file_not_exist_list = []
 		if not self. __check_file_exist(self.xcfg["cb_summary_filepath"]):
 			file_not_exist_list.append(self.xcfg["cb_summary_filepath"])
@@ -221,18 +216,6 @@ class ConvertibleBondAnalysis(object):
 		self.cb_stock_worksheet = None
 		self.cb_id_list = None  # list(self.cb_summary.keys())
 		self.cb_stock_id_list = None
-		self.cb_full_search = False
-		if self.xcfg["display_cb_list"] is None:
-			self.cb_full_search = True
-		else:
-			# import pdb; pdb.set_trace()
-			self.cb_id_list = self.xcfg["display_cb_list"]
-			if type(self.cb_id_list) is str:
-				self.cb_id_list = self.cb_id_list.split(",")
-# Check if the incorrect CB IDs exist
-			illegal_cb_id_list = list(filter(lambda x: re.match("[\d]{5}", x) is None, self.cb_id_list))
-			assert len(illegal_cb_id_list) == 0, "Illegal CB ID list: %s" % illegal_cb_id_list
-			self.cb_stock_id_list = list(set(list(map(lambda x: x[:4], self.cb_id_list))))
 
 		self.can_scrape = self.__can_scrape()
 		self.requests_module = None
@@ -273,6 +256,28 @@ class ConvertibleBondAnalysis(object):
 			"財務比率簡表(季)": self.__stock_info_financial_ratio_statement_scrapy_funcptr,
 			"財務比率簡表(年)": self.__stock_info_financial_ratio_statement_scrapy_funcptr,
 		}
+
+		self.filepath_dict = OrderedDict()
+		self.filepath_dict["cb_summary_filepath"] = self.xcfg["cb_summary_filepath"]
+		self.filepath_dict["cb_publish_filepath"] = self.xcfg["cb_publish_filepath"]
+		self.filepath_dict["cb_quotation_filepath"] = self.xcfg["cb_quotation_filepath"]
+		self.filepath_dict["cb_stock_quotation_filepath"] = self.xcfg["cb_stock_quotation_filepath"]
+		self.filepath_dict["cb_list_filepath"] = self.xcfg["cb_list_filepath"]
+# Update the CB ID list
+		if not self.xcfg['cb_all']:
+			if self.xcfg["cb_list"] is not None:
+				if type(self.xcfg["cb_list"]) is str:
+					cb_list = []
+					for cb in self.xcfg["cb_list"].split(","):
+						cb_list.append(cb)
+					self.xcfg["cb_list"] = cb_list
+			else:	
+				self.__get_cb_list_from_file()
+			self.cb_id_list = self.xcfg["cb_list"]
+# Check if the incorrect CB IDs exist
+			illegal_cb_id_list = list(filter(lambda x: re.match("[\d]{5}", x) is None, self.cb_id_list))
+			assert len(illegal_cb_id_list) == 0, "Illegal CB ID list: %s" % illegal_cb_id_list
+			self.cb_stock_id_list = list(set(list(map(lambda x: x[:4], self.cb_id_list))))
 
 
 	def __enter__(self):
@@ -471,7 +476,7 @@ class ConvertibleBondAnalysis(object):
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
 		cb_data_dict = self.__read_worksheet(self.cb_worksheet, self.__check_cb_quotation_data)
 		if self.cb_id_list is None:
-			assert self.cb_full_search, "Incorrect setting: CB ID list"
+			assert self.xcfg['cb_all'], "Incorrect setting: CB ID list"
 			cb_id_list = list(cb_data_dict.keys())
 			self.cb_id_list = list(filter(self.__is_cb, cb_id_list))
 		return cb_data_dict
@@ -486,15 +491,19 @@ class ConvertibleBondAnalysis(object):
 				data_value = data_type(data_value)
 				data_list[data_index] = data_value
 			except ValueError as e:
+				# import pdb; pdb.set_trace()
 				if data_index == 4:  # 買進一
 					# print(data_list)
 					# import pdb; pdb.set_trace()
-					if re.match("市價", data_value) is not None:  # 漲停
+					if re.match("市價", str(data_value)) is not None:  # 漲停
 						data_list[4] = data_list[1]  # 買進一 設為 成交價
 						data_list[5] = None
 						break
+					elif re.match("--", str(data_value)) is not None and isinstance(data_list[5], float):  # 跌停
+						data_list[4] = None
+						break
 					else:
-						if re.match("市價", data_list[5]) is None:  # 不是跌停
+						if re.match("市價", str(data_list[5])) is None:  # 不是跌停
 							# import pdb; pdb.set_trace()
 							traceback.print_exc()
 							raise e
@@ -511,6 +520,9 @@ class ConvertibleBondAnalysis(object):
 					if re.match("市價", data_value) is not None:  # 跌停
 						data_list[5] = data_list[1]  # 賣出一 設為 成交價
 						assert data_list[4] == None, "買進一 should be None"
+					elif re.match("--", str(data_value)) is not None and isinstance(data_list[4], float):  # 漲停
+						data_list[5] = None
+						break
 					else:
 						traceback.print_exc()
 						raise e
@@ -532,7 +544,7 @@ class ConvertibleBondAnalysis(object):
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '融資餘額', '融券餘額']
 		cb_stock_data_dict = self.__read_worksheet(self.cb_stock_worksheet, self.__check_cb_stock_quotation_data)
 		if self.cb_stock_id_list is None:
-			assert self.cb_full_search, "Incorrect setting: CB stock ID list"
+			assert self.xcfg['cb_all'], "Incorrect setting: CB stock ID list"
 			self.cb_stock_id_list = list(cb_stock_data_dict.keys())
 		return cb_stock_data_dict
 
@@ -1263,7 +1275,7 @@ class ConvertibleBondAnalysis(object):
 		# # print (data_dict_summary)
 		quotation_data_dict = self.__read_cb_quotation()
 		stock_quotation_data_dict = self.__read_cb_stock_quotation()
-		if self.cb_full_search:
+		if self.xcfg['cb_all']:
 			self.check_data_source(quotation_data_dict, stock_quotation_data_dict)
 		print("\n*****************************************************************\n")
 
@@ -1352,8 +1364,6 @@ class ConvertibleBondAnalysis(object):
 			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in mass_convert_cb_dict.items():
 				print ("%s[%s]:  %.2f  %d  %d  %d" % (cb_data["名稱"], cb_key, float(cb_data["增減百分比"]), int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
-
-
 		# multiple_publish_dict = self.search_multiple_publish()
 		# if bool(multiple_publish_dict):
 		# 	print("=== 多次發行 ==================================================")
@@ -1367,24 +1377,21 @@ class ConvertibleBondAnalysis(object):
 				# print("\n")
 
 
-	def __get_display_cb_list_from_file(self):
+	def __get_cb_list_from_file(self):
 		# import pdb; pdb.set_trace()
-		if not self.__check_file_exist(self.xcfg['display_cb_list_filepath']):
-			raise RuntimeError("The file[%s] does NOT exist" % self.xcfg['display_cb_list_filepath'])
-		self.xcfg["display_cb_list"] = []
-		with open(self.xcfg['display_cb_list_filepath'], 'r') as fp:
+		if not self.__check_file_exist(self.xcfg['cb_list_filepath']):
+			raise RuntimeError("The file[%s] does NOT exist" % self.xcfg['cb_list_filepath'])
+		self.xcfg["cb_list"] = []
+		with open(self.xcfg['cb_list_filepath'], 'r') as fp:
 			for line in fp:
-				self.xcfg["display_cb_list"].append(line.strip("\n"))
+				self.xcfg["cb_list"].append(line.strip("\n"))
 
 
 	def display(self):
-		if self.xcfg["display_stock_list"] is None:
-			self.__get_display_stock_list_from_file()
-
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
 		quotation_data_dict = self.__read_cb_quotation()
 		stock_quotation_data_dict = self.__read_cb_stock_quotation()
-		if self.cb_full_search:
+		if self.xcfg['cb_all']:
 			self.check_data_source(quotation_data_dict, stock_quotation_data_dict)
 
 		irr_dict = self.calculate_internal_rate_of_return(quotation_data_dict, use_percentage=True)
@@ -1401,6 +1408,12 @@ class ConvertibleBondAnalysis(object):
 			premium_data = premium_dict[cb_id]
 			stock_premium_data = stock_premium_dict[cb_id]
 			print ("%s[%s]: %.2f  %.2f  %.2f" % (quotation_data["商品"], cb_id, float(premium_data["溢價率"]), float(quotation_data["成交"]), float(quotation_data["賣出一"])))
+
+
+	def print_filepath(self):
+		print("************** File Path **************")
+		for key, value in self.filepath_dict.items():
+			print("%s: %s" % (key, value))
 
 
 if __name__ == "__main__":
@@ -1425,22 +1438,33 @@ if __name__ == "__main__":
 	>>> parser.add_argument('--bar', action='store_false')
 	>>> parser.add_argument('--baz', action='store_false')
 	'''
+	parser.add_argument('-a', '--all', required=False, action='store_true', help='Check all CBs.')
 	parser.add_argument('-s', '--search', required=False, action='store_true', help='Select targets based on the search rule.')
 	parser.add_argument('-d', '--display', required=False, action='store_true', help='Display specific targets.')
-	parser.add_argument('--display_cb_list', required=False, help='The list of specific CB targets to be displayed.')
+	parser.add_argument('--cb_list', required=False, help='The list of specific CB targets.')
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	args = parser.parse_args()
 
 	cfg = {
-		# "display_cb_list": "62822,62791,61965,54342"
+		# "cb_list": "62822,62791,61965,54342,33881"
 	}
-	if args.display_cb_list:
-		cfg['display_cb_list'] = args.display_cb_list
+	if args.all:
+		cfg['cb_all'] = args.all
+	if args.cb_list:
+		cfg['cb_list'] = args.cb_list
+		if cfg['cb_all']:
+			print("The 'all' flag is ignored...")
+			cfg['cb_all'] = False
 	with ConvertibleBondAnalysis(cfg) as obj:
+		if args.print_filepath:
+			obj.print_filepath()
+			sys.exit(0)
 		# data_dict = obj.scrape_stock_info("2330")
 		# print(data_dict)
-		obj.search()
-		# obj.display()
+		if args.search:
+			obj.search()
+		if args.display:
+			obj.display()
 		# obj.get_cb_monthly_convert_data("11201")
 
 
