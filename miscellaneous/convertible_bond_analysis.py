@@ -608,13 +608,14 @@ class ConvertibleBondAnalysis(object):
 			cb_quotation_data = cb_quotation[cb_id]
 			# print(cb_quotation_data)
 			if cb_quotation_data["賣出一"] is None:
-				continue
-			days = self.__get_days(cb_quotation_data["到期日"])
-			days_to_year = days / 365.0
-			irr = math.pow(100.0 / cb_quotation_data["賣出一"], 1 / days_to_year) - 1
-			if use_percentage:
-				irr *= 100.0
-			irr_dict[cb_id] = {"商品": cb_quotation_data["商品"], "到期日": cb_quotation_data["到期日"], "賣出一": cb_quotation_data["賣出一"], "到期天數": days, "年化報酬率": irr}
+				irr_dict[cb_id] = {"商品": cb_quotation_data["商品"], "到期日": cb_quotation_data["到期日"], "賣出一": cb_quotation_data["賣出一"], "到期天數": None, "年化報酬率": None}
+			else:
+				days = self.__get_days(cb_quotation_data["到期日"])
+				days_to_year = days / 365.0
+				irr = math.pow(100.0 / cb_quotation_data["賣出一"], 1 / days_to_year) - 1
+				if use_percentage:
+					irr *= 100.0
+				irr_dict[cb_id] = {"商品": cb_quotation_data["商品"], "到期日": cb_quotation_data["到期日"], "賣出一": cb_quotation_data["賣出一"], "到期天數": days, "年化報酬率": irr}
 		return irr_dict
 
 
@@ -639,31 +640,39 @@ class ConvertibleBondAnalysis(object):
 			cb_summary_data = self.cb_summary[cb_id]
 			cb_stock_id = cb_id[:4]
 			cb_stock_quotation_data = cb_stock_quotation[cb_stock_id]
-			if cb_stock_quotation_data["買進一"] is None:
+			if cb_stock_quotation_data["買進一"] is None or \
+               cb_quotation_data["賣出一"] is None or \
+               (need_breakeven and cb_quotation_data["成交"] is None):
 				# print("Ignore CB Stock[%s]: 沒有 買進一" % cb_stock_id)
-				continue
-			if cb_quotation_data["賣出一"] is None:
 				# print("Ignore CB[%s]: 沒有 賣出一" % cb_id)
-				continue
-			if need_breakeven and cb_quotation_data["成交"] is None:
 				# print("Ignore CB[%s]: 沒有 成交" % cb_stock_id)
-				continue
-			# conversion_parity = self.__get_conversion_parity(cb_summary_data["轉換價格"], cb_stock_quotation_data["買進一"])
-			# premium = (cb_quotation_data["賣出一"] - conversion_parity) / conversion_parity
-			conversion_premium_rate = self.__get_conversion_premium_rate(cb_summary_data["轉換價格"], cb_quotation_data["賣出一"], cb_stock_quotation_data["買進一"])
-			days = self.__get_days(cb_quotation_data["到期日"])
-			if use_percentage:
-				conversion_premium_rate *= 100.0
-			premium_dict[cb_id] = {
-				"商品": cb_quotation_data["商品"], 
-				"到期日": cb_quotation_data["到期日"], 
-				"到期天數": days, 
-				"溢價率": conversion_premium_rate, 
-				# "成交": cb_quotation_data["成交"], 
-				"賣出一": cb_quotation_data["賣出一"], 
-				"融資餘額": cb_stock_quotation_data["融資餘額"], 
-				"融券餘額": cb_stock_quotation_data["融券餘額"]
-			}
+				premium_dict[cb_id] = {
+					"商品": cb_quotation_data["商品"], 
+					"到期日": cb_quotation_data["到期日"], 
+					"到期天數": None, 
+					"溢價率": None, 
+					# "成交": cb_quotation_data["成交"], 
+					"賣出一": cb_quotation_data["賣出一"], 
+					"融資餘額": cb_stock_quotation_data["融資餘額"], 
+					"融券餘額": cb_stock_quotation_data["融券餘額"]
+				}
+			else:
+				# conversion_parity = self.__get_conversion_parity(cb_summary_data["轉換價格"], cb_stock_quotation_data["買進一"])
+				# premium = (cb_quotation_data["賣出一"] - conversion_parity) / conversion_parity
+				conversion_premium_rate = self.__get_conversion_premium_rate(cb_summary_data["轉換價格"], cb_quotation_data["賣出一"], cb_stock_quotation_data["買進一"])
+				days = self.__get_days(cb_quotation_data["到期日"])
+				if use_percentage:
+					conversion_premium_rate *= 100.0
+				premium_dict[cb_id] = {
+					"商品": cb_quotation_data["商品"], 
+					"到期日": cb_quotation_data["到期日"], 
+					"到期天數": days, 
+					"溢價率": conversion_premium_rate, 
+					# "成交": cb_quotation_data["成交"], 
+					"賣出一": cb_quotation_data["賣出一"], 
+					"融資餘額": cb_stock_quotation_data["融資餘額"], 
+					"融券餘額": cb_stock_quotation_data["融券餘額"]
+				}
 			if need_breakeven: premium_dict[cb_id]["成交"] = cb_quotation_data["成交"]
 		return premium_dict
 
@@ -1233,6 +1242,8 @@ class ConvertibleBondAnalysis(object):
 	def search_cb_mass_convert(self, table_month=None, mass_convert_threshold=-10.0):
 		# import pdb; pdb.set_trace()
 		convert_cb_dict = self.get_cb_monthly_convert_data(table_month)
+		if not self.xcfg['cb_all']:
+			convert_cb_dict = dict(filter(lambda x: x[0] in self.cb_id_list, convert_cb_dict.items()))
 		mass_convert_cb_dict = dict(filter(lambda x: float(x[1]["增減百分比"]) < mass_convert_threshold, convert_cb_dict.items()))
 		return mass_convert_cb_dict
 
@@ -1357,7 +1368,7 @@ class ConvertibleBondAnalysis(object):
 				# print("  最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
 				print(" *************")
 			print("=================================================================\n")
-		mass_convert_cb_dict = self.search_cb_mass_convert("11205")
+		mass_convert_cb_dict = self.search_cb_mass_convert("11206")
 		if bool(mass_convert_cb_dict):
 			print("=== CB大量轉換 ==================================================")
 			title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
@@ -1394,10 +1405,10 @@ class ConvertibleBondAnalysis(object):
 		if self.xcfg['cb_all']:
 			self.check_data_source(quotation_data_dict, stock_quotation_data_dict)
 
+		# import pdb; pdb.set_trace()
 		irr_dict = self.calculate_internal_rate_of_return(quotation_data_dict, use_percentage=True)
 		premium_dict = self.calculate_premium(quotation_data_dict, stock_quotation_data_dict, use_percentage=True)
 		stock_premium_dict = self.calculate_stock_premium(quotation_data_dict, stock_quotation_data_dict, use_percentage=True)
-
 		title_list = ["溢價率", "成交", "賣出一",]
 		print("%s" % ", ".join(title_list))
 		for cb_id in self.cb_id_list:
@@ -1407,7 +1418,10 @@ class ConvertibleBondAnalysis(object):
 			irr_data = irr_dict[cb_id]
 			premium_data = premium_dict[cb_id]
 			stock_premium_data = stock_premium_dict[cb_id]
-			print ("%s[%s]: %.2f  %.2f  %.2f" % (quotation_data["商品"], cb_id, float(premium_data["溢價率"]), float(quotation_data["成交"]), float(quotation_data["賣出一"])))
+			try:
+				print ("%s[%s]: %.2f  %.2f  %.2f" % (quotation_data["商品"], cb_id, float(premium_data["溢價率"]), float(quotation_data["成交"]), float(quotation_data["賣出一"])))
+			except TypeError:
+				print ("%s[%s]: %s" % (quotation_data["商品"], cb_id, "  ".join([str(premium_data["溢價率"]), str(quotation_data["成交"]), str(quotation_data["賣出一"])])))
 
 
 	def print_filepath(self):
