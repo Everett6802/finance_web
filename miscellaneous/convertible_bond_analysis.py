@@ -30,6 +30,7 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_DISPLAY_CB_LIST_FILENAME = "convertible_bond_list.txt"
 
 	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"
+	DEFAULT_CB_DATA_FOLDERNAME =  "Data"
 	DEFAULT_CB_SUMMARY_FILENAME = "可轉債總表"	
 	DEFAULT_CB_SUMMARY_FULL_FILENAME = "%s.csv" % DEFAULT_CB_SUMMARY_FILENAME
 # ['可轉債商品', '到期日', '可轉換日', '票面利率', '上次付息日', '轉換價格', '現股收盤價', '可轉債價格', '套利報酬', '年化殖利率', '']
@@ -165,6 +166,7 @@ class ConvertibleBondAnalysis(object):
 	def __init__(self, cfg):
 		self.xcfg = {
 			"cb_folderpath": None,
+			"cb_data_folderpath": None,
 			"cb_summary_filename": None,
 			"cb_publish_filename": None,
 			"cb_quotation_filename": None,
@@ -176,6 +178,7 @@ class ConvertibleBondAnalysis(object):
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
 		self.xcfg["cb_folderpath"] = self.DEFAULT_CB_FOLDERPATH if self.xcfg["cb_folderpath"] is None else self.xcfg["cb_folderpath"]
+		self.xcfg["cb_data_folderpath"] = os.path.join(self.xcfg["cb_folderpath"], self.DEFAULT_CB_DATA_FOLDERNAME) if self.xcfg["cb_data_folderpath"] is None else self.xcfg["cb_data_folderpath"]
 		self.xcfg["cb_summary_filename"] = self.DEFAULT_CB_SUMMARY_FULL_FILENAME if self.xcfg["cb_summary_filename"] is None else self.xcfg["cb_summary_filename"]
 		self.xcfg["cb_summary_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_summary_filename"])
 		self.xcfg["cb_publish_filename"] = self.DEFAULT_CB_PUBLISH_FULL_FILENAME if self.xcfg["cb_publish_filename"] is None else self.xcfg["cb_publish_filename"]
@@ -208,6 +211,10 @@ class ConvertibleBondAnalysis(object):
 		if len(file_not_exist_list) > 0:
 			raise RuntimeError("The file[%s] does NOT exist" % ", ".join(file_not_exist_list))
 
+		if not os.path.exists(self.xcfg["cb_data_folderpath"]):
+			print("The CB data folder[%s] does NOT exist" % self.xcfg["cb_data_folderpath"])
+			os.mkdir(self.xcfg["cb_data_folderpath"])
+
 		self.cb_summary = self.__read_cb_summary()
 		self.cb_publish = self.__read_cb_publish()
 		self.cb_workbook = None
@@ -226,34 +233,42 @@ class ConvertibleBondAnalysis(object):
 		self.cb_publish_detail = {}
 
 		self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT = {
-			"獲利能力": "https://concords.moneydj.com/z/zc/zce/zce_%s.djhtm",
-			"月營收": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
-			"季盈餘": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
+# Daily
 			"法人持股": "https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
 			"主力進出": "https://concords.moneydj.com/z/zc/zco/zco_%s.djhtm",
 			# "融資融券": "https://concords.moneydj.com/z/zc/zcx/zcx_%s.djhtm",
 			# "融資融券": "https://concords.moneydj.com/z/zc/zcn/zcn_%s.djhtm",
 			"融資融券": "https://concords.moneydj.com/z/zc/zcn/zcn.djhtm?a=%s&b=3",
+# Monthly
+			"月營收": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
+# Quarterly
+			"獲利能力": "https://concords.moneydj.com/z/zc/zce/zce_%s.djhtm",
+			"季盈餘": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
 			"資產負債簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Q",
-			"資產負債簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Y",
 			"現金流量簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Q",
-			"現金流量簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Y",
 			"財務比率簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Q",
+# Yearly
+			"資產負債簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Y",
+			"現金流量簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Y",
 			"財務比率簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Y",
 		}
 
 		self.STOCK_INFO_SCRAPY_FUNCPTR_DICT = {
-			"獲利能力": self.__stock_info_profitability_scrapy_funcptr,
-			"月營收": self.__stock_info_revenue_scrapy_funcptr,
-			"季盈餘": self.__stock_info_earning_scrapy_funcptr,
+# Daily
 			"法人持股": self.__stock_info_cooperate_shareholding_scrapy_funcptr,
 			"主力進出": self.__stock_info_major_inflow_outflow_scrapy_funcptr,
 			"融資融券": self.__stock_info_margin_trading_scrapy_funcptr,
+# Monthly
+			"月營收": self.__stock_info_revenue_scrapy_funcptr,
+# Quarterly
+			"獲利能力": self.__stock_info_profitability_scrapy_funcptr,
+			"季盈餘": self.__stock_info_earning_scrapy_funcptr,
 			"資產負債簡表(季)": self.__stock_info_balance_sheet_scrapy_funcptr,
-			"資產負債簡表(年)": self.__stock_info_balance_sheet_scrapy_funcptr,
 			"現金流量簡表(季)": self.__stock_info_cash_flow_statement_scrapy_funcptr,
-			"現金流量簡表(年)": self.__stock_info_cash_flow_statement_scrapy_funcptr,
 			"財務比率簡表(季)": self.__stock_info_financial_ratio_statement_scrapy_funcptr,
+# Yearly
+			"資產負債簡表(年)": self.__stock_info_balance_sheet_scrapy_funcptr,
+			"現金流量簡表(年)": self.__stock_info_cash_flow_statement_scrapy_funcptr,
 			"財務比率簡表(年)": self.__stock_info_financial_ratio_statement_scrapy_funcptr,
 		}
 
@@ -263,6 +278,7 @@ class ConvertibleBondAnalysis(object):
 		self.filepath_dict["cb_quotation_filepath"] = self.xcfg["cb_quotation_filepath"]
 		self.filepath_dict["cb_stock_quotation_filepath"] = self.xcfg["cb_stock_quotation_filepath"]
 		self.filepath_dict["cb_list_filepath"] = self.xcfg["cb_list_filepath"]
+		self.filepath_dict["cb_data_filepath"] = self.xcfg["cb_data_folderpath"]
 # Update the CB ID list
 		if not self.xcfg['cb_all']:
 			if self.xcfg["cb_list"] is not None:
@@ -1120,12 +1136,18 @@ class ConvertibleBondAnalysis(object):
 		return data_dict
 
 
-	def scrape_stock_info(self, cb_id):
+	def scrape_stock_info(self, cb_id, from_file=True):
 		data_dict = {}
 		driver = self.__get_web_driver()
 		cb_stock_id = cb_id[:4]
 		# import pdb; pdb.set_trace()
+		data_filepath = os.path.join(self.xcfg["cb_data_folderpath"], "%s.txt" % cb_stock_id)
+		# if from_file:
+		# 	if self.__check_file_exist(data_filepath):
+		# 		with open(data_filepath, "r", encoding='utf-8') as f:
+		# 			data_dict = json.load(f)
 		try:
+			total_start_time = time.time()
 			for scrapy_key, scrapy_funcptr in self.STOCK_INFO_SCRAPY_FUNCPTR_DICT.items():
 				url = self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT[scrapy_key] % cb_stock_id
 				print("Scrape %s......" % scrapy_key)
@@ -1136,6 +1158,12 @@ class ConvertibleBondAnalysis(object):
 				end_time = time.time()
 				print("Scrape %s...... Done in %d seconds" % (scrapy_key, (end_time - start_time)))
 			# print(data_dict)
+			total_end_time = time.time()
+			print("Scrape All...... Done in %d seconds" % (total_end_time - total_start_time))
+# Writing to file
+			if from_file:
+				with open(data_filepath, "w", encoding='utf-8') as f:
+					json.dump(data_dict, f, indent=3, ensure_ascii=False)
 		except Exception as e:
 			print(e)
 		finally:
@@ -1163,7 +1191,7 @@ class ConvertibleBondAnalysis(object):
 				raise RuntimeError("Fail to find the month of the table")
 			table_month = mobj.group(1)
 			filename = filename_prefix + table_month
-			filepath = os.path.join(self.xcfg["cb_folderpath"], filename)
+			filepath = os.path.join(self.xcfg["cb_data_folderpath"], filename)
 			# import pdb; pdb.set_trace()
 			if self.__check_file_exist(filepath):
 				# print ("The file[%s] already exist !!!" % filepath)
@@ -1196,7 +1224,7 @@ class ConvertibleBondAnalysis(object):
 				# import pdb; pdb.set_trace()
 # Writing to file
 				with open(filepath, "w", encoding='utf-8') as f:
-				    json.dump(data_dict, f, indent=3, ensure_ascii=False)	
+					json.dump(data_dict, f, indent=3, ensure_ascii=False)
 		except Exception as e:
 			print ("Exception occurs while scraping [%s], due to: %s" % (url, str(e)))
 			raise e
@@ -1409,19 +1437,27 @@ class ConvertibleBondAnalysis(object):
 		irr_dict = self.calculate_internal_rate_of_return(quotation_data_dict, use_percentage=True)
 		premium_dict = self.calculate_premium(quotation_data_dict, stock_quotation_data_dict, use_percentage=True)
 		stock_premium_dict = self.calculate_stock_premium(quotation_data_dict, stock_quotation_data_dict, use_percentage=True)
-		title_list = ["溢價率", "成交", "賣出一",]
-		print("%s" % ", ".join(title_list))
 		for cb_id in self.cb_id_list:
 			cb_stock_id = cb_id[:4]
+			summary_data = self.cb_summary[cb_id]
+			publish_data = self.cb_publish[cb_id]
 			quotation_data = quotation_data_dict[cb_id]
 			stock_quotation_data = stock_quotation_data_dict[cb_stock_id]
 			irr_data = irr_dict[cb_id]
 			premium_data = premium_dict[cb_id]
 			stock_premium_data = stock_premium_dict[cb_id]
+			scrapy_data = obj.scrape_stock_info(cb_stock_id)
+			print("%s[%s]:" % (quotation_data["商品"], cb_id))
+			print(" %s" % "  ".join(["溢價率", "成交", "賣出一",]))
 			try:
-				print ("%s[%s]: %.2f  %.2f  %.2f" % (quotation_data["商品"], cb_id, float(premium_data["溢價率"]), float(quotation_data["成交"]), float(quotation_data["賣出一"])))
+				print(" %.2f  %.2f  %.2f" % (float(premium_data["溢價率"]), float(quotation_data["成交"]), float(quotation_data["賣出一"])))
 			except TypeError:
-				print ("%s[%s]: %s" % (quotation_data["商品"], cb_id, "  ".join([str(premium_data["溢價率"]), str(quotation_data["成交"]), str(quotation_data["賣出一"])])))
+				print(" %s" % ("  ".join([str(premium_data["溢價率"]), str(quotation_data["成交"]), str(quotation_data["賣出一"])])))
+			print(" %s" % "  ".join(["發行日期", "年期", "發行總張數",]))
+			try:
+				print(" %s  %s  %d" % (publish_data["發行日期"], publish_data["年期"], int(publish_data["發行總面額"]) /100000))
+			except TypeError:
+				print(" %s" % ("  ".join([str(premium_data["溢價率"]), str(quotation_data["成交"]), str(quotation_data["賣出一"])])))
 
 
 	def print_filepath(self):
@@ -1466,7 +1502,7 @@ if __name__ == "__main__":
 		cfg['cb_all'] = args.all
 	if args.cb_list:
 		cfg['cb_list'] = args.cb_list
-		if cfg['cb_all']:
+		if 'cb_all' in cfg:
 			print("The 'all' flag is ignored...")
 			cfg['cb_all'] = False
 	with ConvertibleBondAnalysis(cfg) as obj:
