@@ -307,6 +307,9 @@ class ConvertibleBondAnalysis(object):
 
 
 	def __exit__(self, type, msg, traceback):
+		if self.web_driver is not None:
+			self.web_driver.close()
+			self.web_driver = None
 		if self.cb_workbook is not None:
 			self.cb_workbook.release_resources()
 			del self.cb_workbook
@@ -1138,6 +1141,7 @@ class ConvertibleBondAnalysis(object):
 
 	def scrape_stock_info(self, cb_id, from_file=True):
 		data_dict = {}
+		# import pdb; pdb.set_trace()
 		driver = self.__get_web_driver()
 		cb_stock_id = cb_id[:4]
 		# import pdb; pdb.set_trace()
@@ -1166,8 +1170,9 @@ class ConvertibleBondAnalysis(object):
 					json.dump(data_dict, f, indent=3, ensure_ascii=False)
 		except Exception as e:
 			print(e)
-		finally:
-			driver.close()
+# Close the web driver in the __exit__ function
+		# finally:
+		# 	driver.close()
 		return data_dict
 
 
@@ -1423,7 +1428,10 @@ class ConvertibleBondAnalysis(object):
 		self.xcfg["cb_list"] = []
 		with open(self.xcfg['cb_list_filepath'], 'r') as fp:
 			for line in fp:
-				self.xcfg["cb_list"].append(line.strip("\n"))
+				if line.startswith("#"): continue
+				line = line.strip("\n")
+				if len(line) == 0: continue
+				self.xcfg["cb_list"].append(line)
 
 
 	def display(self):
@@ -1446,7 +1454,7 @@ class ConvertibleBondAnalysis(object):
 			irr_data = irr_dict[cb_id]
 			premium_data = premium_dict[cb_id]
 			stock_premium_data = stock_premium_dict[cb_id]
-			scrapy_data = obj.scrape_stock_info(cb_stock_id)
+			scrapy_data = self.scrape_stock_info(cb_stock_id)
 			print("%s[%s]:" % (quotation_data["商品"], cb_id))
 			print(" %s" % "  ".join(["溢價率", "成交", "賣出一",]))
 			try:
