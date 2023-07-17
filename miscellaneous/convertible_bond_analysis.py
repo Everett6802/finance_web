@@ -628,6 +628,7 @@ class ConvertibleBondAnalysis(object):
 			# print(cb_quotation_data)
 			if cb_quotation_data["賣出一"] is None:
 				irr_dict[cb_id] = {"商品": cb_quotation_data["商品"], "到期日": cb_quotation_data["到期日"], "賣出一": cb_quotation_data["賣出一"], "到期天數": None, "年化報酬率": None}
+				# print("%s %s" % (cb_id, str(irr_dict)))
 			else:
 				days = self.__get_days(cb_quotation_data["到期日"])
 				days_to_year = days / 365.0
@@ -641,11 +642,19 @@ class ConvertibleBondAnalysis(object):
 	def get_positive_internal_rate_of_return(self, cb_quotation, positive_threshold=1, duration_within_days=365, need_sort=True):
 		irr_dict = self.calculate_internal_rate_of_return(cb_quotation, use_percentage=True)
 		if positive_threshold is not None:
-			irr_dict = dict(filter(lambda x: x[1]["年化報酬率"] > positive_threshold, irr_dict.items()))
+			# irr_dict = dict(filter(lambda x: x[1]["年化報酬率"] is not None, irr_dict.items()))
+			# irr_dict = dict(filter(lambda x: x[1]["年化報酬率"] > positive_threshold, irr_dict.items()))
+			def filter_func(x):
+				return True if ((x[1]["年化報酬率"] is not None) and (x[1]["年化報酬率"] > positive_threshold)) else False
+			irr_dict = dict(filter(filter_func, irr_dict.items()))
 		if duration_within_days is not None:
-			# duration_date = datetime.now() + timedelta(days=duration_within_days)
-			# irr_dict = dict(filter(lambda x: datetime.strptime(x[1]["到期日"],"%Y/%m/%d") <= duration_date, irr_dict.items()))
-			irr_dict = dict(filter(lambda x: x[1]["到期天數"] <= duration_within_days, irr_dict.items()))
+			# # duration_date = datetime.now() + timedelta(days=duration_within_days)
+			# # irr_dict = dict(filter(lambda x: datetime.strptime(x[1]["到期日"],"%Y/%m/%d") <= duration_date, irr_dict.items()))
+			# irr_dict = dict(filter(lambda x: x[1]["到期天數"] is not None, irr_dict.items()))
+			# irr_dict = dict(filter(lambda x: x[1]["到期天數"] <= duration_within_days, irr_dict.items()))
+			def filter_func(x):
+				return True if ((x[1]["年化報酬率"] is not None) and (x[1]["到期天數"] <= duration_within_days)) else False
+			irr_dict = dict(filter(filter_func, irr_dict.items()))
 		if need_sort:
 			irr_dict = collections.OrderedDict(sorted(irr_dict.items(), key=lambda x: x[1]["年化報酬率"], reverse=True))
 		return irr_dict
@@ -698,7 +707,11 @@ class ConvertibleBondAnalysis(object):
 
 	def get_negative_premium(self, cb_quotation, cb_stock_quotation, negative_threshold=-1, need_sort=True):
 		premium_dict = self.calculate_premium(cb_quotation, cb_stock_quotation, use_percentage=True)
-		premium_dict = dict(filter(lambda x: x[1]["溢價率"] <= negative_threshold, premium_dict.items()))
+		# premium_dict = dict(filter(lambda x: x[1]["溢價率"] is not None, premium_dict.items()))
+		# premium_dict = dict(filter(lambda x: x[1]["溢價率"] <= negative_threshold, premium_dict.items()))
+		def filter_func(x):
+			return True if ((x[1]["溢價率"] is not None) and (x[1]["溢價率"] <= negative_threshold)) else False
+		premium_dict = dict(filter(filter_func, premium_dict.items()))
 		if need_sort:
 			premium_dict = collections.OrderedDict(sorted(premium_dict.items(), key=lambda x: x[1]["溢價率"], reverse=False))
 		return premium_dict
@@ -706,7 +719,17 @@ class ConvertibleBondAnalysis(object):
 
 	def get_low_premium_and_breakeven(self, cb_quotation, cb_stock_quotation, low_conversion_premium_rate_threshold=8, breakeven_threshold=108, need_sort=True):
 		premium_dict = self.calculate_premium(cb_quotation, cb_stock_quotation, need_breakeven=True, use_percentage=True)
-		premium_dict = dict(filter(lambda x: x[1]["溢價率"] <= low_conversion_premium_rate_threshold and x[1]["成交"] <= breakeven_threshold, premium_dict.items()))
+		# premium_dict = dict(filter(lambda x: x[1]["溢價率"] is not None, premium_dict.items()))
+		# premium_dict = dict(filter(lambda x: x[1]["溢價率"] <= low_conversion_premium_rate_threshold and x[1]["成交"] <= breakeven_threshold, premium_dict.items()))
+		def filter_func(x):
+			check = False
+			if (x[1]["溢價率"] is not None) and \
+			   (x[1]["成交"] is not None) and \
+			   (x[1]["溢價率"] <= low_conversion_premium_rate_threshold) and \
+			   (x[1]["成交"] <= breakeven_threshold):
+			   check = True
+			return check
+		premium_dict = dict(filter(filter_func, premium_dict.items()))
 		if need_sort:
 			premium_dict = collections.OrderedDict(sorted(premium_dict.items(), key=lambda x: x[1]["溢價率"], reverse=False))
 		return premium_dict
@@ -736,9 +759,12 @@ class ConvertibleBondAnalysis(object):
 		stock_premium_dict = self.calculate_stock_premium(cb_quotation, cb_stock_quotation, use_percentage=True)
 		stock_premium_dict = dict(filter(lambda x: abs(x[1]["股票溢價率"]) <= absolute_threshold, stock_premium_dict.items()))
 		if duration_within_days is not None:
-			# duration_date = datetime.now() + timedelta(days=duration_within_days)
-			# irr_dict = dict(filter(lambda x: datetime.strptime(x[1]["到期日"],"%Y/%m/%d") <= duration_date, irr_dict.items()))
-			stock_premium_dict = dict(filter(lambda x: x[1]["到期天數"] <= duration_within_days, stock_premium_dict.items()))
+			# # duration_date = datetime.now() + timedelta(days=duration_within_days)
+			# # irr_dict = dict(filter(lambda x: datetime.strptime(x[1]["到期日"],"%Y/%m/%d") <= duration_date, irr_dict.items()))
+			# stock_premium_dict = dict(filter(lambda x: x[1]["到期天數"] <= duration_within_days, stock_premium_dict.items()))
+			def filter_func(x):
+				return True if ((x[1]["到期天數"] is not None) and (x[1]["到期天數"] <= duration_within_days)) else False
+			stock_premium_dict = dict(filter(filter_func, stock_premium_dict.items()))
 		if need_sort:
 			stock_premium_dict = collections.OrderedDict(sorted(stock_premium_dict.items(), key=lambda x: x[1]["股票溢價率"], reverse=False))
 		return stock_premium_dict
@@ -1248,7 +1274,7 @@ class ConvertibleBondAnalysis(object):
 		if table_month is not None:
 			filename_prefix = "可轉換公司債月分析表"
 			filename = filename_prefix + table_month
-			filepath = os.path.join(self.xcfg["cb_folderpath"], filename)
+			filepath = os.path.join(self.xcfg["cb_data_folderpath"], filename)
 			if self.__check_file_exist(filepath):
 				with open(filepath, 'r', encoding='utf-8') as f:
 					scrapy_data_dict = json.load(f)
