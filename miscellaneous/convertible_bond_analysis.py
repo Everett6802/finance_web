@@ -33,6 +33,8 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_CB_DATA_FOLDERNAME =  "Data"
 	DEFAULT_CB_SUMMARY_FILENAME = "可轉債總表"	
 	DEFAULT_CB_SUMMARY_FULL_FILENAME = "%s.csv" % DEFAULT_CB_SUMMARY_FILENAME
+	DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX = "可轉換公司債月分析表"
+
 # ['可轉債商品', '到期日', '可轉換日', '票面利率', '上次付息日', '轉換價格', '現股收盤價', '可轉債價格', '套利報酬', '年化殖利率', '']
 	DEFAULT_CB_SUMMARY_FIELD_TYPE = [str, str, str, float, str, float, float, float, float, float, str,]
 	DEFAULT_CB_SUMMARY_FIELD_TYPE_LEN = len(DEFAULT_CB_SUMMARY_FIELD_TYPE)
@@ -1202,11 +1204,27 @@ class ConvertibleBondAnalysis(object):
 		return data_dict
 
 
+	def need_scrape_cb_monthly_convert_data(self):
+		today = datetime.today()
+		year = today.year - 1911
+		month = today.month
+		day = today.day
+		if day >= 11:
+			month -= 1
+		else:
+			month -= 2
+		if month <= 0:
+			month += 12
+			year -= 1
+		filename = "%s%d%02d" % (self.self.DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX, year, month)
+		filepath = os.path.join(self.xcfg["cb_data_folderpath"], filename)
+		return (not self.__check_file_exist(filepath))
+
+
 	def scrape_cb_monthly_convert_data(self):
 		data_dict = {}
 		driver = self.__get_web_driver()
 		url = "https://www.tdcc.com.tw/portal/zh/QStatWAR/indm004"
-		filename_prefix = "可轉換公司債月分析表" 
 		try:		
 			driver.get(url)
 			time.sleep(5)
@@ -1221,7 +1239,7 @@ class ConvertibleBondAnalysis(object):
 			if mobj is None:
 				raise RuntimeError("Fail to find the month of the table")
 			table_month = mobj.group(1)
-			filename = filename_prefix + table_month
+			filename = self.DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX + table_month
 			filepath = os.path.join(self.xcfg["cb_data_folderpath"], filename)
 			# import pdb; pdb.set_trace()
 			if self.__check_file_exist(filepath):
@@ -1272,8 +1290,7 @@ class ConvertibleBondAnalysis(object):
 		filepath = None
 		scrapy_data_dict = None
 		if table_month is not None:
-			filename_prefix = "可轉換公司債月分析表"
-			filename = filename_prefix + table_month
+			filename = self.DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX + table_month
 			filepath = os.path.join(self.xcfg["cb_data_folderpath"], filename)
 			if self.__check_file_exist(filepath):
 				with open(filepath, 'r', encoding='utf-8') as f:
@@ -1480,7 +1497,7 @@ class ConvertibleBondAnalysis(object):
 			irr_data = irr_dict[cb_id]
 			premium_data = premium_dict[cb_id]
 			stock_premium_data = stock_premium_dict[cb_id]
-			scrapy_data = self.scrape_stock_info(cb_stock_id)
+			# scrapy_data = self.scrape_stock_info(cb_stock_id)
 			print("%s[%s]:" % (quotation_data["商品"], cb_id))
 			print(" %s" % "  ".join(["溢價率", "成交", "賣出一",]))
 			try:
