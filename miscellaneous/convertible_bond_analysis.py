@@ -1204,7 +1204,7 @@ class ConvertibleBondAnalysis(object):
 		return data_dict
 
 
-	def need_scrape_cb_monthly_convert_data(self):
+	def calculate_cb_monthly_convert_data_table_month(self):
 		today = datetime.today()
 		year = today.year - 1911
 		month = today.month
@@ -1216,9 +1216,11 @@ class ConvertibleBondAnalysis(object):
 		if month <= 0:
 			month += 12
 			year -= 1
-		filename = "%s%d%02d" % (self.self.DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX, year, month)
-		filepath = os.path.join(self.xcfg["cb_data_folderpath"], filename)
-		return (not self.__check_file_exist(filepath))
+		# filename = "%s%d%02d" % (self.self.DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX, year, month)
+		# # filepath = os.path.join(self.xcfg["cb_data_folderpath"], filename)
+		# # return (not self.__check_file_exist(filepath))
+		table_month = "%d%02d" % (year, month)
+		return table_month
 
 
 	def scrape_cb_monthly_convert_data(self):
@@ -1277,8 +1279,8 @@ class ConvertibleBondAnalysis(object):
 		except Exception as e:
 			print ("Exception occurs while scraping [%s], due to: %s" % (url, str(e)))
 			raise e
-		finally:
-			driver.close()
+		# finally:
+		# 	driver.close()
 		# for key, value in data_dict.items():
 		# 	value_str_list = list(map(lambda x: "%s(%s)" % (x[0], x[1]), value.items()))
 		# 	print("%s: %s" % (key, ", ".join(value_str_list)))
@@ -1289,12 +1291,13 @@ class ConvertibleBondAnalysis(object):
 		# import pdb; pdb.set_trace()
 		filepath = None
 		scrapy_data_dict = None
-		if table_month is not None:
-			filename = self.DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX + table_month
-			filepath = os.path.join(self.xcfg["cb_data_folderpath"], filename)
-			if self.__check_file_exist(filepath):
-				with open(filepath, 'r', encoding='utf-8') as f:
-					scrapy_data_dict = json.load(f)
+		if table_month is None:
+			table_month = self.calculate_cb_monthly_convert_data_table_month()
+		filename = self.DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX + table_month
+		filepath = os.path.join(self.xcfg["cb_data_folderpath"], filename)
+		if self.__check_file_exist(filepath):
+			with open(filepath, 'r', encoding='utf-8') as f:
+				scrapy_data_dict = json.load(f)
 		if scrapy_data_dict is None:
 			scrapy_data_dict = self.scrape_cb_monthly_convert_data()
 			if table_month is not None:
@@ -1444,7 +1447,7 @@ class ConvertibleBondAnalysis(object):
 				# print("  最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
 				print(" *************")
 			print("=================================================================\n")
-		mass_convert_cb_dict = self.search_cb_mass_convert("11206")
+		mass_convert_cb_dict = self.search_cb_mass_convert()
 		if bool(mass_convert_cb_dict):
 			print("=== CB大量轉換 ==================================================")
 			title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
@@ -1564,9 +1567,9 @@ if __name__ == "__main__":
 		# print(data_dict)
 		if args.search:
 			obj.search()
+		# import pdb; pdb.set_trace()
 		if args.display:
 			obj.display()
-		# obj.get_cb_monthly_convert_data("11201")
 
 
 # 	from selenium import webdriver
