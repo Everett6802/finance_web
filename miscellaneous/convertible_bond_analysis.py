@@ -234,6 +234,75 @@ class ConvertibleBondAnalysis(object):
 		self.wget_module = None
 		self.cb_publish_detail = {}
 
+		self.STOCK_INFO_SCRAPY_METADATA_DICT = {
+# Daily
+			"法人持股": {
+				"URL_FORMAT": https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
+				"SCRAPY_FUNCPTR": self.__stock_info_cooperate_shareholding_scrapy_funcptr,
+				"UPDATE_FREQUENCY": "Daily",
+			},
+			"主力進出": {
+				"URL_FORMAT": "https://concords.moneydj.com/z/zc/zco/zco_%s.djhtm",
+				"SCRAPY_FUNCPTR": self.__stock_info_major_inflow_outflow_scrapy_funcptr,
+				"UPDATE_FREQUENCY": "Daily",
+			},
+			# "融資融券": "https://concords.moneydj.com/z/zc/zcx/zcx_%s.djhtm",
+			# "融資融券": "https://concords.moneydj.com/z/zc/zcn/zcn_%s.djhtm",
+			"融資融券": {
+				"URL_FORMAT": "https://concords.moneydj.com/z/zc/zcn/zcn.djhtm?a=%s&b=3",
+				"SCRAPY_FUNCPTR": __stock_info_margin_trading_scrapy_funcptr,
+				"UPDATE_FREQUENCY": "Daily",
+			},
+# Monthly
+			"月營收": {
+				"URL_FORMAT": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
+				"SCRAPY_FUNCPTR": self.__stock_info_revenue_scrapy_funcptr,
+				"UPDATE_FREQUENCY": "Monthly",
+			},
+# Quarterly
+			"獲利能力": {
+				"URL_FORMAT": "https://concords.moneydj.com/z/zc/zce/zce_%s.djhtm",
+				"SCRAPY_FUNCPTR": self.__stock_info_profitability_scrapy_funcptr,
+				"UPDATE_FREQUENCY": "Quarterly",
+			},
+			"季盈餘": {
+				"URL_FORMAT": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
+				"SCRAPY_FUNCPTR": self.__stock_info_earning_scrapy_funcptr,
+				"UPDATE_FREQUENCY": "Quarterly",
+			},
+			"資產負債簡表(季)": {
+				"URL_FORMAT": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Q",
+				"SCRAPY_FUNCPTR": self.__stock_info_balance_sheet_scrapy_funcptr,
+				"UPDATE_FREQUENCY": "Quarterly",
+			},
+			"現金流量簡表(季)": {
+				"URL_FORMAT": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Q",
+				"SCRAPY_FUNCPTR": self.__stock_info_cash_flow_statement_scrapy_funcptr,
+				"UPDATE_FREQUENCY": "Quarterly",
+			},
+			"財務比率簡表(季)": {
+				"URL_FORMAT": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Q",
+				"SCRAPY_FUNCPTR": self.__stock_info_financial_ratio_statement_scrapy_funcptr,
+				"UPDATE_FREQUENCY": "Quarterly",
+			},
+# Yearly
+			"資產負債簡表(年)": {
+				"URL_FORMAT": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Y",
+				"SCRAPY_FUNCPTR": self.__stock_info_cooperate_shareholding_scrapy_funcptr,
+				"UPDATE_FREQUENCY": "Yearly",
+			},
+			"現金流量簡表(年)": {
+				"URL_FORMAT": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Y",
+				"SCRAPY_FUNCPTR": self.__stock_info_cash_flow_statement_scrapy_funcptr,
+				"UPDATE_FREQUENCY": "Yearly",
+			},
+			"財務比率簡表(年)": {
+				"URL_FORMAT": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Y",
+				"SCRAPY_FUNCPTR": self.__stock_info_financial_ratio_statement_scrapy_funcptr,
+				"UPDATE_FREQUENCY": "Yearly",
+			},
+		}
+
 		self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT = {
 # Daily
 			"法人持股": "https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
