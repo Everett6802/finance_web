@@ -57,6 +57,7 @@ class ConvertibleBondAnalysis(object):
 	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
 	CB_TRADING_SUSPENSION_SET = {"30184"}
 
+	STATEMENT_RELEASE_DATE_LIST = [(3,31,),(5,15,),(8,14,),(11,14),]
 
 	@classmethod
 	def __is_string(cls, value):
@@ -237,7 +238,7 @@ class ConvertibleBondAnalysis(object):
 		self.STOCK_INFO_SCRAPY_METADATA_DICT = {
 # Daily
 			"法人持股": {
-				"URL_FORMAT": https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
+				"URL_FORMAT": "https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
 				"SCRAPY_FUNCPTR": self.__stock_info_cooperate_shareholding_scrapy_funcptr,
 				"UPDATE_FREQUENCY": "Daily",
 			},
@@ -250,7 +251,7 @@ class ConvertibleBondAnalysis(object):
 			# "融資融券": "https://concords.moneydj.com/z/zc/zcn/zcn_%s.djhtm",
 			"融資融券": {
 				"URL_FORMAT": "https://concords.moneydj.com/z/zc/zcn/zcn.djhtm?a=%s&b=3",
-				"SCRAPY_FUNCPTR": __stock_info_margin_trading_scrapy_funcptr,
+				"SCRAPY_FUNCPTR": self.__stock_info_margin_trading_scrapy_funcptr,
 				"UPDATE_FREQUENCY": "Daily",
 			},
 # Monthly
@@ -303,45 +304,9 @@ class ConvertibleBondAnalysis(object):
 			},
 		}
 
-		self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT = {
-# Daily
-			"法人持股": "https://concords.moneydj.com/z/zc/zcl/zcl.djhtm?a=%s&b=3",
-			"主力進出": "https://concords.moneydj.com/z/zc/zco/zco_%s.djhtm",
-			# "融資融券": "https://concords.moneydj.com/z/zc/zcx/zcx_%s.djhtm",
-			# "融資融券": "https://concords.moneydj.com/z/zc/zcn/zcn_%s.djhtm",
-			"融資融券": "https://concords.moneydj.com/z/zc/zcn/zcn.djhtm?a=%s&b=3",
-# Monthly
-			"月營收": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
-# Quarterly
-			"獲利能力": "https://concords.moneydj.com/z/zc/zce/zce_%s.djhtm",
-			"季盈餘": "https://concords.moneydj.com/z/zc/zch/zch_%s.djhtm",
-			"資產負債簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Q",
-			"現金流量簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Q",
-			"財務比率簡表(季)": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Q",
-# Yearly
-			"資產負債簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=1&c=Y",
-			"現金流量簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp.djhtm?a=%s&b=3&c=Y",
-			"財務比率簡表(年)": "https://concords.moneydj.com/z/zc/zcp/zcp0.djhtm?a=%s&c=Y",
-		}
-
-		self.STOCK_INFO_SCRAPY_FUNCPTR_DICT = {
-# Daily
-			"法人持股": self.__stock_info_cooperate_shareholding_scrapy_funcptr,
-			"主力進出": self.__stock_info_major_inflow_outflow_scrapy_funcptr,
-			"融資融券": self.__stock_info_margin_trading_scrapy_funcptr,
-# Monthly
-			"月營收": self.__stock_info_revenue_scrapy_funcptr,
-# Quarterly
-			"獲利能力": self.__stock_info_profitability_scrapy_funcptr,
-			"季盈餘": self.__stock_info_earning_scrapy_funcptr,
-			"資產負債簡表(季)": self.__stock_info_balance_sheet_scrapy_funcptr,
-			"現金流量簡表(季)": self.__stock_info_cash_flow_statement_scrapy_funcptr,
-			"財務比率簡表(季)": self.__stock_info_financial_ratio_statement_scrapy_funcptr,
-# Yearly
-			"資產負債簡表(年)": self.__stock_info_balance_sheet_scrapy_funcptr,
-			"現金流量簡表(年)": self.__stock_info_cash_flow_statement_scrapy_funcptr,
-			"財務比率簡表(年)": self.__stock_info_financial_ratio_statement_scrapy_funcptr,
-		}
+		self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT = {key: value["URL_FORMAT"] for key, value in self.STOCK_INFO_SCRAPY_METADATA_DICT.items()}
+		self.STOCK_INFO_SCRAPY_FUNCPTR_DICT = {key: value["SCRAPY_FUNCPTR"] for key, value in self.STOCK_INFO_SCRAPY_METADATA_DICT.items()}
+		self.STOCK_INFO_UPDATE_FREQUENCY_DICT = {key: value["UPDATE_FREQUENCY"] for key, value in self.STOCK_INFO_SCRAPY_METADATA_DICT.items()}
 
 		self.filepath_dict = OrderedDict()
 		self.filepath_dict["cb_summary_filepath"] = self.xcfg["cb_summary_filepath"]
@@ -1235,6 +1200,26 @@ class ConvertibleBondAnalysis(object):
 		# import pdb; pdb.set_trace()
 		return data_dict
 
+
+	def calculate_stock_info_update_time(data_scrapy_timestr):
+		data_scrapy_date = datetime.strptime(data_scrapy_timestr, "%Y/%m/%d")
+		daily_new_data_date = data_scrapy_date + timedelta(days=1)
+		monthly_new_data_date = None
+		if data_scrapy_date.day <= 10:
+			monthly_new_data_date = datetime.datetime(data_scrapy_date.year, data_scrapy_date.month, 10)
+		else:
+			year = data_scrapy_date.year
+			month = data_scrapy_date.month + 1
+			if month > 12:
+				month -= 12
+				year += 1
+				monthly_new_data_date = datetime.datetime(year, month, 10)
+		statement_release_date_check_list = []
+		for date in self.STATEMENT_RELEASE_DATE_LIST:
+			statement_release_date_check_list.append(datetime.datetime(data_scrapy_date.year, date[0], date[1]))
+		statement_release_date_check_list.append(datetime.datetime(data_scrapy_date.year + 1, self.STATEMENT_RELEASE_DATE_LIST[0][0], self.STATEMENT_RELEASE_DATE_LIST[0][1]))
+		check_index = len(filter(lambda x: x < data_scrapy_date, statement_release_date_check_list))
+		quarterly_new_data_date = statement_release_date_check_list[check_index]
 
 	def scrape_stock_info(self, cb_id, from_file=True):
 		data_dict = {}
