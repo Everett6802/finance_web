@@ -308,6 +308,13 @@ class ConvertibleBondAnalysis(object):
 		self.STOCK_INFO_SCRAPY_FUNCPTR_DICT = {key: value["SCRAPY_FUNCPTR"] for key, value in self.STOCK_INFO_SCRAPY_METADATA_DICT.items()}
 		self.STOCK_INFO_UPDATE_FREQUENCY_DICT = {key: value["UPDATE_FREQUENCY"] for key, value in self.STOCK_INFO_SCRAPY_METADATA_DICT.items()}
 
+		self.STOCK_INFO_UPDATE_TIME_FUNCPTR_DICT = {
+			"Daily": self.__calculate_stock_info_daily_update_time,
+			"Monthly": self.__calculate_stock_info_monthly_update_time,
+			"Quarterly": self.__calculate_stock_info_quarterly_update_time,
+			"Yearly": self.__calculate_stock_info_yearly_update_time,
+		}
+
 		self.filepath_dict = OrderedDict()
 		self.filepath_dict["cb_summary_filepath"] = self.xcfg["cb_summary_filepath"]
 		self.filepath_dict["cb_publish_filepath"] = self.xcfg["cb_publish_filepath"]
@@ -1200,50 +1207,92 @@ class ConvertibleBondAnalysis(object):
 		# import pdb; pdb.set_trace()
 		return data_dict
 
-
-	def calculate_stock_info_update_time(data_scrapy_timestr):
-		data_scrapy_date = datetime.strptime(data_scrapy_timestr, "%Y/%m/%d")
+	def __calculate_stock_info_daily_update_time(self, data_scrapy_date):
 		daily_new_data_date = data_scrapy_date + timedelta(days=1)
+		return daily_new_data_date
+
+
+	def __calculate_stock_info_monthly_update_time(self, data_scrapy_date):
 		monthly_new_data_date = None
 		if data_scrapy_date.day <= 10:
-			monthly_new_data_date = datetime.datetime(data_scrapy_date.year, data_scrapy_date.month, 10)
+			monthly_new_data_date = datetime(data_scrapy_date.year, data_scrapy_date.month, 10)
 		else:
 			year = data_scrapy_date.year
 			month = data_scrapy_date.month + 1
 			if month > 12:
 				month -= 12
 				year += 1
-				monthly_new_data_date = datetime.datetime(year, month, 10)
+			monthly_new_data_date = datetime(year, month, 10)
+		return monthly_new_data_date
+
+
+	def __calculate_stock_info_quarterly_update_time(self, data_scrapy_date):
 		statement_release_date_check_list = []
 		for date in self.STATEMENT_RELEASE_DATE_LIST:
-			statement_release_date_check_list.append(datetime.datetime(data_scrapy_date.year, date[0], date[1]))
-		statement_release_date_check_list.append(datetime.datetime(data_scrapy_date.year + 1, self.STATEMENT_RELEASE_DATE_LIST[0][0], self.STATEMENT_RELEASE_DATE_LIST[0][1]))
-		check_index = len(filter(lambda x: x < data_scrapy_date, statement_release_date_check_list))
+			statement_release_date_check_list.append(datetime(data_scrapy_date.year, date[0], date[1]))
+		statement_release_date_check_list.append(datetime(data_scrapy_date.year + 1, self.STATEMENT_RELEASE_DATE_LIST[0][0], self.STATEMENT_RELEASE_DATE_LIST[0][1]))
+		check_index = len(list(filter(lambda x: x < data_scrapy_date, statement_release_date_check_list)))
 		quarterly_new_data_date = statement_release_date_check_list[check_index]
+		return quarterly_new_data_date
+
+
+	def __calculate_stock_info_yearly_update_time(self, data_scrapy_date):
+		statement_release_date_check_list = []
+		statement_release_date_check_list.append(datetime(data_scrapy_date.year, self.STATEMENT_RELEASE_DATE_LIST[0][0], self.STATEMENT_RELEASE_DATE_LIST[0][1]))
+		statement_release_date_check_list.append(datetime(data_scrapy_date.year + 1, self.STATEMENT_RELEASE_DATE_LIST[0][0], self.STATEMENT_RELEASE_DATE_LIST[0][1]))
+		check_index = len(list(filter(lambda x: x < data_scrapy_date, statement_release_date_check_list)))
+		yearly_new_data_date = statement_release_date_check_list[check_index]
+		return yearly_new_data_date
+
+
+	def calculate_stock_info_update_time(self, data_scrapy_timestr, update_frequency):
+		# import pdb; pdb.set_trace()
+		data_scrapy_date = datetime.strptime(data_scrapy_timestr, "%Y/%m/%d")
+		return (self.STOCK_INFO_UPDATE_TIME_FUNCPTR_DICT[update_frequency])(data_scrapy_date)
+		# print("Now: %s\nDaily: %s\nMonthly: %s\nQuarterly: %s\nYearly: %s" % (data_scrapy_timestr, str(daily_new_data_date), str(monthly_new_data_date), str(quarterly_new_data_date), str(yearly_new_data_date)))
+
 
 	def scrape_stock_info(self, cb_id, from_file=True):
-		data_dict = {}
+		data_dict = None
 		# import pdb; pdb.set_trace()
 		driver = self.__get_web_driver()
 		cb_stock_id = cb_id[:4]
 		# import pdb; pdb.set_trace()
 		data_filepath = os.path.join(self.xcfg["cb_data_folderpath"], "%s.txt" % cb_stock_id)
-		# if from_file:
-		# 	if self.__check_file_exist(data_filepath):
-		# 		with open(data_filepath, "r", encoding='utf-8') as f:
-		# 			data_dict = json.load(f)
+		if from_file:
+			if self.__check_file_exist(data_filepath):
+				with open(data_filepath, "r", encoding='utf-8') as f:
+					data_dict = json.load(f)
+		if data_dict is None:
+			data_dict = {
+				"time": {}, 
+				"content": {},
+			}
 		try:
+			cur_datetime = datetime.now()
 			total_start_time = time.time()
+			data_time_dict = data_dict["time"]
+			data_content_dict = data_dict["content"]
 			for scrapy_key, scrapy_funcptr in self.STOCK_INFO_SCRAPY_FUNCPTR_DICT.items():
-				url = self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT[scrapy_key] % cb_stock_id
-				print("Scrape %s......" % scrapy_key)
-				start_time = time.time()
-				driver.get(url)
-				time.sleep(5)
-				data_dict[scrapy_key] = scrapy_funcptr(driver)
-				end_time = time.time()
-				print("Scrape %s...... Done in %d seconds" % (scrapy_key, (end_time - start_time)))
-			# print(data_dict)
+# Check it's required to scrape the data
+				need_scrapy = True
+				if scrapy_key in data_time_dict:
+					data_time_str = data_time_dict[scrapy_key]
+					update_frequency = self.STOCK_INFO_SCRAPY_UPDATE_FREQUENCY_DICT[scrapy_key]
+					new_update_time = self.calculate_stock_info_update_time(data_time_str, update_frequency)
+					if new_update_time > cur_datetime:
+						need_scrapy = False
+				if need_scrapy:
+					url = self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT[scrapy_key] % cb_stock_id
+					print("Scrape %s......" % scrapy_key)
+					start_time = time.time()
+					driver.get(url)
+					time.sleep(5)
+					data_content_dict[scrapy_key] = scrapy_funcptr(driver)
+					end_time = time.time()
+					print("Scrape %s...... Done in %d seconds" % (scrapy_key, (end_time - start_time)))
+					data_time_dict[scrapy_key] = cur_datetime.strftime("%Y/%m/%d %H:%M:%S")
+			print(data_dict)
 			total_end_time = time.time()
 			print("Scrape All...... Done in %d seconds" % (total_end_time - total_start_time))
 # Writing to file
@@ -1614,16 +1663,17 @@ if __name__ == "__main__":
 			print("The 'all' flag is ignored...")
 			cfg['cb_all'] = False
 	with ConvertibleBondAnalysis(cfg) as obj:
-		if args.print_filepath:
-			obj.print_filepath()
-			sys.exit(0)
-		# data_dict = obj.scrape_stock_info("2330")
+		# obj.calculate_stock_info_update_time("2024/03/25")
+		# if args.print_filepath:
+		# 	obj.print_filepath()
+		# 	sys.exit(0)
+		data_dict = obj.scrape_stock_info("2330")
 		# print(data_dict)
-		if args.search:
-			obj.search()
-		# import pdb; pdb.set_trace()
-		if args.display:
-			obj.display()
+		# if args.search:
+		# 	obj.search()
+		# # import pdb; pdb.set_trace()
+		# if args.display:
+		# 	obj.display()
 
 
 # 	from selenium import webdriver
