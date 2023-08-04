@@ -306,7 +306,7 @@ class ConvertibleBondAnalysis(object):
 
 		self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT = {key: value["URL_FORMAT"] for key, value in self.STOCK_INFO_SCRAPY_METADATA_DICT.items()}
 		self.STOCK_INFO_SCRAPY_FUNCPTR_DICT = {key: value["SCRAPY_FUNCPTR"] for key, value in self.STOCK_INFO_SCRAPY_METADATA_DICT.items()}
-		self.STOCK_INFO_UPDATE_FREQUENCY_DICT = {key: value["UPDATE_FREQUENCY"] for key, value in self.STOCK_INFO_SCRAPY_METADATA_DICT.items()}
+		self.STOCK_INFO_SCRAPY_UPDATE_FREQUENCY_DICT = {key: value["UPDATE_FREQUENCY"] for key, value in self.STOCK_INFO_SCRAPY_METADATA_DICT.items()}
 
 		self.STOCK_INFO_UPDATE_TIME_FUNCPTR_DICT = {
 			"Daily": self.__calculate_stock_info_daily_update_time,
@@ -1295,7 +1295,7 @@ class ConvertibleBondAnalysis(object):
 			total_end_time = time.time()
 			print("Scrape All...... Done in %d seconds" % (total_end_time - total_start_time))
 # Writing to file
-			import pdb; pdb.set_trace()
+			# import pdb; pdb.set_trace()
 			if from_file:
 				with open(data_filepath, "w", encoding='utf-8') as f:
 					json.dump(data_dict, f, indent=3, ensure_ascii=False)
@@ -1603,7 +1603,7 @@ class ConvertibleBondAnalysis(object):
 			irr_data = irr_dict[cb_id]
 			premium_data = premium_dict[cb_id]
 			stock_premium_data = stock_premium_dict[cb_id]
-			# scrapy_data = self.scrape_stock_info(cb_stock_id)
+			scrapy_data = self.scrape_stock_info(cb_stock_id)
 			print("%s[%s]:" % (quotation_data["商品"], cb_id))
 			print(" %s" % "  ".join(["溢價率", "成交", "賣出一",]))
 			try:
@@ -1664,16 +1664,16 @@ if __name__ == "__main__":
 			cfg['cb_all'] = False
 	with ConvertibleBondAnalysis(cfg) as obj:
 		# obj.calculate_stock_info_update_time("2024/03/25")
-		# if args.print_filepath:
-		# 	obj.print_filepath()
-		# 	sys.exit(0)
-		data_dict = obj.scrape_stock_info("2330")
-		# print(data_dict)
-		# if args.search:
-		# 	obj.search()
-		# # import pdb; pdb.set_trace()
-		# if args.display:
-		# 	obj.display()
+		# data_dict = obj.scrape_stock_info("2330")
+		if args.print_filepath:
+			obj.print_filepath()
+			sys.exit(0)
+		print(data_dict)
+		if args.search:
+			obj.search()
+		# import pdb; pdb.set_trace()
+		if args.display:
+			obj.display()
 
 
 # 	from selenium import webdriver
