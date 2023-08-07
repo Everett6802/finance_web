@@ -1246,7 +1246,7 @@ class ConvertibleBondAnalysis(object):
 
 	def calculate_stock_info_update_time(self, data_scrapy_timestr, update_frequency):
 		# import pdb; pdb.set_trace()
-		data_scrapy_date = datetime.strptime(data_scrapy_timestr, "%Y/%m/%d")
+		data_scrapy_date = datetime.strptime(data_scrapy_timestr, "%Y/%m/%d %H:%M:%S")
 		return (self.STOCK_INFO_UPDATE_TIME_FUNCPTR_DICT[update_frequency])(data_scrapy_date)
 		# print("Now: %s\nDaily: %s\nMonthly: %s\nQuarterly: %s\nYearly: %s" % (data_scrapy_timestr, str(daily_new_data_date), str(monthly_new_data_date), str(quarterly_new_data_date), str(yearly_new_data_date)))
 
@@ -1273,6 +1273,7 @@ class ConvertibleBondAnalysis(object):
 			data_time_dict = data_dict["time"]
 			data_content_dict = data_dict["content"]
 			for scrapy_key, scrapy_funcptr in self.STOCK_INFO_SCRAPY_FUNCPTR_DICT.items():
+				# import pdb; pdb.set_trace()
 # Check it's required to scrape the data
 				need_scrapy = True
 				if scrapy_key in data_time_dict:
@@ -1617,6 +1618,18 @@ class ConvertibleBondAnalysis(object):
 				print(" %s" % ("  ".join([str(premium_data["溢價率"]), str(quotation_data["成交"]), str(quotation_data["賣出一"])])))
 
 
+	def scrape_stock(self, stock_id_list):
+		if isinstance(stock_id_list, str):
+			stock_id_list = stock_id_list.split(",")
+		for stock_id in stock_id_list:
+			self.scrape_stock_info(stock_id)
+
+
+	def scrape_stock_from_file(self):
+		stock_id_list = map(lambda x: x[:4], self.cb_id_list)
+		self.scrape_stock(stock_id_list)
+
+
 	def print_filepath(self):
 		print("************** File Path **************")
 		for key, value in self.filepath_dict.items():
@@ -1649,6 +1662,8 @@ if __name__ == "__main__":
 	parser.add_argument('-s', '--search', required=False, action='store_true', help='Select targets based on the search rule.')
 	parser.add_argument('-d', '--display', required=False, action='store_true', help='Display specific targets.')
 	parser.add_argument('--cb_list', required=False, help='The list of specific CB targets.')
+	parser.add_argument('--scrape_stock', required=False, help='Scrape the stock info of specific stocks and exit.')
+	parser.add_argument('--scrape_stock_from_file', required=False, action='store_true', help="Scrape the stock info and exit. The scrapy stocks are from the 'cb_list' file")
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	args = parser.parse_args()
 
@@ -1665,6 +1680,12 @@ if __name__ == "__main__":
 	with ConvertibleBondAnalysis(cfg) as obj:
 		# obj.calculate_stock_info_update_time("2024/03/25")
 		# data_dict = obj.scrape_stock_info("2330")
+		if args.scrape_stock:
+			obj.scrape_stock(args.scrape_stock)
+			sys.exit(0)
+		if args.scrape_stock_from_file:
+			obj.scrape_stock_from_file()
+			sys.exit(0)
 		if args.print_filepath:
 			obj.print_filepath()
 			sys.exit(0)
