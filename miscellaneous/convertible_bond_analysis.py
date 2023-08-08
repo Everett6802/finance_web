@@ -799,14 +799,16 @@ class ConvertibleBondAnalysis(object):
 
 	def get_absolute_stock_premium(self, cb_quotation, cb_stock_quotation, absolute_threshold=5, duration_within_days=180, need_sort=True):
 		stock_premium_dict = self.calculate_stock_premium(cb_quotation, cb_stock_quotation, use_percentage=True)
-		stock_premium_dict = dict(filter(lambda x: abs(x[1]["股票溢價率"]) <= absolute_threshold, stock_premium_dict.items()))
+		def filter_func(x):
+			return True if ((x[1]["股票溢價率"] is not None) and (abs(x[1]["股票溢價率"]) <= absolute_threshold)) else False
+		stock_premium_dict = dict(filter(filter_func, stock_premium_dict.items()))
 		if duration_within_days is not None:
 			# # duration_date = datetime.now() + timedelta(days=duration_within_days)
 			# # irr_dict = dict(filter(lambda x: datetime.strptime(x[1]["到期日"],"%Y/%m/%d") <= duration_date, irr_dict.items()))
 			# stock_premium_dict = dict(filter(lambda x: x[1]["到期天數"] <= duration_within_days, stock_premium_dict.items()))
-			def filter_func(x):
+			def filter_func1(x):
 				return True if ((x[1]["到期天數"] is not None) and (x[1]["到期天數"] <= duration_within_days)) else False
-			stock_premium_dict = dict(filter(filter_func, stock_premium_dict.items()))
+			stock_premium_dict = dict(filter(filter_func1, stock_premium_dict.items()))
 		if need_sort:
 			stock_premium_dict = collections.OrderedDict(sorted(stock_premium_dict.items(), key=lambda x: x[1]["股票溢價率"], reverse=False))
 		return stock_premium_dict
@@ -1206,14 +1208,16 @@ class ConvertibleBondAnalysis(object):
 		# import pdb; pdb.set_trace()
 		return data_dict
 
+
 	def __calculate_stock_info_daily_update_time(self, data_scrapy_date):
-		daily_new_data_date = data_scrapy_date + timedelta(days=1)
+		daily_new_data_date_tmp = data_scrapy_date + timedelta(days=1)
+		daily_new_data_date = datetime(daily_new_data_date_tmp.year, daily_new_data_date_tmp.month, daily_new_data_date_tmp.day)
 		return daily_new_data_date
 
 
 	def __calculate_stock_info_monthly_update_time(self, data_scrapy_date):
 		monthly_new_data_date = None
-		if data_scrapy_date.day <= 10:
+		if data_scrapy_date.day < 10:
 			monthly_new_data_date = datetime(data_scrapy_date.year, data_scrapy_date.month, 10)
 		else:
 			year = data_scrapy_date.year
@@ -1254,14 +1258,20 @@ class ConvertibleBondAnalysis(object):
 	def scrape_stock_info(self, cb_id, from_file=True):
 		data_dict = None
 		# import pdb; pdb.set_trace()
-		driver = self.__get_web_driver()
+		driver = None
 		cb_stock_id = cb_id[:4]
 		# import pdb; pdb.set_trace()
 		data_filepath = os.path.join(self.xcfg["cb_data_folderpath"], "%s.txt" % cb_stock_id)
 		if from_file:
 			if self.__check_file_exist(data_filepath):
 				with open(data_filepath, "r", encoding='utf-8') as f:
-					data_dict = json.load(f)
+# Load JSON data using OrderedDict as the object_pairs_hook. The type of the data_dict variable is OrderedDict
+					'''
+					while Python 3.7+ maintains the insertion order in regular dictionaries, this behavior is not part of the Python language 
+					specification and could vary in different implementations or versions. If order preservation is crucial, using OrderedDict 
+					or specifying an object_pairs_hook when loading JSON data is a more reliable approach
+					'''
+					data_dict = json.load(f, object_pairs_hook=OrderedDict)
 		if data_dict is None:
 			data_dict = {
 				"time": {}, 
@@ -1283,6 +1293,8 @@ class ConvertibleBondAnalysis(object):
 					if new_update_time > cur_datetime:
 						need_scrapy = False
 				if need_scrapy:
+					if driver is None:
+						driver = self.__get_web_driver()
 					url = self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT[scrapy_key] % cb_stock_id
 					print("Scrape %s......" % scrapy_key)
 					start_time = time.time()
@@ -1292,13 +1304,18 @@ class ConvertibleBondAnalysis(object):
 					end_time = time.time()
 					print("Scrape %s...... Done in %d seconds" % (scrapy_key, (end_time - start_time)))
 					data_time_dict[scrapy_key] = cur_datetime.strftime("%Y/%m/%d %H:%M:%S")
-			print(data_dict)
+			# print(data_dict)
 			total_end_time = time.time()
-			print("Scrape All...... Done in %d seconds" % (total_end_time - total_start_time))
+			# print("Scrape All...... Done in %d seconds" % (total_end_time - total_start_time))
 # Writing to file
 			# import pdb; pdb.set_trace()
 			if from_file:
 				with open(data_filepath, "w", encoding='utf-8') as f:
+					'''
+					starting from Python 3.7, the keys of a dictionary are guaranteed to be in the same order as they were inserted 
+					when using the built-in dict type. This means that when you call json.dump to write a dictionary to a JSON file in 
+					Python 3.7 and later, the order of keys will be preserved in the resulting JSON file.
+					'''
 					json.dump(data_dict, f, indent=3, ensure_ascii=False)
 		except Exception as e:
 			print(e)
@@ -1678,6 +1695,13 @@ if __name__ == "__main__":
 			print("The 'all' flag is ignored...")
 			cfg['cb_all'] = False
 	with ConvertibleBondAnalysis(cfg) as obj:
+		# # JSON data with unordered keys
+		# json_data = '{"a": 1, "c": 3, "b": 2}'
+		# # Load JSON data using OrderedDict as the object_pairs_hook
+		# ordered_dict = json.loads(json_data, object_pairs_hook=OrderedDict)
+		# print(ordered_dict)
+		# sys.exit(0)
+
 		# obj.calculate_stock_info_update_time("2024/03/25")
 		# data_dict = obj.scrape_stock_info("2330")
 		if args.scrape_stock:
@@ -1689,7 +1713,6 @@ if __name__ == "__main__":
 		if args.print_filepath:
 			obj.print_filepath()
 			sys.exit(0)
-		print(data_dict)
 		if args.search:
 			obj.search()
 		# import pdb; pdb.set_trace()
