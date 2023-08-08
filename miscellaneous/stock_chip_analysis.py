@@ -28,6 +28,14 @@ class StockChipAnalysis(object):
 	# DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
 	DEFAULT_OUTPUT_RESULT_FILENAME = "output_result.txt"
 	SHEET_METADATA_DICT = {
+		u"成交比重": {
+			"key_mode": 0, # 2489 瑞軒
+			"data_start_column_index": 1,
+		},
+		u"極光波段": {
+			"key_mode": 0, # 2489 瑞軒
+			"data_start_column_index": 1,
+		},
 		# u"短線多空": {
 		# 	"key_mode": 0, # 2504 國產
 		# 	"data_start_column_index": 1,
@@ -78,7 +86,7 @@ class StockChipAnalysis(object):
 		},
 	}
 	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
-	DEFAULT_SHEET_NAME_LIST = [u"夏普值", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計", u"上市融資增加", u"上櫃融資增加",]
+	DEFAULT_SHEET_NAME_LIST = [u"成交比重", u"極光波段", u"夏普值", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計", u"上市融資增加", u"上櫃融資增加",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
@@ -87,7 +95,7 @@ class StockChipAnalysis(object):
 	DEFAULT_MIN_CONSECUTIVE_OVER_BUY_DAYS = 3
 	DEFAULT_MAX_CONSECUTIVE_OVER_BUY_DAYS = 15
 	CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST = [u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
-	CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST = [u"主力買超累計天數", u"外資買超累計天數", u"投信買超累計天數",]
+	CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST = [u"累計天數", u"累計天數", u"投信買超累計天數",]
 	DEFAULT_MINIMUM_VOLUME = 1000
 	MINIMUM_VOLUME_SHEETNAME_LIST = [u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
 	MINIMUM_VOLUME_FIELDNAME_LIST = [u"主力買超張數", u"外資累計買超張數", u"投信累計買超張數",]
