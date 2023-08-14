@@ -1633,6 +1633,20 @@ class ConvertibleBondAnalysis(object):
 				print(" %s  %s  %d" % (publish_data["發行日期"], publish_data["年期"], int(publish_data["發行總面額"]) /100000))
 			except TypeError:
 				print(" %s" % ("  ".join([str(premium_data["溢價率"]), str(quotation_data["成交"]), str(quotation_data["賣出一"])])))
+			latest_data_dict = list(scrapy_data["content"]["資產負債簡表(年)"].items())[0]
+			print(" %s  流動資產: %s  流動負債: %s, 股東權益總額: %s" % (latest_data_dict[0], latest_data_dict[1]["流動資產"], latest_data_dict[1]["流動負債"], latest_data_dict[1]["股東權益總額"]))
+			latest_data_dict = list(scrapy_data["content"]["資產負債簡表(季)"].items())[0]
+			print(" %s  流動資產: %s  流動負債: %s, 股東權益總額: %s" % (latest_data_dict[0], latest_data_dict[1]["流動資產"], latest_data_dict[1]["流動負債"], latest_data_dict[1]["股東權益總額"]))
+			latest_data_dict = list(scrapy_data["content"]["現金流量簡表(年)"].items())[0]
+			value1 = int(latest_data_dict[1]["來自營運之現金流量"].replace(",", ""))
+			value2 = int(latest_data_dict[1]["投資活動之現金流量"].replace(",", ""))
+			free_cash_flow = "{:,}".format((value1 + value2))
+			print(" %s  營運現金流: %s  投資現金流: %s, 融資現金流: %s, 自由現金流: %s" % (latest_data_dict[0], latest_data_dict[1]["來自營運之現金流量"], latest_data_dict[1]["投資活動之現金流量"], latest_data_dict[1]["融資活動之現金流量"], free_cash_flow))
+			latest_data_dict = list(scrapy_data["content"]["現金流量簡表(季)"].items())[0]
+			value1 = int(latest_data_dict[1]["來自營運之現金流量"].replace(",", ""))
+			value2 = int(latest_data_dict[1]["投資活動之現金流量"].replace(",", ""))
+			free_cash_flow = "{:,}".format((value1 + value2))
+			print(" %s  營運現金流: %s  投資現金流: %s, 融資現金流: %s, 自由現金流: %s" % (latest_data_dict[0], latest_data_dict[1]["來自營運之現金流量"], latest_data_dict[1]["投資活動之現金流量"], latest_data_dict[1]["融資活動之現金流量"], free_cash_flow))
 
 
 	def scrape_stock(self, stock_id_list):
