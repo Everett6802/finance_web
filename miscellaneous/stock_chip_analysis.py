@@ -13,6 +13,7 @@ import xlrd
 import xlsxwriter
 import argparse
 import copy
+import csv
 from datetime import datetime
 # from pymongo import MongoClient
 from collections import OrderedDict
@@ -103,6 +104,13 @@ class StockChipAnalysis(object):
 	DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS = 3
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_SHEETNAME = "主法量率"
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_FIELDNAME = "主力法人佔量率"
+# CB Related
+	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"
+	DEFAULT_CB_PUBLISH_FILENAME = "可轉債發行"
+	DEFAULT_CB_PUBLISH_FULL_FILENAME = "%s.csv" % DEFAULT_CB_PUBLISH_FILENAME
+# ['債券簡稱', '發行人', '發行日期', '到期日期', '年期', '發行總面額', '發行資料']
+	DEFAULT_CB_PUBLISH_FIELD_TYPE = [str, str, str, str, int, int, str,]
+	DEFAULT_CB_PUBLISH_FIELD_TYPE_LEN = len(DEFAULT_CB_PUBLISH_FIELD_TYPE)
 
 	SEARCH_RULE_DATASHEET_LIST = [
 		["主法量率", "主力買超天數累計", "外資買超天數累計", "投信買超天數累計",],
@@ -208,6 +216,8 @@ class StockChipAnalysis(object):
 			"output_result_filename": self.DEFAULT_OUTPUT_RESULT_FILENAME,
 			"output_result": False,
 			"quiet": False,
+			"cb_folderpath": None,
+			"cb_publish_filename": None,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -226,10 +236,16 @@ class StockChipAnalysis(object):
 		# import pdb; pdb.set_trace()
 		self.xcfg["output_result_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["output_result_filename"])
 
+		self.xcfg["cb_folderpath"] = self.DEFAULT_CB_FOLDERPATH if self.xcfg["cb_folderpath"] is None else self.xcfg["cb_folderpath"]
+		self.xcfg["cb_publish_filename"] = self.DEFAULT_CB_PUBLISH_FULL_FILENAME if self.xcfg["cb_publish_filename"] is None else self.xcfg["cb_publish_filename"]
+		self.xcfg["cb_publish_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_publish_filename"])
+		self.cb_publish = None if not self.__check_file_exist(self.xcfg["cb_publish_filepath"]) else self.__read_cb_publish()
+
 		self.filepath_dict = OrderedDict()
 		self.filepath_dict["source"] = self.xcfg["source_filepath"]
 		self.filepath_dict["display_stock_list"] = self.xcfg["display_stock_list_filepath"]
 		self.filepath_dict["output_result"] = self.xcfg["output_result_filepath"]
+		self.filepath_dict["cb_publish"] = self.xcfg["cb_publish_filepath"]
 
 		self.workbook = None
 		self.output_result_file = None
@@ -329,6 +345,51 @@ class StockChipAnalysis(object):
 		return csv_data_dict
 
 
+	def __read_cb_publish(self):
+		pattern = "([\d]+)年"
+		cb_data = {}
+		with open(self.xcfg["cb_publish_filepath"], newline='') as f:
+			rows = csv.reader(f)
+			regex = re.compile(pattern)
+			title_list = None
+			title_tenor_index = None
+			title_par_value_index = None
+			for index, row in enumerate(rows):
+				if index in [0, 1, 3,]: pass
+				elif index == 2:
+					title_list = row
+					title_list = title_list[1:]  # ignore 債券代號
+					title_tenor_index = title_list.index("年期")
+					title_par_value_index = title_list.index("發行總面額")
+# ['債券簡稱', '發行人', '發行日期', '到期日期', '年期', '發行總面額', '發行資料']
+					# print(title_list)
+				else:
+					assert title_list is not None, "title_list should NOT be None"
+					data_list = []
+					data_key = row[0]
+					for data_index, data_value in enumerate(row[1:]):  # ignore 債券代號
+						if data_index >= self.DEFAULT_CB_PUBLISH_FIELD_TYPE_LEN: break
+						try:
+							if data_index == title_tenor_index:
+								mobj = re.match(regex, data_value)
+								# import pdb; pdb.set_trace()
+								if mobj is None: 
+									raise ValueError("Incorrect format in 年期 field: %s" % data_value)
+								data_value = mobj.group(1)
+							elif data_index == title_par_value_index:
+								data_value = data_value.replace(",","")
+							data_type = self.DEFAULT_CB_PUBLISH_FIELD_TYPE[data_index]
+							data_value = data_type(data_value)
+							data_list.append(data_value)
+						except ValueError as e:
+							print ("Exception occurs in %s, due to: %s" % (data_key, str(e)))
+							raise e						
+					data_dict = dict(zip(title_list, data_list))
+					cb_data[data_key] = data_dict
+		# import pdb; pdb.set_trace()
+		return cb_data
+
+
 	def get_stock_chip_data(self, sheet_name_list=None):
 		stock_chip_data_dict = {}
 		if sheet_name_list is None:
@@ -387,6 +448,10 @@ class StockChipAnalysis(object):
 					print("  " + " ".join(map(lambda x: "%s(%d)" % (x[0], int(x[1])), item_list)))
 				else:
 					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
+			if self.cb_publish is not None:
+				cb_id_list = list(filter(lambda x: x[:4] == stock, self.cb_publish.keys()))
+				if len(cb_id_list) != 0:
+					print("  可轉債發行: " + " ".join(cb_id_list))
 			print("\n")
 		if self.xcfg["output_result"]:
 			self.__redirect_file2stdout()
@@ -427,6 +492,10 @@ class StockChipAnalysis(object):
 					print("  " + " ".join(map(lambda x: "%s(%d)" % (x[0], int(x[1])), item_list)))
 				else:
 					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
+			if self.cb_publish is not None:
+				cb_id_list = list(filter(lambda x: x[:4] == display_stock, self.cb_publish.keys()))
+				if len(cb_id_list) != 0:
+					print("  可轉債發行: " + " ".join(cb_id_list))
 			if need_new_line: 
 				print("\n")
 		if self.xcfg["output_result"]:
