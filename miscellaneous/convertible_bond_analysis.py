@@ -386,7 +386,8 @@ class ConvertibleBondAnalysis(object):
 		if self.web_driver is None:
 			module = __import__("selenium.webdriver")
 			web_driver_class = getattr(module, "webdriver")
-			self.web_driver = web_driver_class.Chrome(web_driver_filepath)
+			# self.web_driver = web_driver_class.Chrome()
+			self.web_driver = web_driver_class.Edge()
 		return self.web_driver
 
 
