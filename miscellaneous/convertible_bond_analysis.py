@@ -1366,11 +1366,22 @@ class ConvertibleBondAnalysis(object):
 			filename = self.DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX + table_month
 			filepath = os.path.join(self.xcfg["cb_data_folderpath"], filename)
 			# import pdb; pdb.set_trace()
+			cur_datetime = datetime.now()
+			need_scrapy = True
 			if self.__check_file_exist(filepath):
 				# print ("The file[%s] already exist !!!" % filepath)
 				with open(filepath, "r", encoding='utf8') as f:
 					data_dict = json.load(f)
-			else:
+					# Check it's required to scrape the data				
+					data_time_str = data_dict["time"]
+					new_update_time = self.calculate_stock_info_update_time(data_dict["time"], "Monthly")
+					if new_update_time > cur_datetime:
+						need_scrapy = False
+			if need_scrapy:
+				data_dict = {
+					"time": None, 
+					"content": {},
+				}
 # thead
 				print ("The file[%s] does NOT exist. Scrape the data from website" % filepath)
 				table_head = table.find_element("tag name", "thead")
@@ -1392,7 +1403,8 @@ class ConvertibleBondAnalysis(object):
 					for td in tds:
 						td_text_list.append(td.text.replace(",",""))
 					# print(", ".join(td_text_list))
-					data_dict[td_text_list[0]] = dict(zip(table_title_list[1:], td_text_list[1:]))
+					data_dict["content"][td_text_list[0]] = dict(zip(table_title_list[1:], td_text_list[1:]))
+				data_dict["time"] = cur_datetime.strftime("%Y/%m/%d %H:%M:%S")
 				# time.sleep(5)
 				# import pdb; pdb.set_trace()
 # Writing to file
@@ -1442,7 +1454,8 @@ class ConvertibleBondAnalysis(object):
 
 	def search_cb_mass_convert(self, table_month=None, mass_convert_threshold=-10.0):
 		# import pdb; pdb.set_trace()
-		convert_cb_dict = self.get_cb_monthly_convert_data(table_month)
+		cb_monthly_convert_data = self.get_cb_monthly_convert_data(table_month)
+		convert_cb_dict = cb_monthly_convert_data["content"]
 		if not self.xcfg['cb_all']:
 			convert_cb_dict = dict(filter(lambda x: x[0] in self.cb_id_list, convert_cb_dict.items()))
 		mass_convert_cb_dict = dict(filter(lambda x: float(x[1]["增減百分比"]) < mass_convert_threshold, convert_cb_dict.items()))
