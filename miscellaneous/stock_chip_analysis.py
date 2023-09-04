@@ -29,6 +29,10 @@ class StockChipAnalysis(object):
 	# DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
 	DEFAULT_OUTPUT_RESULT_FILENAME = "output_result.txt"
 	SHEET_METADATA_DICT = {
+		u"大戶籌碼": {
+			"key_mode": 0, # 2489 瑞軒
+			"data_start_column_index": 1,
+		},
 		u"成交比重": {
 			"key_mode": 0, # 2489 瑞軒
 			"data_start_column_index": 1,
@@ -87,7 +91,7 @@ class StockChipAnalysis(object):
 		},
 	}
 	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
-	DEFAULT_SHEET_NAME_LIST = [u"成交比重", u"極光波段", u"夏普值", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計", u"上市融資增加", u"上櫃融資增加",]
+	DEFAULT_SHEET_NAME_LIST = [u"大戶籌碼", u"成交比重", u"極光波段", u"夏普值", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計", u"上市融資增加", u"上櫃融資增加",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
@@ -104,6 +108,9 @@ class StockChipAnalysis(object):
 	DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS = 3
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_SHEETNAME = "主法量率"
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_FIELDNAME = "主力法人佔量率"
+	LARGE_SHAREHOLD_POSITION_SHEETNAME = "大戶籌碼"
+	LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO = "夏普值"
+	LARGE_SHAREHOLD_POSITION_FIELDNAME_STANDARD_DEVIATION = "標準差"
 # CB Related
 	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"
 	DEFAULT_CB_PUBLISH_FILENAME = "可轉債發行"
@@ -218,6 +225,7 @@ class StockChipAnalysis(object):
 			"quiet": False,
 			"cb_folderpath": None,
 			"cb_publish_filename": None,
+			"check_sharpe_ratio": False,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -340,6 +348,16 @@ class StockChipAnalysis(object):
 								return False
 						return True
 					csv_data_dict = dict(filter(lambda x: check_consecutive_days(x), csv_data_dict.items()))
+		if self.xcfg["check_sharpe_ratio"]:
+			if sheet_name == self.LARGE_SHAREHOLD_POSITION_SHEETNAME:
+				sharpe_ratio_sorted_list = sorted([x[self.LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO] for x in csv_data_dict.values()], reverse=True)
+				standard_deviation_sorted_list = sorted([x[self.LARGE_SHAREHOLD_POSITION_FIELDNAME_STANDARD_DEVIATION] for x in csv_data_dict.values()])
+				data_len = len(standard_deviation_sorted_list)
+				for csv_data_key, csv_data_value_dict in csv_data_dict.items():
+					sharpe_ratio_value = csv_data_value_dict[self.LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO]
+					standard_deviation_value = csv_data_value_dict[self.LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO]
+					sharpe_ratio_index = sharpe_ratio_sorted_list.index(sharpe_ratio_value)
+					standard_deviation_index = standard_deviation_sorted_list.index(standard_deviation_value)
 		return csv_data_dict
 
 
