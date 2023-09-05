@@ -669,12 +669,18 @@ class ConvertibleBondAnalysis(object):
 		for cb_id in self.cb_id_list:
 			cb_quotation_data = cb_quotation[cb_id]
 			# print(cb_quotation_data)
-			if cb_quotation_data["賣出一"] is None:
+			no_data = True
+			days = None
+			if cb_quotation_data["賣出一"] is not None:
+				days = self.__get_days(cb_quotation_data["到期日"])
+				if days != 0:
+					no_data = False
+			if no_data:
 				irr_dict[cb_id] = {"商品": cb_quotation_data["商品"], "到期日": cb_quotation_data["到期日"], "賣出一": cb_quotation_data["賣出一"], "到期天數": None, "年化報酬率": None}
 				# print("%s %s" % (cb_id, str(irr_dict)))
 			else:
-				days = self.__get_days(cb_quotation_data["到期日"])
 				days_to_year = days / 365.0
+				# print("商品: %s, 到期日: %s, days: %d, days_to_year: %f" % (cb_quotation_data["商品"], cb_quotation_data["到期日"], days, days_to_year))
 				irr = math.pow(100.0 / cb_quotation_data["賣出一"], 1 / days_to_year) - 1
 				if use_percentage:
 					irr *= 100.0
