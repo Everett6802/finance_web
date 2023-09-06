@@ -85,8 +85,31 @@ class ConvertibleBondAnalysis(object):
 	@classmethod
 	def __get_days(cls, end_date_str=None, start_date_str=None):
 		# import pdb; pdb.set_trace()
-		end_date = datetime.strptime(end_date_str,"%Y/%m/%d") if end_date_str is not None else datetime.fromordinal(date.today().toordinal())
-		start_date = datetime.strptime(start_date_str,"%Y/%m/%d") if start_date_str is not None else datetime.fromordinal(date.today().toordinal())
+		time_format = "%m/%d/%Y"  # "%Y/%m/%d"
+		end_date = None
+		start_date = None
+		if end_date_str is not None:
+			try:
+				end_date = datetime.strptime(end_date_str, "%Y/%m/%d")
+			except ValueError:
+				try:
+					end_date = datetime.strptime(end_date_str, "%m/%d/%Y")
+				except ValueError as e:
+					raise e
+		else:
+			end_date = datetime.fromordinal(date.today().toordinal())
+		if start_date_str is not None:
+			try:
+				start_date = datetime.strptime(start_date_str, "%Y/%m/%d")
+			except ValueError:
+				try:
+					start_date = datetime.strptime(start_date_str, "%m/%d/%Y")
+				except ValueError as e:
+					raise e
+		else:
+			start_date = datetime.fromordinal(date.today().toordinal())
+		# end_date = datetime.strptime(end_date_str, time_format) if end_date_str is not None else datetime.fromordinal(date.today().toordinal())
+		# start_date = datetime.strptime(start_date_str, time_format) if start_date_str is not None else datetime.fromordinal(date.today().toordinal())
 		days = int((end_date - start_date).days) + 1
 		return days
 
@@ -624,7 +647,8 @@ class ConvertibleBondAnalysis(object):
 		cb_publish_diff_quotation_id_set = cb_publish_id_set - cb_quotation_id_set
 		if len(cb_publish_diff_quotation_id_set) > 0:
 			cb_publish_diff_quotation_id_list = list(cb_publish_diff_quotation_id_set)
-			cb_publish_diff_quotation_id_list.sort(key=lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%Y/%m/%d"))
+			# cb_publish_diff_quotation_id_list.sort(key=lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%Y/%m/%d"))
+			cb_publish_diff_quotation_id_list.sort(key=lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%m/%d/%Y"))
 			new_public_cb_str_list = ["%s[%s]: %s" % (self.cb_publish[cb_publish_id]['債券簡稱'], cb_publish_id, self.cb_publish[cb_publish_id]['發行日期']) for cb_publish_id in cb_publish_diff_quotation_id_list]
 			print("=== 新發行 ===")
 			for new_public_cb_str in new_public_cb_str_list: print(new_public_cb_str)
@@ -874,7 +898,7 @@ class ConvertibleBondAnalysis(object):
 					"發行張數": cb_publish_data["發行總面額"] / 100000,
 				}
 			maturity_date_days = self.__get_days(cb_publish_data["到期日期"])
-			if maturity_date_days <= maturity_date_threshold:
+			if 0 <= maturity_date_days <= maturity_date_threshold:
 				maturity_date_cb_dict[cb_id] = {
 					"商品": cb_quotation_data["商品"],
 					"日期": cb_publish_data["到期日期"],
