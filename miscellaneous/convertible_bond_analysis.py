@@ -356,7 +356,13 @@ class ConvertibleBondAnalysis(object):
 				self.__get_cb_list_from_file()
 			self.cb_id_list = self.xcfg["cb_list"]
 # Check if the incorrect CB IDs exist
-			illegal_cb_id_list = list(filter(lambda x: re.match("[\d]{5}", x) is None, self.cb_id_list))
+			# import pdb; pdb.set_trace()
+			cb_id_list = list(filter(lambda x: re.match("[\d]{4,5}", x) is not None, self.cb_id_list))  # Fals to filter the ID whose lenght is more than 5
+			cb_id_list = list(filter(lambda x: len(x) in [4,5,], cb_id_list))
+			illegal_cb_id_list = list(set(self.cb_id_list) - set(cb_id_list))
+			# cb_id_list_str = " ".join(self.cb_id_list)
+			# matches = re.findall(r"\b\d{4,5}\b", cb_id_list_str)
+			# illegal_cb_id_list = [match for match in matches]
 			assert len(illegal_cb_id_list) == 0, "Illegal CB ID list: %s" % illegal_cb_id_list
 			self.cb_stock_id_list = list(set(list(map(lambda x: x[:4], self.cb_id_list))))
 
