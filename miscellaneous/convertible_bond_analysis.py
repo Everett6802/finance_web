@@ -356,7 +356,7 @@ class ConvertibleBondAnalysis(object):
 				self.__get_cb_list_from_file()
 			self.cb_id_list = self.xcfg["cb_list"]
 # Check if the incorrect CB IDs exist
-			# import pdb; pdb.set_trace()
+			import pdb; pdb.set_trace()
 			cb_id_list = list(filter(lambda x: re.match("[\d]{4,5}", x) is not None, self.cb_id_list))  # Fals to filter the ID whose lenght is more than 5
 			cb_id_list = list(filter(lambda x: len(x) in [4,5,], cb_id_list))
 			illegal_cb_id_list = list(set(self.cb_id_list) - set(cb_id_list))
@@ -365,6 +365,16 @@ class ConvertibleBondAnalysis(object):
 			# illegal_cb_id_list = [match for match in matches]
 			assert len(illegal_cb_id_list) == 0, "Illegal CB ID list: %s" % illegal_cb_id_list
 			self.cb_stock_id_list = list(set(list(map(lambda x: x[:4], self.cb_id_list))))
+# Check if the stock id exists in the list
+			cb_stock_id_list_tmp = list(filter(lambda x: len(x) == 4, cb_id_list))
+			if len(cb_stock_id_list_tmp) != 0:
+				cb_id_list_tmp = []
+				for cb_id in self.cb_id_list:
+					if len(cb_id) == 4:
+						cb_id_list_tmp.extend(list(filter(lambda x: x[:4] == cb_id, self.cb_publish.keys())))
+					else:
+						cb_id_list_tmp.extend(cb_id)
+				self.cb_id_list = cb_id_list_tmp
 
 
 	def __enter__(self):
@@ -638,6 +648,13 @@ class ConvertibleBondAnalysis(object):
 			assert self.xcfg['cb_all'], "Incorrect setting: CB stock ID list"
 			self.cb_stock_id_list = list(cb_stock_data_dict.keys())
 		return cb_stock_data_dict
+
+
+	def __find_cb_from_stock(self, stock_id_list):
+		if isinstance(stock_id_list, str):
+			stock_id_list = [stock_id_list,]
+		cb_id_list =  list(filter(lambda x: x[:4] in stock_id_list, stoself.cb_publish.keys()))
+		return cb_db_list
 
 
 	def check_cb_quotation_table_field(self, cb_quotation_data):
