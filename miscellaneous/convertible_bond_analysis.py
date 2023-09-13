@@ -55,7 +55,7 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE_LEN = len(DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE)
 
 	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
-	CB_TRADING_SUSPENSION_SET = {"30184"}
+	CB_TRADING_SUSPENSION_SET = set()
 
 	STATEMENT_RELEASE_DATE_LIST = [(3,31,),(5,15,),(8,14,),(11,14),]
 
@@ -669,8 +669,10 @@ class ConvertibleBondAnalysis(object):
 			# if not stock_changed: stock_changed = True
 		cb_publish_diff_quotation_id_set = cb_publish_id_set - cb_quotation_id_set
 		if len(cb_publish_diff_quotation_id_set) > 0:
+			today = datetime.fromordinal(date.today().toordinal())
 			cb_publish_diff_quotation_id_list = list(cb_publish_diff_quotation_id_set)
 			# cb_publish_diff_quotation_id_list.sort(key=lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%Y/%m/%d"))
+			cb_publish_diff_quotation_id_list = list(filter(lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%m/%d/%Y") >= today, cb_publish_diff_quotation_id_list))  # 已全數轉換為普通股 資料尚未更新
 			cb_publish_diff_quotation_id_list.sort(key=lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%m/%d/%Y"))
 			new_public_cb_str_list = ["%s[%s]: %s" % (self.cb_publish[cb_publish_id]['債券簡稱'], cb_publish_id, self.cb_publish[cb_publish_id]['發行日期']) for cb_publish_id in cb_publish_diff_quotation_id_list]
 			print("=== 新發行 ===")
