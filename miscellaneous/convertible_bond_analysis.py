@@ -1507,12 +1507,13 @@ class ConvertibleBondAnalysis(object):
 		return scrapy_data_dict
 			
 
-	def search_cb_mass_convert(self, table_month=None, mass_convert_threshold=-10.0):
+	def search_cb_mass_convert(self, table_month=None, mass_convert_threshold=-10.0, filter_cb=True):
 		# import pdb; pdb.set_trace()
 		cb_monthly_convert_data = self.get_cb_monthly_convert_data(table_month)
 		convert_cb_dict = cb_monthly_convert_data["content"]
-		if not self.xcfg['cb_all']:
-			convert_cb_dict = dict(filter(lambda x: x[0] in self.cb_id_list, convert_cb_dict.items()))
+		if filter_cb:
+			if not self.xcfg['cb_all']:
+				convert_cb_dict = dict(filter(lambda x: x[0] in self.cb_id_list, convert_cb_dict.items()))
 		mass_convert_cb_dict = dict(filter(lambda x: float(x[1]["增減百分比"]) < mass_convert_threshold, convert_cb_dict.items()))
 		return mass_convert_cb_dict
 
@@ -1676,6 +1677,7 @@ class ConvertibleBondAnalysis(object):
 		stock_quotation_data_dict = self.__read_cb_stock_quotation()
 		if self.xcfg['cb_all']:
 			self.check_data_source(quotation_data_dict, stock_quotation_data_dict)
+		mass_convert_cb_dict = self.search_cb_mass_convert(filter_cb=False)
 
 		# import pdb; pdb.set_trace()
 		irr_dict = self.calculate_internal_rate_of_return(quotation_data_dict, use_percentage=True)
@@ -1733,6 +1735,15 @@ class ConvertibleBondAnalysis(object):
 			value2 = int(latest_data_dict[1]["投資活動之現金流量"].replace(",", ""))
 			free_cash_flow = "{:,}".format((value1 + value2))
 			print(" %s  營運現金流: %s  投資現金流: %s, 融資現金流: %s, 自由現金流: %s" % (latest_data_dict[0], latest_data_dict[1]["來自營運之現金流量"], latest_data_dict[1]["投資活動之現金流量"], latest_data_dict[1]["融資活動之現金流量"], free_cash_flow))
+# Check mass convert
+			# import pdb; pdb.set_trace()
+			mass_convert_cb_list = list(filter(lambda x: x[:4] == cb_stock_id, mass_convert_cb_dict.keys()))
+			if len(mass_convert_cb_list) != 0:
+				print("=== CB大量轉換 ==================================================")
+				title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
+				for cb_id in mass_convert_cb_list:
+					cb_data = mass_convert_cb_dict[cb_id]
+					print(" %s  增減百分比: %.2f  前月底保管張數: %d, 本月底保管張數: %d, 發行張數: %d" % (cb_data["名稱"], float(cb_data["增減百分比"]), int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
 
 
 	def scrape_stock(self, stock_id_list):
