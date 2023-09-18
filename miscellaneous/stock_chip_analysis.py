@@ -14,6 +14,7 @@ import xlsxwriter
 import argparse
 import copy
 import csv
+import json
 from datetime import datetime
 # from pymongo import MongoClient
 from collections import OrderedDict
@@ -26,6 +27,9 @@ class StockChipAnalysis(object):
 	DEFAULT_SOURCE_FULL_FILENAME = "%s.xlsm" % DEFAULT_SOURCE_FILENAME
 	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
 	DEFAULT_DISPLAY_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
+	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"
+	DEFAULT_CB_DATA_FOLDERNAME =  "Data"
+	DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX = "可轉換公司債月分析表"
 	# DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
 	DEFAULT_OUTPUT_RESULT_FILENAME = "output_result.txt"
 	SHEET_METADATA_DICT = {
@@ -212,6 +216,7 @@ class StockChipAnalysis(object):
 	def __init__(self, cfg):
 		self.xcfg = {
 			"source_folderpath": None,
+			"cb_data_folderpath": None,
 			"source_filename": self.DEFAULT_SOURCE_FULL_FILENAME,
 			"display_stock_list_filename": self.DEFAULT_DISPLAY_STOCK_LIST_FILENAME,
 			"display_stock_list": None,
@@ -232,6 +237,8 @@ class StockChipAnalysis(object):
 		self.xcfg["source_folderpath"] = self.DEFAULT_SOURCE_FOLDERPATH if self.xcfg["source_folderpath"] is None else self.xcfg["source_folderpath"]
 		self.xcfg["source_filename"] = self.DEFAULT_SOURCE_FULL_FILENAME if self.xcfg["source_filename"] is None else self.xcfg["source_filename"]
 		self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
+		self.xcfg["cb_folderpath"] = self.DEFAULT_CB_FOLDERPATH if self.xcfg["cb_folderpath"] is None else self.xcfg["cb_folderpath"]
+		self.xcfg["cb_data_folderpath"] = os.path.join(self.xcfg["cb_folderpath"], self.DEFAULT_CB_DATA_FOLDERNAME) if self.xcfg["cb_data_folderpath"] is None else self.xcfg["cb_data_folderpath"]
 		# print ("__init__: %s" % self.xcfg["source_filepath"])
 		self.xcfg["display_stock_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["display_stock_list_filename"])
 		if self.xcfg["display_stock_list"] is not None:
@@ -416,6 +423,62 @@ class StockChipAnalysis(object):
 		return stock_chip_data_dict
 
 
+	def calculate_cb_monthly_convert_data_table_month(self):
+		today = datetime.today()
+		year = today.year - 1911
+		month = today.month
+		day = today.day
+		if day >= 11:
+			month -= 1
+		else:
+			month -= 2
+		if month <= 0:
+			month += 12
+			year -= 1
+		# filename = "%s%d%02d" % (self.self.DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX, year, month)
+		# # filepath = os.path.join(self.xcfg["cb_data_folderpath"], filename)
+		# # return (not self.__check_file_exist(filepath))
+		table_month = "%d%02d" % (year, month)
+		return table_month
+
+
+	def get_cb_monthly_convert_data(self, table_month=None):
+		# import pdb; pdb.set_trace()
+		filepath = None
+		scrapy_data_dict = None
+		if table_month is None:
+			table_month = self.calculate_cb_monthly_convert_data_table_month()
+		filename = self.DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX + table_month
+		filepath = os.path.join(self.xcfg["cb_data_folderpath"], filename)
+		if not self.__check_file_exist(filepath):
+			raise ValueError("The data of %s is NOT found" % os.path.basename(filepath))
+		with open(filepath, 'r', encoding='utf-8') as f:
+			scrapy_data_dict = json.load(f)
+		return scrapy_data_dict
+			
+
+	def search_cb_mass_convert(self, table_month=None, mass_convert_threshold=-10.0):
+		# import pdb; pdb.set_trace()
+		mass_convert_cb_dict = None
+		def filter_funcptr(x):
+			# import pdb; pdb.set_trace()
+			# print(x)
+			data_dict = x[1]
+			if int(data_dict["發行張數"]) == 0: return 0
+			# print(float(data_dict["增減數額"]) / float(data_dict["發行張數"]))
+			return float(data_dict["增減數額"]) / float(data_dict["發行張數"]) * 100.0
+		try:
+			cb_monthly_convert_data = self.get_cb_monthly_convert_data(table_month)
+			convert_cb_dict = cb_monthly_convert_data["content"]
+			# convert_cb_dict = dict(filter(lambda x: x[0] in self.cb_id_list, convert_cb_dict.items()))
+			# mass_convert_cb_dict = dict(filter(lambda x: float(x[1]["增減百分比"]) < mass_convert_threshold, convert_cb_dict.items()))
+			mass_convert_cb_dict = dict(filter(lambda x: filter_funcptr(x) < mass_convert_threshold, convert_cb_dict.items()))
+		except ValueError as e:
+			# print("CB Mass Convert: %s" & str(e))
+			return None
+		return mass_convert_cb_dict
+
+
 	def search_targets(self, stock_chip_data_dict=None, search_rule_index=0):
 		if stock_chip_data_dict is None:
 			stock_chip_data_dict = self.get_stock_chip_data()
@@ -478,6 +541,9 @@ class StockChipAnalysis(object):
 			self.__get_display_stock_list_from_file()
 		if stock_chip_data_dict is None:
 			stock_chip_data_dict = self.get_stock_chip_data()
+		mass_convert_cb_dict = self.search_cb_mass_convert()
+		if mass_convert_cb_dict is None:
+			print("\nNo Latest CB Mass Convert Data......\n")
 
 		if self.xcfg["output_result"]:
 			self.__redirect_stdout2file()
@@ -512,6 +578,14 @@ class StockChipAnalysis(object):
 				cb_id_list = list(filter(lambda x: x[:4] == display_stock, self.cb_publish.keys()))
 				if len(cb_id_list) != 0:
 					print("  可轉債發行: " + " ".join(cb_id_list))
+			if mass_convert_cb_dict is not None:
+				mass_convert_cb_list = list(filter(lambda x: x[:4] == display_stock, mass_convert_cb_dict.keys()))
+				if len(mass_convert_cb_list) != 0:
+					print("=== CB大量轉換 ==================================================")
+					title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
+					for cb_id in mass_convert_cb_list:
+						cb_data = mass_convert_cb_dict[cb_id]
+						print(" %s  增減百分比: %.2f  前月底保管張數: %d, 本月底保管張數: %d, 發行張數: %d" % (cb_data["名稱"], float(cb_data["增減百分比"]), int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
 			if need_new_line: 
 				print("\n")
 		if self.xcfg["output_result"]:

@@ -1509,12 +1509,25 @@ class ConvertibleBondAnalysis(object):
 
 	def search_cb_mass_convert(self, table_month=None, mass_convert_threshold=-10.0, filter_cb=True):
 		# import pdb; pdb.set_trace()
-		cb_monthly_convert_data = self.get_cb_monthly_convert_data(table_month)
-		convert_cb_dict = cb_monthly_convert_data["content"]
-		if filter_cb:
-			if not self.xcfg['cb_all']:
-				convert_cb_dict = dict(filter(lambda x: x[0] in self.cb_id_list, convert_cb_dict.items()))
-		mass_convert_cb_dict = dict(filter(lambda x: float(x[1]["增減百分比"]) < mass_convert_threshold, convert_cb_dict.items()))
+		mass_convert_cb_dict = None
+		def filter_funcptr(x):
+			# import pdb; pdb.set_trace()
+			# print(x)
+			data_dict = x[1]
+			if int(data_dict["發行張數"]) == 0: return 0
+			# print(float(data_dict["增減數額"]) / float(data_dict["發行張數"]))
+			return float(data_dict["增減數額"]) / float(data_dict["發行張數"]) * 100.0
+		try:
+			cb_monthly_convert_data = self.get_cb_monthly_convert_data(table_month)
+			convert_cb_dict = cb_monthly_convert_data["content"]
+			if filter_cb:
+				if not self.xcfg['cb_all']:
+					convert_cb_dict = dict(filter(lambda x: x[0] in self.cb_id_list, convert_cb_dict.items()))
+			# mass_convert_cb_dict = dict(filter(lambda x: float(x[1]["增減百分比"]) < mass_convert_threshold, convert_cb_dict.items()))
+			mass_convert_cb_dict = dict(filter(lambda x: filter_funcptr(x) < mass_convert_threshold, convert_cb_dict.items()))
+		except ValueError as e:
+			# print("CB Mass Convert: %s" & str(e))
+			return None
 		return mass_convert_cb_dict
 
 
