@@ -33,6 +33,10 @@ class StockChipAnalysis(object):
 	# DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
 	DEFAULT_OUTPUT_RESULT_FILENAME = "output_result.txt"
 	SHEET_METADATA_DICT = {
+		u"SSB": {
+			"key_mode": 0, # 2489 瑞軒
+			"data_start_column_index": 1,
+		},
 		u"大戶籌碼": {
 			"key_mode": 0, # 2489 瑞軒
 			"data_start_column_index": 1,
@@ -49,10 +53,6 @@ class StockChipAnalysis(object):
 		# 	"key_mode": 0, # 2504 國產
 		# 	"data_start_column_index": 1,
 		# },
-		u"夏普值": {
-			"key_mode": 0, # 2489 瑞軒
-			"data_start_column_index": 1,
-		},
 		u"主法量率": {
 			"key_mode": 0, # 2504 國產
 			"data_start_column_index": 1,
@@ -95,7 +95,7 @@ class StockChipAnalysis(object):
 		},
 	}
 	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
-	DEFAULT_SHEET_NAME_LIST = [u"大戶籌碼", u"成交比重", u"極光波段", u"夏普值", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計", u"上市融資增加", u"上櫃融資增加",]
+	DEFAULT_SHEET_NAME_LIST = [u"SSB", u"大戶籌碼", u"成交比重", u"極光波段", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計", u"上市融資增加", u"上櫃融資增加",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
@@ -582,10 +582,11 @@ class StockChipAnalysis(object):
 				mass_convert_cb_list = list(filter(lambda x: x[:4] == display_stock, mass_convert_cb_dict.keys()))
 				if len(mass_convert_cb_list) != 0:
 					print("=== CB大量轉換 ==================================================")
-					title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
+					# title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
 					for cb_id in mass_convert_cb_list:
 						cb_data = mass_convert_cb_dict[cb_id]
-						print(" %s  增減百分比: %.2f  前月底保管張數: %d, 本月底保管張數: %d, 發行張數: %d" % (cb_data["名稱"], float(cb_data["增減百分比"]), int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
+						mass_convert_percentage = float(cb_data["增減數額"]) / float(cb_data["發行張數"]) * 100.0
+						print(" %s  增減百分比: %.2f  前月底保管張數: %d, 本月底保管張數: %d, 發行張數: %d" % (cb_data["名稱"], mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
 			if need_new_line: 
 				print("\n")
 		if self.xcfg["output_result"]:

@@ -1657,7 +1657,8 @@ class ConvertibleBondAnalysis(object):
 			title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
 			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in mass_convert_cb_dict.items():
-				print ("%s[%s]:  %.2f  %d  %d  %d" % (cb_data["名稱"], cb_key, float(cb_data["增減百分比"]), int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
+				mass_convert_percentage = float(cb_data["增減數額"]) / float(cb_data["發行張數"]) * 100.0
+				print ("%s[%s]:  %.2f  %d  %d  %d" % (cb_data["名稱"], cb_key, mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
 		# multiple_publish_dict = self.search_multiple_publish()
 		# if bool(multiple_publish_dict):
 		# 	print("=== 多次發行 ==================================================")
@@ -1756,7 +1757,8 @@ class ConvertibleBondAnalysis(object):
 				title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
 				for cb_id in mass_convert_cb_list:
 					cb_data = mass_convert_cb_dict[cb_id]
-					print(" %s  增減百分比: %.2f  前月底保管張數: %d, 本月底保管張數: %d, 發行張數: %d" % (cb_data["名稱"], float(cb_data["增減百分比"]), int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
+					mass_convert_percentage = float(cb_data["增減數額"]) / float(cb_data["發行張數"]) * 100.0
+					print(" %s  增減百分比: %.2f  前月底保管張數: %d, 本月底保管張數: %d, 發行張數: %d" % (cb_data["名稱"], mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
 
 
 	def scrape_stock(self, stock_id_list):
