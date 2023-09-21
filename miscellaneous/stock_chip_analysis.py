@@ -45,6 +45,14 @@ class StockChipAnalysis(object):
 			"key_mode": 0, # 2489 瑞軒
 			"data_start_column_index": 1,
 		},
+		u"控盤券商3日買超": {
+			"key_mode": 3, # 日月光投控(3711)
+			"data_start_column_index": 1,
+		},
+		u"控盤券商3日賣超": {
+			"key_mode": 3, # 日月光投控(3711)
+			"data_start_column_index": 1,
+		},
 		u"極光波段": {
 			"key_mode": 0, # 2489 瑞軒
 			"data_start_column_index": 1,
@@ -95,7 +103,7 @@ class StockChipAnalysis(object):
 		},
 	}
 	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
-	DEFAULT_SHEET_NAME_LIST = [u"SSB", u"大戶籌碼", u"成交比重", u"極光波段", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計", u"上市融資增加", u"上櫃融資增加",]
+	DEFAULT_SHEET_NAME_LIST = [u"SSB", u"大戶籌碼", u"成交比重", u"控盤券商3日買超", u"控盤券商3日賣超", u"極光波段", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計", u"上市融資增加", u"上櫃融資增加",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
@@ -161,10 +169,13 @@ class StockChipAnalysis(object):
 		sheet_name = worksheet.name
 		start_column_index = sheet_metadata["data_start_column_index"]
 		title_list = ["商品",]
+		type_list = [str,]
 		for column_index in range(start_column_index, worksheet.ncols):
 			title = worksheet.cell_value(0, column_index)
 			title_list.append(title)
+		type_list.extend([int,] * (worksheet.ncols - 1))
 
+		csv_data_value_dict = {}
 		for row_index in range(1, worksheet.nrows):
 			data_list = []
 			ignore_data = False
@@ -192,6 +203,13 @@ class StockChipAnalysis(object):
 				else:
 					stock_number = mobj.group(1)
 					product_name = mobj.group(2)
+			elif sheet_metadata["key_mode"] == 3:
+				# import pdb; pdb.set_trace()
+				mobj = re.match("(.+)\(([\d]{4})\)", key_str)
+				if mobj is None:
+					raise ValueError("%s: Incorrect format3: %s" % (sheet_name, key_str))
+				product_name = mobj.group(1)
+				stock_number = mobj.group(2)
 			else:
 				raise ValueError("Unknown key mode: %d" % sheet_metadata["key_mode"])
 			# if stock_number is None:
@@ -199,9 +217,17 @@ class StockChipAnalysis(object):
 			if not ignore_data:
 				data_list.append(product_name)
 				for column_index in range(start_column_index, worksheet.ncols):
-					data_list.append(worksheet.cell_value(row_index, column_index))
+					data = worksheet.cell_value(row_index, column_index)
+					if str(data).find(".") != -1:
+						type_list[column_index] = float
+					data_list.append(data)
 			# print "%d -- %s" % (row_index, stock_number)
-			csv_data_dict[stock_number] = dict(zip(title_list, data_list))
+			value_dict = dict(zip(title_list, data_list))
+			csv_data_value_dict[stock_number] = dict(zip(title_list, data_list))
+		csv_data_dict = {
+			"value": csv_data_value_dict,
+			"type": type_list,
+		}		
 		return csv_data_dict
 
 
@@ -318,6 +344,7 @@ class StockChipAnalysis(object):
 		# print worksheet.name,worksheet.nrows,worksheet.ncols    #Sheet1 6 4
 # The data
 		csv_data_dict = self.__read_from_worksheet(worksheet, sheet_metadata)
+		csv_data_value_dict = csv_data_dict["value"]
 # Filter the data if necessary
 		if (self.xcfg["min_consecutive_over_buy_days"] is not None) or (self.xcfg["max_consecutive_over_buy_days"] is not None):
 			try:
@@ -332,7 +359,7 @@ class StockChipAnalysis(object):
 				elif self.xcfg["max_consecutive_over_buy_days"] is not None:
 					filter_func_ptr = lambda x: (self.xcfg["max_consecutive_over_buy_days"] >= int(x[1][field_name]))
 				if filter_func_ptr is not None:
-					csv_data_dict = dict(filter(filter_func_ptr, csv_data_dict.items()))
+					csv_data_value_dict = dict(filter(filter_func_ptr, csv_data_value_dict.items()))
 			except ValueError as e: 
 				pass
 		if self.xcfg["minimum_volume"] is not None:
@@ -340,12 +367,12 @@ class StockChipAnalysis(object):
 				sheet_index = self.MINIMUM_VOLUME_SHEETNAME_LIST.index(sheet_name)
 				# import pdb; pdb.set_trace()
 				field_name = self.MINIMUM_VOLUME_FIELDNAME_LIST[sheet_index]
-				csv_data_dict = dict(filter(lambda x: int(x[1][field_name]) >= self.xcfg["minimum_volume"], csv_data_dict.items()))
+				csv_data_value_dict = dict(filter(lambda x: int(x[1][field_name]) >= self.xcfg["minimum_volume"], csv_data_value_dict.items()))
 			except ValueError as e: 
 				pass
 		if self.xcfg["main_force_instuitional_investors_ratio_threshold"] is not None:
 			if sheet_name == self.MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_SHEETNAME:
-				csv_data_dict = dict(filter(lambda x: float(x[1][self.MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_FIELDNAME]) >= self.xcfg["main_force_instuitional_investors_ratio_threshold"], csv_data_dict.items()))
+				csv_data_value_dict = dict(filter(lambda x: float(x[1][self.MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_FIELDNAME]) >= self.xcfg["main_force_instuitional_investors_ratio_threshold"], csv_data_value_dict.items()))
 				if self.xcfg["main_force_instuitional_investors_ratio_consecutive_days"] is not None:
 					def check_consecutive_days(x):
 						# import pdb; pdb.set_trace()
@@ -354,13 +381,13 @@ class StockChipAnalysis(object):
 							if x[1][field_name] < self.xcfg["main_force_instuitional_investors_ratio_threshold"]:
 								return False
 						return True
-					csv_data_dict = dict(filter(lambda x: check_consecutive_days(x), csv_data_dict.items()))
+					csv_data_value_dict = dict(filter(lambda x: check_consecutive_days(x), csv_data_value_dict.items()))
 		if self.xcfg["check_sharpe_ratio"]:
 			if sheet_name == self.LARGE_SHAREHOLD_POSITION_SHEETNAME:
-				sharpe_ratio_sorted_list = sorted([x[self.LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO] for x in csv_data_dict.values()], reverse=True)
-				standard_deviation_sorted_list = sorted([x[self.LARGE_SHAREHOLD_POSITION_FIELDNAME_STANDARD_DEVIATION] for x in csv_data_dict.values()])
+				sharpe_ratio_sorted_list = sorted([x[self.LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO] for x in csv_data_value_dict.values()], reverse=True)
+				standard_deviation_sorted_list = sorted([x[self.LARGE_SHAREHOLD_POSITION_FIELDNAME_STANDARD_DEVIATION] for x in csv_data_value_dict.values()])
 				data_len = len(standard_deviation_sorted_list)
-				for csv_data_key, csv_data_value_dict in csv_data_dict.items():
+				for csv_data_key, csv_data_value_dict in csv_data_value_dict.items():
 					sharpe_ratio_value = csv_data_value_dict[self.LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO]
 					standard_deviation_value = csv_data_value_dict[self.LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO]
 					sharpe_ratio_index = sharpe_ratio_sorted_list.index(sharpe_ratio_value)
@@ -485,9 +512,9 @@ class StockChipAnalysis(object):
 		if search_rule_index < 0 or search_rule_index >= len(self.SEARCH_RULE_DATASHEET_LIST):
 			raise ValueError("Unsupport search_rule_index: %d" % search_rule_index)
 		search_rule_list = self.SEARCH_RULE_DATASHEET_LIST[search_rule_index]
-		stock_set = set(stock_chip_data_dict[search_rule_list[0]].keys())
+		stock_set = set(stock_chip_data_dict[search_rule_list[0]]["value"].keys())
 		for search_rule in search_rule_list[1:]:
-			stock_set &= set(stock_chip_data_dict[search_rule].keys())
+			stock_set &= set(stock_chip_data_dict[search_rule]["value"].keys())
 		stock_list = list(stock_set)
 
 		if self.xcfg["output_result"]:
@@ -495,23 +522,23 @@ class StockChipAnalysis(object):
 		print("************** Search **************")
 		search_rule_list_str = ", ".join(search_rule_list)
 		print ("搜尋規則: " + search_rule_list_str )
-		stock_name_list = [stock_chip_data_dict[u"主力買超天數累計"][stock]["商品"] for stock in stock_list]
+		stock_name_list = [stock_chip_data_dict[u"主力買超天數累計"]["value"][stock]["商品"] for stock in stock_list]
 		stock_list_str = ", ".join(map(lambda x: "%s[%s]" % (x[0], x[1]), zip(stock_list, stock_name_list)))
 		print (stock_list_str + "\n")
 		# import pdb; pdb.set_trace()
-		sheet_name_list = ["夏普值", "主法量率", "六大買超",]
+		sheet_name_list = ["SSB", "主法量率", "六大買超",]
 		for index, stock in enumerate(stock_list):
 			search_rule_item_list = []
 			for search_rule in search_rule_list[1:]:
 				sheet_index = self.CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST.index(search_rule)
 				field_name = self.CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST[sheet_index]
-				sheet_data_dict = stock_chip_data_dict[search_rule]
+				sheet_data_dict = stock_chip_data_dict[search_rule]["value"]
 				stock_sheet_data_dict = sheet_data_dict[stock]
 				search_rule_item_list.append((field_name, str(int(stock_sheet_data_dict[field_name]))))
 			print ("*** %s[%s] ***" % (stock, stock_name_list[index]))
 			global_item_list = None
 			for sheet_name in sheet_name_list:				
-				sheet_data_dict = stock_chip_data_dict[sheet_name]
+				sheet_data_dict = stock_chip_data_dict[sheet_name]["value"]
 				if stock not in sheet_data_dict.keys():
 					continue
 				stock_sheet_data_dict = sheet_data_dict[stock]
@@ -554,7 +581,7 @@ class StockChipAnalysis(object):
 			global_item_list = None
 			need_new_line = False
 			for sheet_name in self.DEFAULT_SHEET_NAME_LIST:
-				sheet_data_dict = stock_chip_data_dict[sheet_name]
+				sheet_data_dict = stock_chip_data_dict[sheet_name]["value"]
 				if display_stock not in sheet_data_dict.keys():
 					continue
 				if not need_new_line:
