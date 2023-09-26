@@ -218,7 +218,7 @@ class StockChipAnalysis(object):
 				data_list.append(product_name)
 				for column_index in range(start_column_index, worksheet.ncols):
 					data = worksheet.cell_value(row_index, column_index)
-					if str(data).find(".") != -1:
+					if re.search("[1-9]+", str(data).split(".")[-1]) is not None:
 						type_list[column_index] = float
 					data_list.append(data)
 			# print "%d -- %s" % (row_index, stock_number)
@@ -227,7 +227,8 @@ class StockChipAnalysis(object):
 		csv_data_dict = {
 			"value": csv_data_value_dict,
 			"type": type_list,
-		}		
+		}
+		print("%s: %s" % (sheet_name, " ".join(map(lambda x, y: "%s(%s)" % (x, str(y)), title_list, type_list))))
 		return csv_data_dict
 
 
