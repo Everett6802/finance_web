@@ -584,61 +584,73 @@ class ConvertibleBondAnalysis(object):
 
 
 	def __check_cb_stock_quotation_data(self, data_list):
-		data_index = 0
-		for data_value in data_list:
+# Handle the special conditions first
+# Do do in this way, the contenet of data_list should be updated
+		# data_list = list(map(lambda x: (None if x=='--' else x), data_list))
+		for index, data in enumerate(data_list):
+			if data == '--': data_list[index] = None
+		for data_index, data_value in enumerate(data_list):
 			if data_index >= self.DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE_LEN: break
+			if data_value is None: continue
 			try:
 				data_type = self.DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE[data_index]
 				data_value = data_type(data_value)
 				data_list[data_index] = data_value
 			except ValueError as e:
+				# print(data_list)
 				# import pdb; pdb.set_trace()
-				if data_index == 4:  # 買進一
-					# print(data_list)
-					# import pdb; pdb.set_trace()
-					if re.match("市價", str(data_value)) is not None:  # 漲停
-						data_list[4] = data_list[1]  # 買進一 設為 成交價
-						data_list[5] = None
-						break
-					elif re.match("--", str(data_value)) is not None and isinstance(data_list[5], float):  # 跌停
-						data_list[4] = None
-						break
-					else:
-						if re.match("市價", str(data_list[5])) is None:  # 不是跌停
-							# import pdb; pdb.set_trace()
-							traceback.print_exc()
-							raise e
-						else: 
-							data_list[4] = None
-					# if re.match("--", data_value) is not None:  # 跌停
-					# 	if int(data_list[5] * 100) != int(data_list[1] * 100):  # 不是跌停
-					# 		traceback.print_exc()
-					# 		raise e
-					# 	data_list[4] = None
-				elif data_index == 5:  # 賣出一
-					# print(data_list)
-					# import pdb; pdb.set_trace()
-					if re.match("市價", data_value) is not None:  # 跌停
-						data_list[5] = data_list[1]  # 賣出一 設為 成交價
-						assert data_list[4] == None, "買進一 should be None"
-					elif re.match("--", str(data_value)) is not None and isinstance(data_list[4], float):  # 漲停
-						data_list[5] = None
-						break
-					else:
-						traceback.print_exc()
-						raise e
-					# if re.match("--", data_value) is not None:  # 漲停
-					# 	if int(data_list[4] * 100) != int(data_list[1] * 100):  # 不是漲停
-					# 		traceback.print_exc()
-					# 		raise e
-					# 	data_list[5] = None
-				else:
-					data_list[data_index] = None
+				if re.match("市價", str(data_value)) is not None:
+					if data_index == 4:  # 買進一 -> # 漲停
+						assert data_list[1] is not None, "成交價should NOT be None"
+						data_list[data_index] = data_list[1]  # 買進一 設為 成交價
+					elif data_index == 5:  # 賣出一 -> # 跌停
+						assert data_list[1] is not None, "成交價should NOT be None"
+						data_list[data_index] = data_list[1]  # 賣出一 設為 成交價
+				# if data_index == 4:  # 買進一
+				# 	# print(data_list)
+				# 	# import pdb; pdb.set_trace()
+				# 	if re.match("市價", str(data_value)) is not None:  # 漲停
+				# 		data_list[4] = data_list[1]  # 買進一 設為 成交價
+				# 		data_list[5] = None
+				# 		break
+				# 	elif re.match("--", str(data_value)) is not None and isinstance(data_list[5], float):  # 跌停
+				# 		data_list[4] = None
+				# 		break
+				# 	else:
+				# 		if re.match("市價", str(data_list[5])) is None:  # 不是跌停
+				# 			# import pdb; pdb.set_trace()
+				# 			traceback.print_exc()
+				# 			raise e
+				# 		else: 
+				# 			data_list[4] = None
+				# 	# if re.match("--", data_value) is not None:  # 跌停
+				# 	# 	if int(data_list[5] * 100) != int(data_list[1] * 100):  # 不是跌停
+				# 	# 		traceback.print_exc()
+				# 	# 		raise e
+				# 	# 	data_list[4] = None
+				# elif data_index == 5:  # 賣出一
+				# 	# print(data_list)
+				# 	# import pdb; pdb.set_trace()
+				# 	if re.match("市價", data_value) is not None:  # 跌停
+				# 		data_list[5] = data_list[1]  # 賣出一 設為 成交價
+				# 		assert data_list[4] == None, "買進一 should be None"
+				# 	elif re.match("--", str(data_value)) is not None and isinstance(data_list[4], float):  # 漲停
+				# 		data_list[5] = None
+				# 		break
+				# 	else:
+				# 		traceback.print_exc()
+				# 		raise e
+				# 	# if re.match("--", data_value) is not None:  # 漲停
+				# 	# 	if int(data_list[4] * 100) != int(data_list[1] * 100):  # 不是漲停
+				# 	# 		traceback.print_exc()
+				# 	# 		raise e
+				# 	# 	data_list[5] = None
+				# else:
+				# 	data_list[data_index] = None
 			except Exception as e:
 				# import pdb; pdb.set_trace()
 				traceback.print_exc()
 				raise e
-			data_index += 1
 
 
 	def __read_cb_stock_quotation(self):
@@ -785,6 +797,8 @@ class ConvertibleBondAnalysis(object):
 			else:
 				# conversion_parity = self.__get_conversion_parity(cb_summary_data["轉換價格"], cb_stock_quotation_data["買進一"])
 				# premium = (cb_quotation_data["賣出一"] - conversion_parity) / conversion_parity
+				print(cb_quotation_data)
+				print(cb_stock_quotation_data)
 				conversion_premium_rate = self.__get_conversion_premium_rate(cb_summary_data["轉換價格"], cb_quotation_data["賣出一"], cb_stock_quotation_data["買進一"])
 				days = self.__get_days(cb_quotation_data["到期日"])
 				if use_percentage:
