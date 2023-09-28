@@ -228,7 +228,7 @@ class StockChipAnalysis(object):
 			"value": csv_data_value_dict,
 			"type": type_list,
 		}
-		print("%s: %s" % (sheet_name, " ".join(map(lambda x, y: "%s(%s)" % (x, str(y)), title_list, type_list))))
+		# print("%s: %s" % (sheet_name, " ".join(map(lambda x, y: "%s(%s)" % (x, str(y)), title_list, type_list))))
 		return csv_data_dict
 
 
@@ -393,6 +393,7 @@ class StockChipAnalysis(object):
 					standard_deviation_value = csv_data_value_dict[self.LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO]
 					sharpe_ratio_index = sharpe_ratio_sorted_list.index(sharpe_ratio_value)
 					standard_deviation_index = standard_deviation_sorted_list.index(standard_deviation_value)
+		csv_data_dict["value"] = csv_data_value_dict
 		return csv_data_dict
 
 
@@ -550,11 +551,14 @@ class StockChipAnalysis(object):
 					global_item_list.extend(map(lambda x: (x[0], str(int(x[1]))), filter(lambda x: x[0] in ["成交量", "總量",], item_list)))
 					global_item_list.extend(search_rule_item_list)
 					print(" ==>" + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), global_item_list)))
-				item_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_list)
-				if sheet_name in ["六大買超", "法人共同買超累計",]:
-					print("  " + " ".join(map(lambda x: "%s(%d)" % (x[0], int(x[1])), item_list)))
-				else:
-					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
+				# item_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_list)
+				# if sheet_name in ["六大買超", "法人共同買超累計",]:
+				# 	print("  " + " ".join(map(lambda x: "%s(%d)" % (x[0], int(x[1])), item_list)))
+				# else:
+				# 	print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
+				item_type_list = map(lambda x, y: (x[0], x[1], y), item_list, stock_chip_data_dict[sheet_name]["type"])
+				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_type_list)
+				print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
 			if self.cb_publish is not None:
 				cb_id_list = list(filter(lambda x: x[:4] == stock, self.cb_publish.keys()))
 				if len(cb_id_list) != 0:
@@ -597,11 +601,19 @@ class StockChipAnalysis(object):
 					global_item_list.extend(filter(lambda x: x[0] in ["成交", "漲幅%", "漲跌幅",], item_list))
 					global_item_list.extend(map(lambda x: (x[0], str(int(x[1]))), filter(lambda x: x[0] in ["成交量", "總量",], item_list)))
 					print(" ==>" + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), global_item_list)))
-				item_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_list)
-				if sheet_name in ["六大買超", "主力買超天數累計", "法人共同買超累計", "外資買超天數累計", "投信買超天數累計",]:
-					print("  " + " ".join(map(lambda x: "%s(%d)" % (x[0], int(x[1])), item_list)))
-				else:
-					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
+				# item_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_list)
+				# if sheet_name in ["六大買超", "主力買超天數累計", "法人共同買超累計", "外資買超天數累計", "投信買超天數累計",]:
+				# 	print("  " + " ".join(map(lambda x: "%s(%d)" % (x[0], int(x[1])), item_list)))
+				# else:
+				# 	print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
+				item_type_list = map(lambda x, y: (x[0], x[1], y), item_list, stock_chip_data_dict[sheet_name]["type"])
+				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_type_list)
+				try:
+					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
+				except ValueError as e:
+					import pdb; pdb.set_trace()
+					print("Error: %s in %s" % (str(e), str(list(item_type_list))))
+					raise e
 			if self.cb_publish is not None:
 				cb_id_list = list(filter(lambda x: x[:4] == display_stock, self.cb_publish.keys()))
 				if len(cb_id_list) != 0:
