@@ -557,8 +557,13 @@ class StockChipAnalysis(object):
 				# else:
 				# 	print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
 				item_type_list = map(lambda x, y: (x[0], x[1], y), item_list, stock_chip_data_dict[sheet_name]["type"])
-				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_type_list)
-				print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
+				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌", "漲跌幅", "成交量", "總量",], item_type_list)
+				try:
+					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
+				except ValueError as e:
+					# print("%s:%s Error: %s in %s" % (display_stock, sheet_name, str(e), str(list(item_type_list))))
+					# import pdb; pdb.set_trace()
+					raise e
 			if self.cb_publish is not None:
 				cb_id_list = list(filter(lambda x: x[:4] == stock, self.cb_publish.keys()))
 				if len(cb_id_list) != 0:
@@ -607,12 +612,12 @@ class StockChipAnalysis(object):
 				# else:
 				# 	print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
 				item_type_list = map(lambda x, y: (x[0], x[1], y), item_list, stock_chip_data_dict[sheet_name]["type"])
-				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_type_list)
+				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌", "漲跌幅", "成交量", "總量",], item_type_list)
 				try:
 					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
 				except ValueError as e:
-					import pdb; pdb.set_trace()
-					print("Error: %s in %s" % (str(e), str(list(item_type_list))))
+					# print("%s:%s Error: %s in %s" % (display_stock, sheet_name, str(e), str(list(item_type_list))))
+					# import pdb; pdb.set_trace()
 					raise e
 			if self.cb_publish is not None:
 				cb_id_list = list(filter(lambda x: x[:4] == display_stock, self.cb_publish.keys()))
