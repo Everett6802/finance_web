@@ -426,7 +426,9 @@ class ConvertibleBondAnalysis(object):
 			module = __import__("selenium.webdriver")
 			web_driver_class = getattr(module, "webdriver")
 			# self.web_driver = web_driver_class.Chrome()
-			self.web_driver = web_driver_class.Edge()
+			options = webdriver.EdgeOptions()
+			options.add_argument("--headless")
+			self.web_driver = web_driver_class.Edge(options=options)
 		return self.web_driver
 
 
