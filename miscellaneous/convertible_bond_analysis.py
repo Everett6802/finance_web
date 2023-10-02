@@ -797,8 +797,8 @@ class ConvertibleBondAnalysis(object):
 			else:
 				# conversion_parity = self.__get_conversion_parity(cb_summary_data["轉換價格"], cb_stock_quotation_data["買進一"])
 				# premium = (cb_quotation_data["賣出一"] - conversion_parity) / conversion_parity
-				print(cb_quotation_data)
-				print(cb_stock_quotation_data)
+				# print(cb_quotation_data)
+				# print(cb_stock_quotation_data)
 				conversion_premium_rate = self.__get_conversion_premium_rate(cb_summary_data["轉換價格"], cb_quotation_data["賣出一"], cb_stock_quotation_data["買進一"])
 				days = self.__get_days(cb_quotation_data["到期日"])
 				if use_percentage:
