@@ -1658,12 +1658,20 @@ class ConvertibleBondAnalysis(object):
 			print("=== 近到期日期 ==================================================")
 			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數",]
 			print("  ===> %s" % ", ".join(title_list))
+			cb_monthly_convert_data = self.get_cb_monthly_convert_data()
 			for cb_key, cb_data in maturity_date_cb_dict.items():
 				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"])))
 				cb_publish_detail_dict = self.get_publish_detail(cb_key)
 				print(" *************")
 				print("  本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
 				print("  最新轉(交)換價格: %s" % (cb_publish_detail_dict["最新轉(交)換價格"]))
+				mass_convert_cb_data = cb_monthly_convert_data["content"][cb_key]
+				print("  前月底保管張數: %d" % int(mass_convert_cb_data["前月底保管張數"]))
+				print("  本月底保管張數: %d" % int(mass_convert_cb_data["本月底保管張數"]))
+				no_convert_percentage = float(mass_convert_cb_data["本月底保管張數"])/int(cb_data["發行張數"]) * 100.0
+				print("  未轉換百分比: %.2f" % no_convert_percentage)
+				monthly_convert_percentage = float(mass_convert_cb_data["增減數額"]) / float(mass_convert_cb_data["發行張數"]) * 100.0
+				print("  增減百分比: %.2f" % monthly_convert_percentage)
 				# print("  最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
 				print(" *************")
 			print("=================================================================\n")
