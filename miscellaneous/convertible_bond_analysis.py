@@ -1665,6 +1665,7 @@ class ConvertibleBondAnalysis(object):
 				print(" *************")
 				print("  本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
 				print("  最新轉(交)換價格: %s" % (cb_publish_detail_dict["最新轉(交)換價格"]))
+				print("  股票成交價格: %s" % (stock_quotation_data_dict[cb_key[:4]]["成交"]))
 				mass_convert_cb_data = cb_monthly_convert_data["content"][cb_key]
 				print("  前月底保管張數: %d" % int(mass_convert_cb_data["前月底保管張數"]))
 				print("  本月底保管張數: %d" % int(mass_convert_cb_data["本月底保管張數"]))
