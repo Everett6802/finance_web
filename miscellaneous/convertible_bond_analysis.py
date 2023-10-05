@@ -50,8 +50,8 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_CB_QUOTATION_FIELD_TYPE_LEN = len(DEFAULT_CB_QUOTATION_FIELD_TYPE)
 	DEFAULT_CB_STOCK_QUOTATION_FILENAME = "可轉債個股報價"
 	DEFAULT_CB_STOCK_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_STOCK_QUOTATION_FILENAME
-# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '融資餘額', '融券餘額']
-	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, int, int,]
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '融資餘額', '融券餘額', '股本']
+	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, int, int, float,]
 	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE_LEN = len(DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE)
 
 	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
@@ -426,7 +426,7 @@ class ConvertibleBondAnalysis(object):
 			module = __import__("selenium.webdriver")
 			web_driver_class = getattr(module, "webdriver")
 			# self.web_driver = web_driver_class.Chrome()
-			options = webdriver.EdgeOptions()
+			options = web_driver_class.EdgeOptions()
 			options.add_argument("--headless")
 			self.web_driver = web_driver_class.Edge(options=options)
 		return self.web_driver
@@ -1656,17 +1656,20 @@ class ConvertibleBondAnalysis(object):
 			print("=================================================================\n")
 		if bool(maturity_date_cb_dict):
 			print("=== 近到期日期 ==================================================")
-			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數",]
+			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行總面額", "股本",]
 			print("  ===> %s" % ", ".join(title_list))
 			cb_monthly_convert_data = self.get_cb_monthly_convert_data()
 			for cb_key, cb_data in maturity_date_cb_dict.items():
-				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"])))
+				cb_stock_key = cb_key[:4]
+				cb_stock_data = stock_quotation_data_dict[cb_stock_key]
+				mass_convert_cb_data = cb_monthly_convert_data["content"][cb_key]
+				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %.2f" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(mass_convert_cb_data["發行張數"]) * 100000 / 100000000, float(cb_stock_data["股本"])))
 				cb_publish_detail_dict = self.get_publish_detail(cb_key)
 				print(" *************")
 				print("  本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
 				print("  最新轉(交)換價格: %s" % (cb_publish_detail_dict["最新轉(交)換價格"]))
-				print("  股票成交價格: %s" % (stock_quotation_data_dict[cb_key[:4]]["成交"]))
-				mass_convert_cb_data = cb_monthly_convert_data["content"][cb_key]
+				print("  股票成交價格: %s" % (stock_quotation_data_dict[cb_stock_key]["成交"]))
+				print("  發行張數: %d" % int(mass_convert_cb_data["發行張數"]))
 				print("  前月底保管張數: %d" % int(mass_convert_cb_data["前月底保管張數"]))
 				print("  本月底保管張數: %d" % int(mass_convert_cb_data["本月底保管張數"]))
 				no_convert_percentage = float(mass_convert_cb_data["本月底保管張數"])/int(cb_data["發行張數"]) * 100.0
@@ -1743,8 +1746,9 @@ class ConvertibleBondAnalysis(object):
 				print(" %s  %s  %d" % (publish_data["發行日期"], publish_data["年期"], int(publish_data["發行總面額"]) /100000))
 			except TypeError:
 				print(" %s" % ("  ".join([str(premium_data["溢價率"]), str(quotation_data["成交"]), str(quotation_data["賣出一"])])))
-			latest_data_dict = list(scrapy_data["content"]["月營收"].items())[0]
 # Monthly
+			# import pdb; pdb.set_trace()
+			latest_data_dict = list(scrapy_data["content"]["月營收"].items())[0]
 			print(" %s  營收年增率: %s" % (latest_data_dict[0], latest_data_dict[1]["年增率"]))
 # Quarterly
 			latest_data_dict = list(scrapy_data["content"]["獲利能力"].items())[0]
