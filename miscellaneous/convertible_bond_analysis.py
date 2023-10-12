@@ -199,7 +199,8 @@ class ConvertibleBondAnalysis(object):
 			"cb_stock_quotation_filename": None,
 			"cb_all": False,
 			"cb_list_filename": None,
-			"cb_list": None
+			"cb_list": None,
+			"enable_headless": True,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -426,8 +427,10 @@ class ConvertibleBondAnalysis(object):
 			module = __import__("selenium.webdriver")
 			web_driver_class = getattr(module, "webdriver")
 			# self.web_driver = web_driver_class.Chrome()
-			options = web_driver_class.EdgeOptions()
-			options.add_argument("--headless")
+			options = None
+			if self.xcfg["enable_headless"]:
+				options = web_driver_class.EdgeOptions()
+				options.add_argument("--headless")
 			self.web_driver = web_driver_class.Edge(options=options)
 		return self.web_driver
 
@@ -1137,7 +1140,8 @@ class ConvertibleBondAnalysis(object):
 		data_dict = {}
 		table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/form/table/tbody/tr/td/table')
 		trs = table.find_elements("tag name", "tr")
-
+		if len(trs) <= 5:
+			return None
 		table_row_start_index = 5
 		title_tmp_list1 = []
 		td1s = trs[table_row_start_index].find_elements("tag name", "td")
@@ -1372,13 +1376,16 @@ class ConvertibleBondAnalysis(object):
 					start_time = time.time()
 					driver.get(url)
 					time.sleep(5)
-					data_content_dict[scrapy_key] = scrapy_funcptr(driver)
+					scrapy_data = scrapy_funcptr(driver)
+					if scrapy_data is None:
+						print("WARNING: No data in %s:%s, URL: %s" % (cb_stock_id, scrapy_key, url))
+					data_content_dict[scrapy_key] = scrapy_data
 					end_time = time.time()
 					print("Scrape %s...... Done in %d seconds" % (scrapy_key, (end_time - start_time)))
 					data_time_dict[scrapy_key] = cur_datetime.strftime("%Y/%m/%d %H:%M:%S")
 			# print(data_dict)
 			total_end_time = time.time()
-			# print("Scrape All...... Done in %d seconds" % (total_end_time - total_start_time))
+			print("Scrape All...... Done in %d seconds" % (total_end_time - total_start_time))
 # Writing to file
 			# import pdb; pdb.set_trace()
 			if from_file:
@@ -1837,6 +1844,7 @@ if __name__ == "__main__":
 	parser.add_argument('--scrape_stock', required=False, help='Scrape the stock info of specific stocks and exit.')
 	parser.add_argument('--scrape_stock_from_file', required=False, action='store_true', help="Scrape the stock info and exit. The scrapy stocks are from the 'cb_list' file")
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
+	parser.add_argument('--disable_headless', required=False, action='store_true', help='Disable headless web scrapy')
 	args = parser.parse_args()
 
 	cfg = {
@@ -1849,6 +1857,8 @@ if __name__ == "__main__":
 		if 'cb_all' in cfg:
 			print("The 'all' flag is ignored...")
 			cfg['cb_all'] = False
+	if args.disable_headless:
+		cfg['enable_headless'] = False
 	with ConvertibleBondAnalysis(cfg) as obj:
 		# # JSON data with unordered keys
 		# json_data = '{"a": 1, "c": 3, "b": 2}'
