@@ -1185,18 +1185,25 @@ class ConvertibleBondAnalysis(object):
 		tds = trs[table_row_start_index].find_elements("tag name", "td")
 		for td in tds:
 			title_list.append(td.text)
+		title_list_len = len(title_list)
 		# import pdb; pdb.set_trace()
 		table_row_start_index += 1
-		table_row_end_index = table_row_start_index + 15
-		for tr in trs[table_row_start_index:table_row_end_index]:
+		# table_row_end_index = table_row_start_index + 15
+		tr_cnt = 0
+		for index, tr in enumerate(trs[table_row_start_index:]):
 			tds = tr.find_elements("tag name", "td")
 			td_text_list = []
 			for td in tds:
 				td_text_list.append(td.text)
+			if len(td_text_list) != title_list_len:
+				break
+			tr_cnt += 1
 			# import pdb; pdb.set_trace()
-			data_dict[main_title_list[0]][tds[0].text] = dict(zip(title_list[1:5], td_text_list[1:5]))
-			data_dict[main_title_list[1]][tds[5].text] = dict(zip(title_list[6:], td_text_list[6:]))
-		table_row_start_index = table_row_end_index
+			if td_text_list[0] != ' ':
+				data_dict[main_title_list[0]][tds[0].text] = dict(zip(title_list[1:5], td_text_list[1:5]))
+			if td_text_list[5] != ' ':
+				data_dict[main_title_list[1]][tds[5].text] = dict(zip(title_list[6:], td_text_list[6:]))
+		table_row_start_index = tr_cnt
 		# import pdb; pdb.set_trace()
 		for index in range(table_row_start_index, table_row_start_index + 2):
 			tds = trs[index].find_elements("tag name", "td")
