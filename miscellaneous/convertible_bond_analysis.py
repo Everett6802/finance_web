@@ -1203,7 +1203,7 @@ class ConvertibleBondAnalysis(object):
 				data_dict[main_title_list[0]][tds[0].text] = dict(zip(title_list[1:5], td_text_list[1:5]))
 			if td_text_list[5] != ' ':
 				data_dict[main_title_list[1]][tds[5].text] = dict(zip(title_list[6:], td_text_list[6:]))
-		table_row_start_index = tr_cnt
+		table_row_start_index += tr_cnt
 		# import pdb; pdb.set_trace()
 		for index in range(table_row_start_index, table_row_start_index + 2):
 			tds = trs[index].find_elements("tag name", "td")
@@ -1338,7 +1338,8 @@ class ConvertibleBondAnalysis(object):
 		# print("Now: %s\nDaily: %s\nMonthly: %s\nQuarterly: %s\nYearly: %s" % (data_scrapy_timestr, str(daily_new_data_date), str(monthly_new_data_date), str(quarterly_new_data_date), str(yearly_new_data_date)))
 
 
-	def scrape_stock_info(self, cb_id, from_file=True):
+# Only evaluate that it's required to scrape data if dry_run is True
+	def scrape_stock_info(self, cb_id, from_file=True, dry_run=False):
 		data_dict = None
 		# import pdb; pdb.set_trace()
 		driver = None
@@ -1365,6 +1366,7 @@ class ConvertibleBondAnalysis(object):
 			total_start_time = time.time()
 			data_time_dict = data_dict["time"]
 			data_content_dict = data_dict["content"]
+			need_scrapy_count = 0
 			for scrapy_key, scrapy_funcptr in self.STOCK_INFO_SCRAPY_FUNCPTR_DICT.items():
 				# import pdb; pdb.set_trace()
 # Check it's required to scrape the data
@@ -1376,10 +1378,13 @@ class ConvertibleBondAnalysis(object):
 					if new_update_time > cur_datetime:
 						need_scrapy = False
 				if need_scrapy:
+					if dry_run:
+						return True
+					need_scrapy_count += 1
 					if driver is None:
 						driver = self.__get_web_driver()
 					url = self.STOCK_INFO_SCRAPY_URL_FORMAT_DICT[scrapy_key] % cb_stock_id
-					print("Scrape %s......" % scrapy_key)
+					print("Scrape %s:%s......" % (cb_stock_id, scrapy_key))
 					start_time = time.time()
 					driver.get(url)
 					time.sleep(5)
@@ -1388,14 +1393,17 @@ class ConvertibleBondAnalysis(object):
 						print("WARNING: No data in %s:%s, URL: %s" % (cb_stock_id, scrapy_key, url))
 					data_content_dict[scrapy_key] = scrapy_data
 					end_time = time.time()
-					print("Scrape %s...... Done in %d seconds" % (scrapy_key, (end_time - start_time)))
+					print("Scrape %s:%s...... Done in %d seconds" % (cb_stock_id, scrapy_key, (end_time - start_time)))
 					data_time_dict[scrapy_key] = cur_datetime.strftime("%Y/%m/%d %H:%M:%S")
+			if dry_run:
+				return False
 			# print(data_dict)
 			total_end_time = time.time()
-			print("Scrape All...... Done in %d seconds" % (total_end_time - total_start_time))
+			if need_scrapy_count > 0:
+					print("Scrape All...... Done in %d seconds" % (total_end_time - total_start_time))
 # Writing to file
 			# import pdb; pdb.set_trace()
-			if from_file:
+			if from_file and need_scrapy_count > 0:
 				with open(data_filepath, "w", encoding='utf-8') as f:
 					'''
 					starting from Python 3.7, the keys of a dictionary are guaranteed to be in the same order as they were inserted 
@@ -1804,16 +1812,26 @@ class ConvertibleBondAnalysis(object):
 					print(" %s  增減百分比: %.2f  前月底保管張數: %d, 本月底保管張數: %d, 發行張數: %d" % (cb_data["名稱"], mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
 
 
-	def scrape_stock(self, stock_id_list):
+# Only evaluate that it's required to scrape data if dry_run is True
+	def scrape_stock(self, stock_id_list, dry_run=False):
 		if isinstance(stock_id_list, str):
 			stock_id_list = stock_id_list.split(",")
+		need_scrapy_stock_id_list = []			
 		for stock_id in stock_id_list:
-			self.scrape_stock_info(stock_id)
+			ret = self.scrape_stock_info(stock_id, dry_run=dry_run)
+			if dry_run and ret:
+				need_scrapy_stock_id_list.append(stock_id)
+		if dry_run:
+			if len(need_scrapy_stock_id_list) == 0:
+				print("All data are the latest")
+			else:
+				print("Some data are required to update: %s" % ", ".join(need_scrapy_stock_id_list))
 
 
-	def scrape_stock_from_file(self):
+# Only evaluate that it's required to scrape data if dry_run is True
+	def scrape_stock_from_file(self, dry_run=False):
 		stock_id_list = map(lambda x: x[:4], self.cb_id_list)
-		self.scrape_stock(stock_id_list)
+		self.scrape_stock(stock_id_list, dry_run=dry_run)
 
 
 	def print_filepath(self):
@@ -1850,6 +1868,8 @@ if __name__ == "__main__":
 	parser.add_argument('--cb_list', required=False, help='The list of specific CB targets.')
 	parser.add_argument('--scrape_stock', required=False, help='Scrape the stock info of specific stocks and exit.')
 	parser.add_argument('--scrape_stock_from_file', required=False, action='store_true', help="Scrape the stock info and exit. The scrapy stocks are from the 'cb_list' file")
+	parser.add_argument('--check_scrape_stock', required=False, help='Only check if it is required to scrape the stock info of specific stocks and exit.')
+	parser.add_argument('--check_scrape_stock_from_file', required=False, action='store_true', help="Only check if it is required to scrape the stock info and exit. The scrapy stocks are from the 'cb_list' file")
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	parser.add_argument('--disable_headless', required=False, action='store_true', help='Disable headless web scrapy')
 	args = parser.parse_args()
@@ -1876,6 +1896,12 @@ if __name__ == "__main__":
 
 		# obj.calculate_stock_info_update_time("2024/03/25")
 		# data_dict = obj.scrape_stock_info("2330")
+		if args.check_scrape_stock:
+			obj.scrape_stock(args.scrape_stock, True)
+			sys.exit(0)
+		if args.check_scrape_stock_from_file:
+			obj.scrape_stock_from_file(True)
+			sys.exit(0)
 		if args.scrape_stock:
 			obj.scrape_stock(args.scrape_stock)
 			sys.exit(0)
