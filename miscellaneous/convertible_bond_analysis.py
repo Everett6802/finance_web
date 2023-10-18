@@ -431,6 +431,8 @@ class ConvertibleBondAnalysis(object):
 			if self.xcfg["enable_headless"]:
 				options = web_driver_class.EdgeOptions()
 				options.add_argument("--headless")
+# Valids levels are INFO = 0, WARNING = 1, LOG_ERROR = 2, LOG_FATAL = 3
+				options.add_argument("--log-level=3")
 			self.web_driver = web_driver_class.Edge(options=options)
 		return self.web_driver
 
@@ -1824,14 +1826,36 @@ class ConvertibleBondAnalysis(object):
 		if dry_run:
 			if len(need_scrapy_stock_id_list) == 0:
 				print("All data are the latest")
+				return False
 			else:
 				print("Some data are required to update: %s" % ", ".join(need_scrapy_stock_id_list))
+				return True
+		return None
+
+
+	def recursive_scrape_stock(self, stock_id_list, retry_times=5):
+		retry_count = 0
+		while retry_count < retry_times:
+			retry_count += 1
+			# import pdb; pdb.set_trace()
+			if not self.scrape_stock(stock_id_list, dry_run=True):
+				return
+			print("***** Scrape Stock...... %d *****" % retry_count)
+			self.scrape_stock(stock_id_list)
+		if not self.scrape_stock(stock_id_list, dry_run=True):
+			raise RuntimeError("Fails to scrape all stock...")
 
 
 # Only evaluate that it's required to scrape data if dry_run is True
 	def scrape_stock_from_file(self, dry_run=False):
-		stock_id_list = map(lambda x: x[:4], self.cb_id_list)
-		self.scrape_stock(stock_id_list, dry_run=dry_run)
+		stock_id_list = list(map(lambda x: x[:4], self.cb_id_list))
+		return self.scrape_stock(stock_id_list, dry_run=dry_run)
+
+
+	def recursive_scrape_stock_from_file(self, retry_times=5):
+		stock_id_list = list(map(lambda x: x[:4], self.cb_id_list))
+		# import pdb; pdb.set_trace()
+		self.recursive_scrape_stock(stock_id_list, retry_times=retry_times)
 
 
 	def print_filepath(self):
@@ -1868,6 +1892,7 @@ if __name__ == "__main__":
 	parser.add_argument('--cb_list', required=False, help='The list of specific CB targets.')
 	parser.add_argument('--scrape_stock', required=False, help='Scrape the stock info of specific stocks and exit.')
 	parser.add_argument('--scrape_stock_from_file', required=False, action='store_true', help="Scrape the stock info and exit. The scrapy stocks are from the 'cb_list' file")
+	parser.add_argument('--recursive', required=False, action='store_true', help='Scrape stock recursively. Only take effect for the "scrape_stock" and "scrape_stock_from_file" argument')
 	parser.add_argument('--check_scrape_stock', required=False, help='Only check if it is required to scrape the stock info of specific stocks and exit.')
 	parser.add_argument('--check_scrape_stock_from_file', required=False, action='store_true', help="Only check if it is required to scrape the stock info and exit. The scrapy stocks are from the 'cb_list' file")
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
@@ -1903,10 +1928,16 @@ if __name__ == "__main__":
 			obj.scrape_stock_from_file(True)
 			sys.exit(0)
 		if args.scrape_stock:
-			obj.scrape_stock(args.scrape_stock)
+			if args.recursive:
+				obj.recursive_scrape_stock(args.scrape_stock)
+			else:
+				obj.scrape_stock(args.scrape_stock)
 			sys.exit(0)
 		if args.scrape_stock_from_file:
-			obj.scrape_stock_from_file()
+			if args.recursive:
+				obj.recursive_scrape_stock_from_file()
+			else:
+				obj.scrape_stock_from_file()
 			sys.exit(0)
 		if args.print_filepath:
 			obj.print_filepath()
