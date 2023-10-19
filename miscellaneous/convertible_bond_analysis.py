@@ -55,7 +55,8 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE_LEN = len(DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE)
 
 	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
-	CB_TRADING_SUSPENSION_SET = set()
+# Don't consider the CB temporarily
+	CB_TRADING_SUSPENSION_SET = {"62821",}  # set()
 
 	STATEMENT_RELEASE_DATE_LIST = [(3,31,),(5,15,),(8,14,),(11,14),]
 
@@ -347,6 +348,7 @@ class ConvertibleBondAnalysis(object):
 		self.filepath_dict["cb_data_filepath"] = self.xcfg["cb_data_folderpath"]
 # Update the CB ID list
 		if not self.xcfg['cb_all']:
+			# import pdb; pdb.set_trace()
 			if self.xcfg["cb_list"] is not None:
 				if type(self.xcfg["cb_list"]) is str:
 					cb_list = []
@@ -356,6 +358,8 @@ class ConvertibleBondAnalysis(object):
 			else:	
 				self.__get_cb_list_from_file()
 			self.cb_id_list = self.xcfg["cb_list"]
+			if len(self.CB_TRADING_SUSPENSION_SET) != 0:
+				self.cb_id_list = list(set(self.cb_id_list) - self.CB_TRADING_SUSPENSION_SET)
 # Check if the incorrect CB IDs exist
 			# import pdb; pdb.set_trace()
 			cb_id_list = list(filter(lambda x: re.match("[\d]{4,5}", x) is not None, self.cb_id_list))  # Fals to filter the ID whose lenght is more than 5
@@ -581,6 +585,7 @@ class ConvertibleBondAnalysis(object):
 
 
 	def __read_cb_quotation(self):
+		# import pdb; pdb.set_trace()
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
 		cb_data_dict = self.__read_worksheet(self.cb_worksheet, self.__check_cb_quotation_data)
 		if self.cb_id_list is None:
