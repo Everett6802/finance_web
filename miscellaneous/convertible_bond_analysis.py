@@ -53,6 +53,8 @@ class ConvertibleBondAnalysis(object):
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '融資餘額', '融券餘額', '股本']
 	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, int, int, float,]
 	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE_LEN = len(DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE)
+# CB交易成本(元)
+	DEFAULT_CB_TRANSACTION_COST = 200
 
 	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
 # Don't consider the CB temporarily
@@ -202,6 +204,7 @@ class ConvertibleBondAnalysis(object):
 			"cb_list_filename": None,
 			"cb_list": None,
 			"enable_headless": True,
+			"force_update": False,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -667,6 +670,7 @@ class ConvertibleBondAnalysis(object):
 
 	def __read_cb_stock_quotation(self):
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '融資餘額', '融券餘額']
+		# import pdb; pdb.set_trace()
 		cb_stock_data_dict = self.__read_worksheet(self.cb_stock_worksheet, self.__check_cb_stock_quotation_data)
 		if self.cb_stock_id_list is None:
 			assert self.xcfg['cb_all'], "Incorrect setting: CB stock ID list"
@@ -739,6 +743,7 @@ class ConvertibleBondAnalysis(object):
 	def calculate_internal_rate_of_return(self, cb_quotation, use_percentage=True):
 		irr_dict = {}
 		# import pdb; pdb.set_trace()
+		adjusted_value = self.DEFAULT_CB_TRANSACTION_COST / 1000.0
 		for cb_id in self.cb_id_list:
 			cb_quotation_data = cb_quotation[cb_id]
 			# print(cb_quotation_data)
@@ -755,9 +760,11 @@ class ConvertibleBondAnalysis(object):
 				days_to_year = days / 365.0
 				# print("商品: %s, 到期日: %s, days: %d, days_to_year: %f" % (cb_quotation_data["商品"], cb_quotation_data["到期日"], days, days_to_year))
 				irr = math.pow(100.0 / cb_quotation_data["賣出一"], 1 / days_to_year) - 1
+				adjusted_sell_price = float(cb_quotation_data["賣出一"]) + adjusted_value
+				adjusted_irr = math.pow(100.0 / adjusted_sell_price, 1 / days_to_year) - 1
 				if use_percentage:
 					irr *= 100.0
-				irr_dict[cb_id] = {"商品": cb_quotation_data["商品"], "到期日": cb_quotation_data["到期日"], "賣出一": cb_quotation_data["賣出一"], "到期天數": days, "年化報酬率": irr}
+				irr_dict[cb_id] = {"商品": cb_quotation_data["商品"], "到期日": cb_quotation_data["到期日"], "賣出一": cb_quotation_data["賣出一"], "到期天數": days, "年化報酬率": irr, "年化報酬率(扣手續費)": adjusted_irr}
 		return irr_dict
 
 
@@ -1061,7 +1068,16 @@ class ConvertibleBondAnalysis(object):
 		table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/form/table/tbody/tr/td/table')
 		trs = table.find_elements("tag name", "tr")
 
-		table_row_start_index = 3
+		table_row_start_index = None
+		title_tds = None
+		for index in range(0, 4):
+			tds = trs[index].find_elements("tag name", "td")
+			if len(tds) > 1:
+				table_row_start_index = index
+				title_tds = tds
+				break
+		if table_row_start_index is None:
+			raise RuntimeError("Fails to parse the table in 季盈餘")
 		title_list = []
 		tds = trs[table_row_start_index].find_elements("tag name", "td")
 		for td in tds[1:]:
@@ -1355,14 +1371,20 @@ class ConvertibleBondAnalysis(object):
 		data_filepath = os.path.join(self.xcfg["cb_data_folderpath"], "%s.txt" % cb_stock_id)
 		if from_file:
 			if self.__check_file_exist(data_filepath):
-				with open(data_filepath, "r", encoding='utf-8') as f:
+				if (not dry_run) and self.xcfg["force_update"]:
+					try:
+						os.remove(data_filepath)
+					except OSError as e:
+						print("Fails to delete the file: %s, due to: %s" % (data_filepath, str(e)))
+				else:
+					with open(data_filepath, "r", encoding='utf-8') as f:
 # Load JSON data using OrderedDict as the object_pairs_hook. The type of the data_dict variable is OrderedDict
-					'''
-					while Python 3.7+ maintains the insertion order in regular dictionaries, this behavior is not part of the Python language 
-					specification and could vary in different implementations or versions. If order preservation is crucial, using OrderedDict 
-					or specifying an object_pairs_hook when loading JSON data is a more reliable approach
-					'''
-					data_dict = json.load(f, object_pairs_hook=OrderedDict)
+						'''
+						while Python 3.7+ maintains the insertion order in regular dictionaries, this behavior is not part of the Python language 
+						specification and could vary in different implementations or versions. If order preservation is crucial, using OrderedDict 
+						or specifying an object_pairs_hook when loading JSON data is a more reliable approach
+						'''
+						data_dict = json.load(f, object_pairs_hook=OrderedDict)
 		if data_dict is None:
 			data_dict = {
 				"time": {}, 
@@ -1623,10 +1645,10 @@ class ConvertibleBondAnalysis(object):
 		irr_dict = self.get_positive_internal_rate_of_return(quotation_data_dict)
 		if bool(irr_dict):
 			print("=== 年化報酬率 ==================================================")
-			title_list = ["年化報酬率", "賣出一", "到期日",]
+			title_list = ["年化報酬率", "年化報酬率(扣手續費)", "賣出一", "到期日",]
 			print("  ===> %s" % ", ".join(title_list))
 			for irr_key, irr_data in irr_dict.items():
-				print ("%s[%s]: %.2f  %.2f  %s" % (irr_data["商品"], irr_key, float(irr_data["年化報酬率"]), float(irr_data["賣出一"]), irr_data["到期日"]))
+				print ("%s[%s]: %.2f  %.2f  %.2f  %s" % (irr_data["商品"], irr_key, float(irr_data["年化報酬率"]), float(irr_data["年化報酬率(扣手續費)"]), float(irr_data["賣出一"]), irr_data["到期日"]))
 			print("=================================================================\n")
 		premium_dict = self.get_negative_premium(quotation_data_dict, stock_quotation_data_dict)
 		if bool(premium_dict):
@@ -1685,7 +1707,7 @@ class ConvertibleBondAnalysis(object):
 			print("=================================================================\n")
 		if bool(maturity_date_cb_dict):
 			print("=== 近到期日期 ==================================================")
-			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行總面額", "股本",]
+			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行總面額(億)", "股本(億)",]
 			print("  ===> %s" % ", ".join(title_list))
 			cb_monthly_convert_data = self.get_cb_monthly_convert_data()
 			for cb_key, cb_data in maturity_date_cb_dict.items():
@@ -1763,6 +1785,7 @@ class ConvertibleBondAnalysis(object):
 			irr_data = irr_dict[cb_id]
 			premium_data = premium_dict[cb_id]
 			stock_premium_data = stock_premium_dict[cb_id]
+			# import pdb; pdb.set_trace()
 			scrapy_data = self.scrape_stock_info(cb_stock_id)
 			print("%s[%s]:" % (quotation_data["商品"], cb_id))
 			print(" %s" % "  ".join(["溢價率", "成交", "賣出一",]))
@@ -1783,6 +1806,7 @@ class ConvertibleBondAnalysis(object):
 			latest_data_dict = list(scrapy_data["content"]["獲利能力"].items())[0]
 			print(" %s  EPS(元): %s" % (latest_data_dict[0], latest_data_dict[1]["EPS(元)"]))
 			latest_data_dict = list(scrapy_data["content"]["季盈餘"].items())[0]
+			# import pdb; pdb.set_trace()
 			print(" %s  EPS年增率: %s" % (latest_data_dict[0], latest_data_dict[1]["年增率"]))
 			latest_data_dict = list(scrapy_data["content"]["財務比率簡表(季)"].items())[0]
 			print(" %s  營業毛利率: %s  營業利益率: %s, 稅後淨利率: %s" % (latest_data_dict[0], latest_data_dict[1]["營業毛利率"], latest_data_dict[1]["營業利益率"], latest_data_dict[1]["稅後淨利率"]))
@@ -1902,6 +1926,7 @@ if __name__ == "__main__":
 	parser.add_argument('--check_scrape_stock_from_file', required=False, action='store_true', help="Only check if it is required to scrape the stock info and exit. The scrapy stocks are from the 'cb_list' file")
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	parser.add_argument('--disable_headless', required=False, action='store_true', help='Disable headless web scrapy')
+	parser.add_argument('--force_update', required=False, action='store_true', help='Force to scrape all data')
 	args = parser.parse_args()
 
 	cfg = {
@@ -1916,6 +1941,8 @@ if __name__ == "__main__":
 			cfg['cb_all'] = False
 	if args.disable_headless:
 		cfg['enable_headless'] = False
+	if args.force_update:
+		cfg['force_update'] = True
 	with ConvertibleBondAnalysis(cfg) as obj:
 		# # JSON data with unordered keys
 		# json_data = '{"a": 1, "c": 3, "b": 2}'
