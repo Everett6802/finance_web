@@ -58,7 +58,8 @@ class ConvertibleBondAnalysis(object):
 
 	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
 # Don't consider the CB temporarily
-	CB_TRADING_SUSPENSION_SET = {"62821",}  # set()
+	CB_TRADING_SUSPENSION_SET = {"62821","33571",}  # set()
+	CB_STOCK_TRADING_SUSPENSION_SET = set(map(lambda x: x[:4], CB_TRADING_SUSPENSION_SET))
 
 	STATEMENT_RELEASE_DATE_LIST = [(3,31,),(5,15,),(8,14,),(11,14),]
 
@@ -470,10 +471,11 @@ class ConvertibleBondAnalysis(object):
 			title_list = None
 			for index, row in enumerate(rows):
 				# import pdb; pdb.set_trace()
-				if index == 0: pass
-				elif index == 1:
+				if index in [0, 1,]: pass
+				elif index == 2:
 					title_list = list(map(lambda x: x.lstrip("=\"").rstrip("\"").rstrip("(%)"), row))
-# ['可轉債商品', '到期日', '可轉換日', '票面利率', '上次付息日', '轉換價格', '現股收盤價', '可轉債價格', '套利報酬', '年化殖利率', '']
+##  ['可轉債商品', '到期日', '可轉換日', '票面利率', '上次付息日', '轉換價格', '現股收盤價', '可轉債價格', '套利報酬', '年化殖利率', '']
+# ['可轉債商品', '可轉債收盤價', '成交量', '標的股收盤價', '轉換價值', '轉換溢價率', '轉換價格生效日', '轉換價格', '每張可轉換股數', '下一賣回日', '下一賣回價', '提前賣回收益率', '到期收益率', '發行日', '到期日', '發行張數', '剩餘張數', '轉換比例', '票面利率', '擔保情形', '']
 					# print(title_list)
 				else:
 					assert title_list is not None, "title_list should NOT be None"
@@ -494,6 +496,7 @@ class ConvertibleBondAnalysis(object):
 					data_dict = dict(zip(title_list, data_list))
 					cb_data[mobj.group(2)] = data_dict
 				# print ("%s" % (",".join(data_list)))
+		# import pdb; pdb.set_trace()
 		return cb_data
 
 
@@ -595,6 +598,8 @@ class ConvertibleBondAnalysis(object):
 			assert self.xcfg['cb_all'], "Incorrect setting: CB ID list"
 			cb_id_list = list(cb_data_dict.keys())
 			self.cb_id_list = list(filter(self.__is_cb, cb_id_list))
+			if len(self.CB_TRADING_SUSPENSION_SET) != 0:
+				self.cb_id_list = list(set(self.cb_id_list) - self.CB_TRADING_SUSPENSION_SET)
 		return cb_data_dict
 
 
@@ -720,8 +725,8 @@ class ConvertibleBondAnalysis(object):
 
 	def check_cb_stock_quotation_table_field(self, cb_quotation_data, cb_stock_quotation_data):
 		# import pdb; pdb.set_trace()
-		new_stock_id_set = set(map(lambda x: x[:4], self.cb_id_list))
-		old_stock_id_set = set(self.cb_stock_id_list)
+		new_stock_id_set = set(map(lambda x: x[:4], self.cb_id_list)) - self.CB_STOCK_TRADING_SUSPENSION_SET
+		old_stock_id_set = set(self.cb_stock_id_list) - self.CB_STOCK_TRADING_SUSPENSION_SET
 		deleted_stock_id_set = old_stock_id_set - new_stock_id_set
 		added_stock_id_set = new_stock_id_set - old_stock_id_set
 		stock_changed = False
