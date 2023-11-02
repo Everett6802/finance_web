@@ -16,6 +16,7 @@ import argparse
 from datetime import datetime
 from datetime import date
 from datetime import timedelta
+from dateutil.relativedelta import relativedelta
 import math
 import csv
 import collections
@@ -35,8 +36,10 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_CB_SUMMARY_FULL_FILENAME = "%s.csv" % DEFAULT_CB_SUMMARY_FILENAME
 	DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX = "可轉換公司債月分析表"
 
-# ['可轉債商品', '到期日', '可轉換日', '票面利率', '上次付息日', '轉換價格', '現股收盤價', '可轉債價格', '套利報酬', '年化殖利率', '']
-	DEFAULT_CB_SUMMARY_FIELD_TYPE = [str, str, str, float, str, float, float, float, float, float, str,]
+# # ['可轉債商品', '到期日', '可轉換日', '票面利率', '上次付息日', '轉換價格', '現股收盤價', '可轉債價格', '套利報酬', '年化殖利率', '']
+# 	DEFAULT_CB_SUMMARY_FIELD_TYPE = [str, str, str, float, str, float, float, float, float, float, str,]
+# ['可轉債商品', '可轉債收盤價', '成交量', '標的股收盤價', '轉換價值', '轉換溢價率', '轉換價格生效日', '轉換價格', '每張可轉換股數', '下一賣回日', '下一賣回價', '提前賣回收益率', '到期收益率', '發行日', '到期日', '發行張數', '剩餘張數', '轉換比例', '票面利率', '擔保情形', '']
+	DEFAULT_CB_SUMMARY_FIELD_TYPE = [str, float, int, float, float, float, str, float, int, str, float, float, float, str, str, int, int, float, float, str, str,]
 	DEFAULT_CB_SUMMARY_FIELD_TYPE_LEN = len(DEFAULT_CB_SUMMARY_FIELD_TYPE)
 	DEFAULT_CB_PUBLISH_FILENAME = "可轉債發行"
 	DEFAULT_CB_PUBLISH_FULL_FILENAME = "%s.csv" % DEFAULT_CB_PUBLISH_FILENAME
@@ -125,14 +128,14 @@ class ConvertibleBondAnalysis(object):
 
 	@classmethod
 	def __get_conversion_ratio(cls, conversion_price):
-		return float(100.0 / conversion_price)
+		return 100.0 / float(conversion_price)
 
 
 	@classmethod
 	def __get_conversion_premium_rate(cls, conversion_price, bond_price, share_price):
 		conversion_ratio = cls.__get_conversion_ratio(conversion_price)
-		conversion_value = float(conversion_ratio * share_price)
-		conversion_premium_rate = float(bond_price - conversion_value) / conversion_value
+		conversion_value = float(conversion_ratio) * float(share_price)
+		conversion_premium_rate = (float(bond_price) - float(conversion_value)) / conversion_value
 		return conversion_premium_rate
 
 
@@ -474,7 +477,6 @@ class ConvertibleBondAnalysis(object):
 				if index in [0, 1,]: pass
 				elif index == 2:
 					title_list = list(map(lambda x: x.lstrip("=\"").rstrip("\"").rstrip("(%)"), row))
-##  ['可轉債商品', '到期日', '可轉換日', '票面利率', '上次付息日', '轉換價格', '現股收盤價', '可轉債價格', '套利報酬', '年化殖利率', '']
 # ['可轉債商品', '可轉債收盤價', '成交量', '標的股收盤價', '轉換價值', '轉換溢價率', '轉換價格生效日', '轉換價格', '每張可轉換股數', '下一賣回日', '下一賣回價', '提前賣回收益率', '到期收益率', '發行日', '到期日', '發行張數', '剩餘張數', '轉換比例', '票面利率', '擔保情形', '']
 					# print(title_list)
 				else:
@@ -509,23 +511,32 @@ class ConvertibleBondAnalysis(object):
 			title_list = None
 			title_tenor_index = None
 			title_par_value_index = None
+
 			for index, row in enumerate(rows):
 				if index in [0, 1, 3,]: pass
 				elif index == 2:
 					title_list = row
 					title_list = title_list[1:]  # ignore 債券代號
+					title_publish_date_index = title_list.index("發行日期")
 					title_tenor_index = title_list.index("年期")
 					title_par_value_index = title_list.index("發行總面額")
 # ['債券簡稱', '發行人', '發行日期', '到期日期', '年期', '發行總面額', '發行資料']
+					title_list.append("可轉換日")
+# ['債券簡稱', '發行人', '發行日期', '到期日期', '年期', '發行總面額', '發行資料', '可轉換日']
 					# print(title_list)
 				else:
 					assert title_list is not None, "title_list should NOT be None"
 					data_list = []
 					data_key = row[0]
+					convertible_date = None
 					for data_index, data_value in enumerate(row[1:]):  # ignore 債券代號
 						if data_index >= self.DEFAULT_CB_PUBLISH_FIELD_TYPE_LEN: break
 						try:
-							if data_index == title_tenor_index:
+							if data_index == title_publish_date_index:
+								# import pdb; pdb.set_trace()
+								publish_date = datetime.strptime(data_value, "%m/%d/%Y")
+								convertible_date = publish_date + relativedelta(months=3) + relativedelta(days=1) 
+							elif data_index == title_tenor_index:
 								mobj = re.match(regex, data_value)
 								# import pdb; pdb.set_trace()
 								if mobj is None: 
@@ -538,7 +549,8 @@ class ConvertibleBondAnalysis(object):
 							data_list.append(data_value)
 						except ValueError as e:
 							print ("Exception occurs in %s, due to: %s" % (data_key, str(e)))
-							raise e						
+							raise e
+					data_list.append(convertible_date.strftime("%m/%d/%Y"))
 					data_dict = dict(zip(title_list, data_list))
 					cb_data[data_key] = data_dict
 		# import pdb; pdb.set_trace()
@@ -769,6 +781,7 @@ class ConvertibleBondAnalysis(object):
 				adjusted_irr = math.pow(100.0 / adjusted_sell_price, 1 / days_to_year) - 1
 				if use_percentage:
 					irr *= 100.0
+					adjusted_irr *= 100.0
 				irr_dict[cb_id] = {"商品": cb_quotation_data["商品"], "到期日": cb_quotation_data["到期日"], "賣出一": cb_quotation_data["賣出一"], "到期天數": days, "年化報酬率": irr, "年化報酬率(扣手續費)": adjusted_irr}
 		return irr_dict
 
@@ -949,11 +962,12 @@ class ConvertibleBondAnalysis(object):
 					"總量": cb_quotation_data["總量"],
 					"發行張數": cb_publish_data["發行總面額"] / 100000,
 				}
-			convertible_date_days = self.__get_days(cb_summary_data["可轉換日"])
+			# convertible_date_days = self.__get_days(cb_summary_data["可轉換日"])
+			convertible_date_days = self.__get_days(cb_publish_data["可轉換日"])
 			if abs(convertible_date_days) <= convertible_date_threshold:
 				convertible_date_cb_dict[cb_id] = {
 					"商品": cb_quotation_data["商品"],
-					"日期": cb_summary_data["可轉換日"],
+					"日期": cb_publish_data["可轉換日"],  # cb_summary_data["可轉換日"],
 					"天數": convertible_date_days,
 					"溢價率": conversion_premium_rate,
 					"成交": cb_quotation_data["成交"],
