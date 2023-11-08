@@ -48,20 +48,20 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_CB_PUBLISH_FIELD_TYPE_LEN = len(DEFAULT_CB_PUBLISH_FIELD_TYPE)
 	DEFAULT_CB_QUOTATION_FILENAME = "可轉債報價"
 	DEFAULT_CB_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_QUOTATION_FILENAME
-# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
-	DEFAULT_CB_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, str,]
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日', '一週%', '一月%', '一季%', '一年%']
+	DEFAULT_CB_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, str, str, str, str, str,]
 	DEFAULT_CB_QUOTATION_FIELD_TYPE_LEN = len(DEFAULT_CB_QUOTATION_FIELD_TYPE)
 	DEFAULT_CB_STOCK_QUOTATION_FILENAME = "可轉債個股報價"
 	DEFAULT_CB_STOCK_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_STOCK_QUOTATION_FILENAME
-# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '融資餘額', '融券餘額', '股本']
-	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, int, int, float,]
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '融資餘額', '融券餘額', '股本', '一週%', '一月%', '一季%', '一年%']
+	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, int, int, float, str, str, str, str,]
 	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE_LEN = len(DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE)
 # CB交易成本(元)
-	DEFAULT_CB_TRANSACTION_COST = 200
+	DEFAULT_CB_TRANSACTION_COST = 250
 
 	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
 # Don't consider the CB temporarily
-	CB_TRADING_SUSPENSION_SET = {"62821","33571",}  # set()
+	CB_TRADING_SUSPENSION_SET = {"53064",}  # set()
 	CB_STOCK_TRADING_SUSPENSION_SET = set(map(lambda x: x[:4], CB_TRADING_SUSPENSION_SET))
 
 	STATEMENT_RELEASE_DATE_LIST = [(3,31,),(5,15,),(8,14,),(11,14),]
@@ -719,7 +719,7 @@ class ConvertibleBondAnalysis(object):
 			# cb_publish_diff_quotation_id_list.sort(key=lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%Y/%m/%d"))
 			cb_publish_diff_quotation_id_list = list(filter(lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%m/%d/%Y") >= today, cb_publish_diff_quotation_id_list))  # 已全數轉換為普通股 資料尚未更新
 			cb_publish_diff_quotation_id_list.sort(key=lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%m/%d/%Y"))
-			new_public_cb_str_list = ["%s[%s]: %s" % (self.cb_publish[cb_publish_id]['債券簡稱'], cb_publish_id, self.cb_publish[cb_publish_id]['發行日期']) for cb_publish_id in cb_publish_diff_quotation_id_list]
+			new_public_cb_str_list = ["%s[%s]:  %s  %s年  %d張" % (self.cb_publish[cb_publish_id]['債券簡稱'], cb_publish_id, self.cb_publish[cb_publish_id]['發行日期'], self.cb_publish[cb_publish_id]['年期'], self.cb_publish[cb_publish_id]['發行總面額']/100000) for cb_publish_id in cb_publish_diff_quotation_id_list]
 			print("=== 新發行 ===")
 			for new_public_cb_str in new_public_cb_str_list: print(new_public_cb_str)
 			# print("The CB IDs are NOT identical[2]: %s" % cb_publish_diff_quotation_id_set)
@@ -961,6 +961,10 @@ class ConvertibleBondAnalysis(object):
 					"成交": cb_quotation_data["成交"],
 					"總量": cb_quotation_data["總量"],
 					"發行張數": cb_publish_data["發行總面額"] / 100000,
+					"一週%": cb_quotation_data["一週%"],
+					"一月%": cb_quotation_data["一月%"],
+					"一季%": cb_quotation_data["一季%"],
+					"一年%": cb_quotation_data["一年%"],
 				}
 			# convertible_date_days = self.__get_days(cb_summary_data["可轉換日"])
 			convertible_date_days = self.__get_days(cb_publish_data["可轉換日"])
@@ -973,6 +977,10 @@ class ConvertibleBondAnalysis(object):
 					"成交": cb_quotation_data["成交"],
 					"總量": cb_quotation_data["總量"],
 					"發行張數": cb_publish_data["發行總面額"] / 100000,
+					"一週%": cb_quotation_data["一週%"],
+					"一月%": cb_quotation_data["一月%"],
+					"一季%": cb_quotation_data["一季%"],
+					"一年%": cb_quotation_data["一年%"],
 				}
 			maturity_date_days = self.__get_days(cb_publish_data["到期日期"])
 			if 0 <= maturity_date_days <= maturity_date_threshold:
@@ -984,6 +992,10 @@ class ConvertibleBondAnalysis(object):
 					"成交": cb_quotation_data["成交"],
 					"總量": cb_quotation_data["總量"],
 					"發行張數": cb_publish_data["發行總面額"] / 100000,
+					"一週%": cb_quotation_data["一週%"],
+					"一月%": cb_quotation_data["一月%"],
+					"一季%": cb_quotation_data["一季%"],
+					"一年%": cb_quotation_data["一年%"],
 				}
 		return issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict
 
@@ -1697,10 +1709,10 @@ class ConvertibleBondAnalysis(object):
 		issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict = self.search_cb_opportunity_dates(quotation_data_dict, stock_quotation_data_dict)
 		if bool(issuing_date_cb_dict):
 			print("=== 近發行日期 ==================================================")
-			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數",]
+			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數", '一週%', '一月%', '一季%',]
 			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in issuing_date_cb_dict.items():
-				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"])))
+				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
 				cb_publish_detail_dict = self.get_publish_detail(cb_key)
 				print(" *************")
 				if cb_publish_detail_dict is None:
@@ -1713,10 +1725,10 @@ class ConvertibleBondAnalysis(object):
 			print("=================================================================\n")
 		if bool(convertible_date_cb_dict):
 			print("=== 近可轉換日 ==================================================")
-			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數",]
+			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數", '一週%', '一月%', '一季%',]
 			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in convertible_date_cb_dict.items():
-				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"])))
+				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
 				cb_publish_detail_dict = self.get_publish_detail(cb_key)
 				print(" *************")
 				print("  本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
@@ -1726,14 +1738,15 @@ class ConvertibleBondAnalysis(object):
 			print("=================================================================\n")
 		if bool(maturity_date_cb_dict):
 			print("=== 近到期日期 ==================================================")
-			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行總面額(億)", "股本(億)",]
+			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行總面額(億)", "股本(億)", '一週%', '一月%', '一季%',]
 			print("  ===> %s" % ", ".join(title_list))
 			cb_monthly_convert_data = self.get_cb_monthly_convert_data()
 			for cb_key, cb_data in maturity_date_cb_dict.items():
 				cb_stock_key = cb_key[:4]
 				cb_stock_data = stock_quotation_data_dict[cb_stock_key]
 				mass_convert_cb_data = cb_monthly_convert_data["content"][cb_key]
-				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %.2f" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(mass_convert_cb_data["發行張數"]) * 100000 / 100000000, float(cb_stock_data["股本"])))
+				# import pdb; pdb.set_trace()
+				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %.2f  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(mass_convert_cb_data["發行張數"]) * 100000 / 100000000, float(cb_stock_data["股本"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
 				cb_publish_detail_dict = self.get_publish_detail(cb_key)
 				print(" *************")
 				print("  本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
