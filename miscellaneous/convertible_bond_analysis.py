@@ -1841,9 +1841,14 @@ class ConvertibleBondAnalysis(object):
 			# import pdb; pdb.set_trace()
 			print(" %s  EPS年增率: %s" % (latest_data_dict[0], latest_data_dict[1]["年增率"]))
 			latest_data_dict = list(scrapy_data["content"]["財務比率簡表(季)"].items())[0]
-			print(" %s  營業毛利率: %s  營業利益率: %s, 稅後淨利率: %s" % (latest_data_dict[0], latest_data_dict[1]["營業毛利率"], latest_data_dict[1]["營業利益率"], latest_data_dict[1]["稅後淨利率"]))
-			print(" %s  營收成長率: %s  毛利成長率: %s, 營業利益成長率: %s, 稅後淨利成長率: %s" % (latest_data_dict[0], latest_data_dict[1]["營收成長率"], latest_data_dict[1]["營業毛利成長率"], latest_data_dict[1]["營業利益成長率"], latest_data_dict[1]["稅後淨利成長率"]))
-			print(" %s  流動比率: %s  速動比率: %s, 負債比率: %s" % (latest_data_dict[0], latest_data_dict[1]["流動比率"], latest_data_dict[1]["速動比率"], latest_data_dict[1]["負債比率％"]))
+			if "營業毛利率" in latest_data_dict[1]:
+				print(" %s  營業毛利率: %s  營業利益率: %s, 稅後淨利率: %s" % (latest_data_dict[0], latest_data_dict[1]["營業毛利率"], latest_data_dict[1]["營業利益率"], latest_data_dict[1]["稅後淨利率"]))
+				print(" %s  營收成長率: %s  毛利成長率: %s, 營業利益成長率: %s, 稅後淨利成長率: %s" % (latest_data_dict[0], latest_data_dict[1]["營收成長率"], latest_data_dict[1]["營業毛利成長率"], latest_data_dict[1]["營業利益成長率"], latest_data_dict[1]["稅後淨利成長率"]))
+				print(" %s  流動比率: %s  速動比率: %s, 負債比率: %s" % (latest_data_dict[0], latest_data_dict[1]["流動比率"], latest_data_dict[1]["速動比率"], latest_data_dict[1]["負債比率％"]))
+			else:  # 銀行類股
+				print(" %s  稅後淨利率: %s" % (latest_data_dict[0], latest_data_dict[1]["稅後淨利率(A)"]))
+				print(" %s  營收成長率: %s  稅後淨利成長率: %s" % (latest_data_dict[0], latest_data_dict[1]["營收成長率(A)"], latest_data_dict[1]["稅後淨利成長率"]))
+				print(" %s  負債比率: %s" % (latest_data_dict[0], latest_data_dict[1]["負債比率％"]))
 			latest_data_dict = list(scrapy_data["content"]["資產負債簡表(季)"].items())[0]
 			print(" %s  流動資產: %s  流動負債: %s, 股東權益總額: %s" % (latest_data_dict[0], latest_data_dict[1]["流動資產"], latest_data_dict[1]["流動負債"], latest_data_dict[1]["股東權益總額"]))
 			latest_data_dict = list(scrapy_data["content"]["現金流量簡表(季)"].items())[0]
@@ -1853,9 +1858,14 @@ class ConvertibleBondAnalysis(object):
 			print(" %s  營運現金流: %s  投資現金流: %s, 融資現金流: %s, 自由現金流: %s" % (latest_data_dict[0], latest_data_dict[1]["來自營運之現金流量"], latest_data_dict[1]["投資活動之現金流量"], latest_data_dict[1]["融資活動之現金流量"], free_cash_flow))
 # Yearly
 			latest_data_dict = list(scrapy_data["content"]["財務比率簡表(年)"].items())[0]
-			print(" %s  營業毛利率: %s  營業利益率: %s, 稅後淨利率: %s" % (latest_data_dict[0], latest_data_dict[1]["營業毛利率"], latest_data_dict[1]["營業利益率"], latest_data_dict[1]["稅後淨利率"]))
-			print(" %s  營收成長率: %s  毛利成長率: %s, 營業利益成長率: %s, 稅後淨利成長率: %s" % (latest_data_dict[0], latest_data_dict[1]["營收成長率"], latest_data_dict[1]["營業毛利成長率"], latest_data_dict[1]["營業利益成長率"], latest_data_dict[1]["稅後淨利成長率"]))
-			print(" %s  流動比率: %s  速動比率: %s, 負債比率: %s" % (latest_data_dict[0], latest_data_dict[1]["流動比率"], latest_data_dict[1]["速動比率"], latest_data_dict[1]["負債比率％"]))
+			if "營業毛利率" in latest_data_dict[1]:
+				print(" %s  營業毛利率: %s  營業利益率: %s, 稅後淨利率: %s" % (latest_data_dict[0], latest_data_dict[1]["營業毛利率"], latest_data_dict[1]["營業利益率"], latest_data_dict[1]["稅後淨利率"]))
+				print(" %s  營收成長率: %s  毛利成長率: %s, 營業利益成長率: %s, 稅後淨利成長率: %s" % (latest_data_dict[0], latest_data_dict[1]["營收成長率"], latest_data_dict[1]["營業毛利成長率"], latest_data_dict[1]["營業利益成長率"], latest_data_dict[1]["稅後淨利成長率"]))
+				print(" %s  流動比率: %s  速動比率: %s, 負債比率: %s" % (latest_data_dict[0], latest_data_dict[1]["流動比率"], latest_data_dict[1]["速動比率"], latest_data_dict[1]["負債比率％"]))
+			else:  # 銀行類股
+				print(" %s  稅後淨利率: %s" % (latest_data_dict[0], latest_data_dict[1]["稅後淨利率(A)"]))
+				print(" %s  營收成長率: %s  稅後淨利成長率: %s" % (latest_data_dict[0], latest_data_dict[1]["營收成長率(A)"], latest_data_dict[1]["稅後淨利成長率"]))
+				print(" %s  負債比率: %s" % (latest_data_dict[0], latest_data_dict[1]["負債比率％"]))
 			latest_data_dict = list(scrapy_data["content"]["資產負債簡表(年)"].items())[0]
 			print(" %s  流動資產: %s  流動負債: %s, 股東權益總額: %s" % (latest_data_dict[0], latest_data_dict[1]["流動資產"], latest_data_dict[1]["流動負債"], latest_data_dict[1]["股東權益總額"]))
 			latest_data_dict = list(scrapy_data["content"]["現金流量簡表(年)"].items())[0]
