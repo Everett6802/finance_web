@@ -208,6 +208,7 @@ class ConvertibleBondAnalysis(object):
 			"cb_list_filename": None,
 			"cb_list": None,
 			"enable_headless": True,
+			"enable_scrapy": True,
 			"force_update": False,
 		}
 		# import pdb; pdb.set_trace()
@@ -534,7 +535,8 @@ class ConvertibleBondAnalysis(object):
 						try:
 							if data_index == title_publish_date_index:
 								# import pdb; pdb.set_trace()
-								publish_date = datetime.strptime(data_value, "%m/%d/%Y")
+								# publish_date = datetime.strptime(data_value, "%m/%d/%Y")
+								publish_date = datetime.strptime(data_value, "%Y/%m/%d")
 								convertible_date = publish_date + relativedelta(months=3) + relativedelta(days=1) 
 							elif data_index == title_tenor_index:
 								mobj = re.match(regex, data_value)
@@ -1818,7 +1820,7 @@ class ConvertibleBondAnalysis(object):
 			premium_data = premium_dict[cb_id]
 			stock_premium_data = stock_premium_dict[cb_id]
 			# import pdb; pdb.set_trace()
-			scrapy_data = self.scrape_stock_info(cb_stock_id)
+			scrapy_data = self.scrape_stock_info(cb_stock_id) if self.xcfg["enable_scrapy"] else None
 			print("%s[%s]:" % (quotation_data["商品"], cb_id))
 			print(" %s" % "  ".join(["溢價率", "成交", "賣出一",]))
 			try:
@@ -1830,6 +1832,18 @@ class ConvertibleBondAnalysis(object):
 				print(" %s  %s  %d" % (publish_data["發行日期"], publish_data["年期"], int(publish_data["發行總面額"]) /100000))
 			except TypeError:
 				print(" %s" % ("  ".join([str(premium_data["溢價率"]), str(quotation_data["成交"]), str(quotation_data["賣出一"])])))
+# Check mass convert
+			# import pdb; pdb.set_trace()
+			mass_convert_cb_list = list(filter(lambda x: x[:4] == cb_stock_id, mass_convert_cb_dict.keys()))
+			if len(mass_convert_cb_list) != 0:
+				print("=== CB大量轉換 ==================================================")
+				title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
+				for cb_id in mass_convert_cb_list:
+					cb_data = mass_convert_cb_dict[cb_id]
+					mass_convert_percentage = float(cb_data["增減數額"]) / float(cb_data["發行張數"]) * 100.0
+					print(" %s  增減百分比: %.2f  前月底保管張數: %d, 本月底保管張數: %d, 發行張數: %d" % (cb_data["名稱"], mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
+# Data from Scrapy
+			if not self.xcfg["enable_scrapy"]: continue
 # Monthly
 			# import pdb; pdb.set_trace()
 			latest_data_dict = list(scrapy_data["content"]["月營收"].items())[0]
@@ -1873,16 +1887,6 @@ class ConvertibleBondAnalysis(object):
 			value2 = int(latest_data_dict[1]["投資活動之現金流量"].replace(",", ""))
 			free_cash_flow = "{:,}".format((value1 + value2))
 			print(" %s  營運現金流: %s  投資現金流: %s, 融資現金流: %s, 自由現金流: %s" % (latest_data_dict[0], latest_data_dict[1]["來自營運之現金流量"], latest_data_dict[1]["投資活動之現金流量"], latest_data_dict[1]["融資活動之現金流量"], free_cash_flow))
-# Check mass convert
-			# import pdb; pdb.set_trace()
-			mass_convert_cb_list = list(filter(lambda x: x[:4] == cb_stock_id, mass_convert_cb_dict.keys()))
-			if len(mass_convert_cb_list) != 0:
-				print("=== CB大量轉換 ==================================================")
-				title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
-				for cb_id in mass_convert_cb_list:
-					cb_data = mass_convert_cb_dict[cb_id]
-					mass_convert_percentage = float(cb_data["增減數額"]) / float(cb_data["發行張數"]) * 100.0
-					print(" %s  增減百分比: %.2f  前月底保管張數: %d, 本月底保管張數: %d, 發行張數: %d" % (cb_data["名稱"], mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
 
 
 # Only evaluate that it's required to scrape data if dry_run is True
@@ -1963,12 +1967,14 @@ if __name__ == "__main__":
 	parser.add_argument('--cb_list', required=False, help='The list of specific CB targets.')
 	parser.add_argument('--scrape_stock', required=False, help='Scrape the stock info of specific stocks and exit.')
 	parser.add_argument('--scrape_stock_from_file', required=False, action='store_true', help="Scrape the stock info and exit. The scrapy stocks are from the 'cb_list' file")
-	parser.add_argument('--recursive', required=False, action='store_true', help='Scrape stock recursively. Only take effect for the "scrape_stock" and "scrape_stock_from_file" argument')
+	parser.add_argument('--recursive', required=False, action='store_true', help='Scrape stock recursively. Caution: Only take effect for the "scrape_stock" and "scrape_stock_from_file" argument')
 	parser.add_argument('--check_scrape_stock', required=False, help='Only check if it is required to scrape the stock info of specific stocks and exit.')
 	parser.add_argument('--check_scrape_stock_from_file', required=False, action='store_true', help="Only check if it is required to scrape the stock info and exit. The scrapy stocks are from the 'cb_list' file")
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	parser.add_argument('--disable_headless', required=False, action='store_true', help='Disable headless web scrapy')
+	parser.add_argument('--disable_scrapy', required=False, action='store_true', help='Disable data from scrapy. Caution: Only take effect for the "display" argument')
 	parser.add_argument('--force_update', required=False, action='store_true', help='Force to scrape all data')
+
 	args = parser.parse_args()
 
 	cfg = {
@@ -1983,6 +1989,8 @@ if __name__ == "__main__":
 			cfg['cb_all'] = False
 	if args.disable_headless:
 		cfg['enable_headless'] = False
+	if args.disable_scrapy:
+		cfg['enable_scrapy'] = False
 	if args.force_update:
 		cfg['force_update'] = True
 	with ConvertibleBondAnalysis(cfg) as obj:
