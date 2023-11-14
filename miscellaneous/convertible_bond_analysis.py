@@ -1864,7 +1864,10 @@ class ConvertibleBondAnalysis(object):
 				print(" %s  營收成長率: %s  稅後淨利成長率: %s" % (latest_data_dict[0], latest_data_dict[1]["營收成長率(A)"], latest_data_dict[1]["稅後淨利成長率"]))
 				print(" %s  負債比率: %s" % (latest_data_dict[0], latest_data_dict[1]["負債比率％"]))
 			latest_data_dict = list(scrapy_data["content"]["資產負債簡表(季)"].items())[0]
-			print(" %s  流動資產: %s  流動負債: %s, 股東權益總額: %s" % (latest_data_dict[0], latest_data_dict[1]["流動資產"], latest_data_dict[1]["流動負債"], latest_data_dict[1]["股東權益總額"]))
+			if "流動資產" in latest_data_dict[1]:
+				print(" %s  流動資產: %s  流動負債: %s  股東權益總額: %s" % (latest_data_dict[0], latest_data_dict[1]["流動資產"], latest_data_dict[1]["流動負債"], latest_data_dict[1]["股東權益總額"]))
+			else:  # 銀行類股
+				print(" %s  股東權益總額: %s" % (latest_data_dict[0], latest_data_dict[1]["股東權益總額"]))
 			latest_data_dict = list(scrapy_data["content"]["現金流量簡表(季)"].items())[0]
 			value1 = int(latest_data_dict[1]["來自營運之現金流量"].replace(",", ""))
 			value2 = int(latest_data_dict[1]["投資活動之現金流量"].replace(",", ""))
@@ -1881,7 +1884,10 @@ class ConvertibleBondAnalysis(object):
 				print(" %s  營收成長率: %s  稅後淨利成長率: %s" % (latest_data_dict[0], latest_data_dict[1]["營收成長率(A)"], latest_data_dict[1]["稅後淨利成長率"]))
 				print(" %s  負債比率: %s" % (latest_data_dict[0], latest_data_dict[1]["負債比率％"]))
 			latest_data_dict = list(scrapy_data["content"]["資產負債簡表(年)"].items())[0]
-			print(" %s  流動資產: %s  流動負債: %s, 股東權益總額: %s" % (latest_data_dict[0], latest_data_dict[1]["流動資產"], latest_data_dict[1]["流動負債"], latest_data_dict[1]["股東權益總額"]))
+			if "流動資產" in latest_data_dict[1]:
+				print(" %s  流動資產: %s  流動負債: %s  股東權益總額: %s" % (latest_data_dict[0], latest_data_dict[1]["流動資產"], latest_data_dict[1]["流動負債"], latest_data_dict[1]["股東權益總額"]))
+			else:  # 銀行類股
+				print(" %s  股東權益總額: %s" % (latest_data_dict[0], latest_data_dict[1]["股東權益總額"]))
 			latest_data_dict = list(scrapy_data["content"]["現金流量簡表(年)"].items())[0]
 			value1 = int(latest_data_dict[1]["來自營運之現金流量"].replace(",", ""))
 			value2 = int(latest_data_dict[1]["投資活動之現金流量"].replace(",", ""))
