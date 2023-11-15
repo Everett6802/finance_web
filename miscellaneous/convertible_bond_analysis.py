@@ -66,6 +66,22 @@ class ConvertibleBondAnalysis(object):
 
 	STATEMENT_RELEASE_DATE_LIST = [(3,31,),(5,15,),(8,14,),(11,14),]
 
+
+	@classmethod
+	def __int(cls, value):
+		return int(value) if (value is not None) else value
+
+
+	@classmethod
+	def __float(cls, value, digits=2):
+		if value is None: return value
+		if digits is not None:
+			# import pdb; pdb.set_trace()
+			str_format = "{:." + str(digits) + "f}"
+			return str_format.format(value)
+		return float(value)
+
+
 	@classmethod
 	def __is_string(cls, value):
 		is_string = False
@@ -83,7 +99,7 @@ class ConvertibleBondAnalysis(object):
 			os.stat(filepath)
 		except OSError as exception:
 			if exception.errno != errno.ENOENT:
-				print ("%s: %s" % (errno.errorcode[exception.errno], os.strerror(exception.errno)))
+				print("%s: %s" % (errno.errorcode[exception.errno], os.strerror(exception.errno)))
 				raise
 			check_exist = False
 		return check_exist
@@ -230,19 +246,19 @@ class ConvertibleBondAnalysis(object):
 		if not self. __check_file_exist(self.xcfg["cb_summary_filepath"]):
 			file_not_exist_list.append(self.xcfg["cb_summary_filepath"])
 		# else:
-		# 	print ("Read CB Sumary from: %s" % self.xcfg["cb_summary_filepath"])
+		# 	print("Read CB Sumary from: %s" % self.xcfg["cb_summary_filepath"])
 		if not self. __check_file_exist(self.xcfg["cb_publish_filepath"]):
 			file_not_exist_list.append(self.xcfg["cb_publish_filepath"])
 		# else:
-		# 	print ("Read CB Publish from: %s" % self.xcfg["cb_publish_filepath"])
+		# 	print("Read CB Publish from: %s" % self.xcfg["cb_publish_filepath"])
 		if not self. __check_file_exist(self.xcfg["cb_quotation_filepath"]):
 			file_not_exist_list.append(self.xcfg["cb_quotation_filepath"])
 		# else:
-		# 	print ("Read CB Quotation from: %s" % self.xcfg["cb_quotation_filepath"])
+		# 	print("Read CB Quotation from: %s" % self.xcfg["cb_quotation_filepath"])
 		if not self. __check_file_exist(self.xcfg["cb_stock_quotation_filepath"]):
 			file_not_exist_list.append(self.xcfg["cb_stock_quotation_filepath"])
 		# else:
-		# 	print ("Read CB Stcok Quotation from: %s" % self.xcfg["cb_stock_quotation_filepath"])
+		# 	print("Read CB Stcok Quotation from: %s" % self.xcfg["cb_stock_quotation_filepath"])
 		# import pdb; pdb.set_trace()
 		if len(file_not_exist_list) > 0:
 			raise RuntimeError("The file[%s] does NOT exist" % ", ".join(file_not_exist_list))
@@ -498,7 +514,7 @@ class ConvertibleBondAnalysis(object):
 					data_list[0] = mobj.group(1)
 					data_dict = dict(zip(title_list, data_list))
 					cb_data[mobj.group(2)] = data_dict
-				# print ("%s" % (",".join(data_list)))
+				# print("%s" % (",".join(data_list)))
 		# import pdb; pdb.set_trace()
 		return cb_data
 
@@ -535,8 +551,8 @@ class ConvertibleBondAnalysis(object):
 						try:
 							if data_index == title_publish_date_index:
 								# import pdb; pdb.set_trace()
-								# publish_date = datetime.strptime(data_value, "%m/%d/%Y")
-								publish_date = datetime.strptime(data_value, "%Y/%m/%d")
+								publish_date = datetime.strptime(data_value, "%m/%d/%Y")
+								# publish_date = datetime.strptime(data_value, "%Y/%m/%d")
 								convertible_date = publish_date + relativedelta(months=3) + relativedelta(days=1) 
 							elif data_index == title_tenor_index:
 								mobj = re.match(regex, data_value)
@@ -550,7 +566,7 @@ class ConvertibleBondAnalysis(object):
 							data_value = data_type(data_value)
 							data_list.append(data_value)
 						except ValueError as e:
-							print ("Exception occurs in %s, due to: %s" % (data_key, str(e)))
+							print("Exception occurs in %s, due to: %s" % (data_key, str(e)))
 							raise e
 					data_list.append(convertible_date.strftime("%m/%d/%Y"))
 					data_dict = dict(zip(title_list, data_list))
@@ -576,11 +592,11 @@ class ConvertibleBondAnalysis(object):
 			for column_index in range(1, worksheet.ncols):
 				data_value = worksheet.cell_value(row_index, column_index)
 				data_list.append(data_value)
-			# print ("%s: %s" % (data_key, data_list))
+			# print("%s: %s" % (data_key, data_list))
 			try:
 				check_data_filter_funcptr(data_list)
 			except Exception as e:
-				print ("Exception occurs in %s: %s" % (data_key, data_list))
+				print("Exception occurs in %s: %s" % (data_key, data_list))
 				raise e
 			data_dict = dict(zip(title_list, data_list))
 			worksheet_data[data_key] = data_dict
@@ -925,6 +941,7 @@ class ConvertibleBondAnalysis(object):
 
 	def search_cb_opportunity_dates(self, cb_quotation, cb_stock_quotation, issuing_date_threshold=30, convertible_date_threshold=30, maturity_date_threshold=180, low_conversion_premium_rate_threshold=10, breakeven_threshold=110, use_percentage=True):
 		# premium_dict = self.calculate_premium(cb_quotation, cb_stock_quotation, need_breakeven=True, use_percentage=True)
+		no_filter = (low_conversion_premium_rate_threshold is None) and (breakeven_threshold is None)
 		issuing_date_cb_dict = {}
 		convertible_date_cb_dict = {}
 		maturity_date_cb_dict = {}
@@ -935,19 +952,21 @@ class ConvertibleBondAnalysis(object):
 			cb_quotation_data = cb_quotation[cb_id]
 			cb_stock_id = cb_id[:4]
 			cb_stock_quotation_data = cb_stock_quotation[cb_stock_id]
-			if cb_stock_quotation_data["買進一"] is None:
+			if (not no_filter) and (cb_stock_quotation_data["買進一"] is None):
 				# print("Ignore CB Stock[%s]: 沒有 買進一" % cb_stock_id)
 				continue
-			if cb_quotation_data["賣出一"] is None:
+			if (not no_filter) and (cb_quotation_data["賣出一"] is None):
 				# print("Ignore CB[%s]: 沒有 賣出一" % cb_id)
 				continue
-			if cb_quotation_data["成交"] is None:
+			if (not no_filter) and (cb_quotation_data["成交"] is None):
 				# print("Ignore CB[%s]: 沒有 成交" % cb_stock_id)
 				continue
 
-			conversion_premium_rate = self.__get_conversion_premium_rate(cb_summary_data["轉換價格"], cb_quotation_data["賣出一"], cb_stock_quotation_data["買進一"])
-			if use_percentage:
-				conversion_premium_rate *= 100.0
+			conversion_premium_rate = None
+			if (cb_stock_quotation_data["買進一"] is not None) and (cb_quotation_data["賣出一"] is not None):
+				conversion_premium_rate = self.__get_conversion_premium_rate(cb_summary_data["轉換價格"], cb_quotation_data["賣出一"], cb_stock_quotation_data["買進一"])
+				if use_percentage:
+					conversion_premium_rate *= 100.0
 			if low_conversion_premium_rate_threshold is not None and conversion_premium_rate > low_conversion_premium_rate_threshold:
 				continue
 			if breakeven_threshold is not None and cb_quotation_data["成交"] > breakeven_threshold:
@@ -1015,7 +1034,12 @@ class ConvertibleBondAnalysis(object):
 		table = soup.find_all("table", {"class": "hasBorder"})
 # Beautiful Soup: 'ResultSet' object has no attribute 'find_all'?
 # https://stackoverflow.com/questions/24108507/beautiful-soup-resultset-object-has-no-attribute-find-all
-		table_trs = table[0].find_all("tr")
+		try:
+			table_trs = table[0].find_all("tr")
+		except Exception as e:
+# Too many query requests from your ip, please wait and try again later!!
+			print(e)
+			import pdb; pdb.set_trace()
 		cb_publish_detail_dict = {}
 		# import pdb; pdb.set_trace()
 		for tr in table_trs:
@@ -1524,7 +1548,7 @@ class ConvertibleBondAnalysis(object):
 			cur_datetime = datetime.now()
 			need_scrapy = True
 			if self.__check_file_exist(filepath):
-				# print ("The file[%s] already exist !!!" % filepath)
+				# print("The file[%s] already exist !!!" % filepath)
 				with open(filepath, "r", encoding='utf8') as f:
 					data_dict = json.load(f)
 					# Check it's required to scrape the data				
@@ -1538,7 +1562,7 @@ class ConvertibleBondAnalysis(object):
 					"content": {},
 				}
 # thead
-				print ("The file[%s] does NOT exist. Scrape the data from website" % filepath)
+				print("The file[%s] does NOT exist. Scrape the data from website" % filepath)
 				table_head = table.find_element("tag name", "thead")
 				trs = table_head.find_elements("tag name", "tr")
 				table_title_list = []
@@ -1566,7 +1590,7 @@ class ConvertibleBondAnalysis(object):
 				with open(filepath, "w", encoding='utf-8') as f:
 					json.dump(data_dict, f, indent=3, ensure_ascii=False)
 		except Exception as e:
-			print ("Exception occurs while scraping [%s], due to: %s" % (url, str(e)))
+			print("Exception occurs while scraping [%s], due to: %s" % (url, str(e)))
 			raise e
 		# finally:
 		# 	driver.close()
@@ -1666,14 +1690,14 @@ class ConvertibleBondAnalysis(object):
 
 	def search(self):
 		# data_dict_summary = self.__read_cb_summary()
-		# # print (data_dict_summary)
+		# # print(data_dict_summary)
 		quotation_data_dict = self.__read_cb_quotation()
 		stock_quotation_data_dict = self.__read_cb_stock_quotation()
 		if self.xcfg['cb_all']:
 			self.check_data_source(quotation_data_dict, stock_quotation_data_dict)
 		print("\n*****************************************************************\n")
 
-		# print (quotation_data_dict)
+		# print(quotation_data_dict)
 		# print(self.calculate_internal_rate_of_return(quotation_data_dict))
 		irr_dict = self.get_positive_internal_rate_of_return(quotation_data_dict)
 		if bool(irr_dict):
@@ -1681,7 +1705,7 @@ class ConvertibleBondAnalysis(object):
 			title_list = ["年化報酬率", "年化報酬率(扣手續費)", "賣出一", "到期日",]
 			print("  ===> %s" % ", ".join(title_list))
 			for irr_key, irr_data in irr_dict.items():
-				print ("%s[%s]: %.2f  %.2f  %.2f  %s" % (irr_data["商品"], irr_key, float(irr_data["年化報酬率"]), float(irr_data["年化報酬率(扣手續費)"]), float(irr_data["賣出一"]), irr_data["到期日"]))
+				print("%s[%s]: %.2f  %.2f  %.2f  %s" % (irr_data["商品"], irr_key, float(irr_data["年化報酬率"]), float(irr_data["年化報酬率(扣手續費)"]), float(irr_data["賣出一"]), irr_data["到期日"]))
 			print("=================================================================\n")
 		premium_dict = self.get_negative_premium(quotation_data_dict, stock_quotation_data_dict)
 		if bool(premium_dict):
@@ -1690,7 +1714,7 @@ class ConvertibleBondAnalysis(object):
 			print("  ===> %s" % ", ".join(title_list))
 			# import pdb; pdb.set_trace()
 			for premium_key, premium_data in premium_dict.items():
-				print ("%s[%s]: %.2f  %d  %d" % (premium_data["商品"], premium_key, float(premium_data["溢價率"]), premium_data["融資餘額"], premium_data["融券餘額"]))
+				print("%s[%s]: %.2f  %d  %d" % (premium_data["商品"], premium_key, float(premium_data["溢價率"]), premium_data["融資餘額"], premium_data["融券餘額"]))
 			print("=================================================================\n")
 		stock_premium_dict = self.get_absolute_stock_premium(quotation_data_dict, stock_quotation_data_dict)
 		if bool(stock_premium_dict):
@@ -1698,7 +1722,7 @@ class ConvertibleBondAnalysis(object):
 			title_list = ["股票溢價率",]
 			print("  ===> %s" % ", ".join(title_list))
 			for stock_premium_key, stock_premium_data in stock_premium_dict.items():
-				print ("%s[%s]: %.2f" % (stock_premium_data["商品"], stock_premium_key, float(stock_premium_data["股票溢價率"])))
+				print("%s[%s]: %.2f" % (stock_premium_data["商品"], stock_premium_key, float(stock_premium_data["股票溢價率"])))
 			print("=================================================================\n")
 		cb_dict = self.get_low_premium_and_breakeven(quotation_data_dict, stock_quotation_data_dict)
 		if bool(cb_dict):
@@ -1706,15 +1730,17 @@ class ConvertibleBondAnalysis(object):
 			title_list = ["溢價率", "成交", "賣出一", "到期日",]
 			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in cb_dict.items():
-				print ("%s[%s]: %.2f  %.2f  %.2f  %s" % (cb_data["商品"], cb_key, float(cb_data["溢價率"]), float(cb_data["成交"]), float(cb_data["賣出一"]), cb_data["到期日"]))
+				print("%s[%s]: %.2f  %.2f  %.2f  %s" % (cb_data["商品"], cb_key, float(cb_data["溢價率"]), float(cb_data["成交"]), float(cb_data["賣出一"]), cb_data["到期日"]))
 			print("=================================================================\n")
 		issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict = self.search_cb_opportunity_dates(quotation_data_dict, stock_quotation_data_dict)
+		# issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict = self.search_cb_opportunity_dates(quotation_data_dict, stock_quotation_data_dict, low_conversion_premium_rate_threshold=None, breakeven_threshold=None)
 		if bool(issuing_date_cb_dict):
 			print("=== 近發行日期 ==================================================")
 			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數", '一週%', '一月%', '一季%',]
 			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in issuing_date_cb_dict.items():
-				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
+				# print("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
+				print("%s[%s]:  %s(%d)  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
 				cb_publish_detail_dict = self.get_publish_detail(cb_key)
 				print(" *************")
 				if cb_publish_detail_dict is None:
@@ -1730,7 +1756,8 @@ class ConvertibleBondAnalysis(object):
 			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數", '一週%', '一月%', '一季%',]
 			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in convertible_date_cb_dict.items():
-				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
+				# print("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
+				print("%s[%s]:  %s(%d)  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
 				cb_publish_detail_dict = self.get_publish_detail(cb_key)
 				print(" *************")
 				print("  本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
@@ -1748,7 +1775,8 @@ class ConvertibleBondAnalysis(object):
 				cb_stock_data = stock_quotation_data_dict[cb_stock_key]
 				mass_convert_cb_data = cb_monthly_convert_data["content"][cb_key]
 				# import pdb; pdb.set_trace()
-				print ("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %.2f  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], int(cb_data["天數"]), float(cb_data["溢價率"]), float(cb_data["成交"]), int(cb_data["總量"]), int(mass_convert_cb_data["發行張數"]) * 100000 / 100000000, float(cb_stock_data["股本"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
+				# print("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %.2f  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(mass_convert_cb_data["發行張數"]) * 100000 / 100000000, self.__float(cb_stock_data["股本"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
+				print("%s[%s]:  %s(%d)  %s  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(mass_convert_cb_data["發行張數"]) * 100000 / 100000000, self.__float(cb_stock_data["股本"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
 				cb_publish_detail_dict = self.get_publish_detail(cb_key)
 				print(" *************")
 				print("  本月受理轉(交)換之公司債張數: %s" % (cb_publish_detail_dict["本月受理轉(交)換之公司債張數"]))
@@ -1771,7 +1799,7 @@ class ConvertibleBondAnalysis(object):
 			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in mass_convert_cb_dict.items():
 				mass_convert_percentage = float(cb_data["增減數額"]) / float(cb_data["發行張數"]) * 100.0
-				print ("%s[%s]:  %.2f  %d  %d  %d" % (cb_data["名稱"], cb_key, mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
+				print("%s[%s]:  %.2f  %d  %d  %d" % (cb_data["名稱"], cb_key, mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
 		# multiple_publish_dict = self.search_multiple_publish()
 		# if bool(multiple_publish_dict):
 		# 	print("=== 多次發行 ==================================================")
