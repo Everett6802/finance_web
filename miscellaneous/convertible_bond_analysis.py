@@ -25,6 +25,23 @@ import json
 from collections import OrderedDict
 
 
+class RetryException(Exception): pass
+
+def retry(max_retry=3, sleep_time=10):
+	def decorator(func):
+		def wrapper(*args, **kwargs):
+			for index in range(max_retry):
+				try:
+					res = func(*args, **kwargs)
+					return res
+				except RetryException as e:
+					print("Error occurs, due to: %s" % str(e))
+					print("Sleep %d seconds, then retry...... %d" % (sleep_time, index + 1))
+					time.sleep(sleep_time)
+		return wrapper
+	return decorator
+
+
 class ConvertibleBondAnalysis(object):
 
 	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
@@ -61,7 +78,7 @@ class ConvertibleBondAnalysis(object):
 
 	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
 # Don't consider the CB temporarily
-	CB_TRADING_SUSPENSION_SET = {"53064",}  # set()
+	CB_TRADING_SUSPENSION_SET = {"30184",}  # set()
 	CB_STOCK_TRADING_SUSPENSION_SET = set(map(lambda x: x[:4], CB_TRADING_SUSPENSION_SET))
 
 	STATEMENT_RELEASE_DATE_LIST = [(3,31,),(5,15,),(8,14,),(11,14),]
@@ -742,12 +759,14 @@ class ConvertibleBondAnalysis(object):
 			for new_public_cb_str in new_public_cb_str_list: print(new_public_cb_str)
 			# print("The CB IDs are NOT identical[2]: %s" % cb_publish_diff_quotation_id_set)
 		cb_quotation_diff_summary_id_set = cb_quotation_id_set - cb_summary_id_set
-		if len(cb_quotation_diff_summary_id_set) > 0:
+		if len(cb_quotation_diff_summary_id_set) > 0:  # Possible root cause: The CB stops trading
 			print("The CB IDs are NOT identical[3]: %s" % cb_quotation_diff_summary_id_set)
+			print("The CBs may stop trading ?")
 			if not stock_changed: stock_changed = True
 		cb_quotation_diff_publish_id_set = cb_quotation_id_set - cb_publish_id_set
-		if len(cb_quotation_diff_publish_id_set) > 0:
+		if len(cb_quotation_diff_publish_id_set) > 0:  # Possible root cause: The CB stops trading
 			print("The CB IDs are NOT identical[4]: %s" % cb_quotation_diff_publish_id_set)
+			print("The CBs may stop trading ?")
 			if not stock_changed: stock_changed = True
 		if stock_changed:
 			raise ValueError("The CBs are NOT identical")
@@ -1021,6 +1040,7 @@ class ConvertibleBondAnalysis(object):
 		return issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict
 
 
+	@retry()
 	def scrape_publish_detail(self, cb_id):
 		# import pdb; pdb.set_trace()
 		url = self.cb_publish[cb_id]["發行資料"]
@@ -1039,7 +1059,7 @@ class ConvertibleBondAnalysis(object):
 		except Exception as e:
 # Too many query requests from your ip, please wait and try again later!!
 			print(e)
-			import pdb; pdb.set_trace()
+			raise RetryException("Too many query requests from your ip, please wait and try again later")
 		cb_publish_detail_dict = {}
 		# import pdb; pdb.set_trace()
 		for tr in table_trs:
@@ -1251,7 +1271,13 @@ class ConvertibleBondAnalysis(object):
 	def __stock_info_major_inflow_outflow_scrapy_funcptr(self, driver):
 		# import pdb; pdb.set_trace()
 		data_dict = {}
-		table = driver.find_element("xpath", '//*[@id="oMainTable"]')
+		table = None
+		try:
+			table = driver.find_element("xpath", '//*[@id="oMainTable"]')
+		# except selenium.common.exceptions.NoSuchElementException as e:
+		except Exception as e:
+			print("WARNING: No data in 主力進出, due to: %s" % str(e))
+			return data_dict
 		trs = table.find_elements("tag name", "tr")
 
 		table_row_start_index = 6
@@ -2008,7 +2034,6 @@ if __name__ == "__main__":
 	parser.add_argument('--disable_headless', required=False, action='store_true', help='Disable headless web scrapy')
 	parser.add_argument('--disable_scrapy', required=False, action='store_true', help='Disable data from scrapy. Caution: Only take effect for the "display" argument')
 	parser.add_argument('--force_update', required=False, action='store_true', help='Force to scrape all data')
-
 	args = parser.parse_args()
 
 	cfg = {
