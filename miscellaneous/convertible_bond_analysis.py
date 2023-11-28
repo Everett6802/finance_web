@@ -77,9 +77,9 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_CB_TRANSACTION_COST = 250
 
 	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
-# Don't consider the CB temporarily
-	CB_TRADING_SUSPENSION_SET = {"30184",}  # set()
-	CB_STOCK_TRADING_SUSPENSION_SET = set(map(lambda x: x[:4], CB_TRADING_SUSPENSION_SET))
+# # Don't consider the CB temporarily
+# 	CB_TRADING_SUSPENSION_SET = {"68691",}  # set()
+# 	CB_STOCK_TRADING_SUSPENSION_SET = set(map(lambda x: x[:4], CB_TRADING_SUSPENSION_SET))
 
 	STATEMENT_RELEASE_DATE_LIST = [(3,31,),(5,15,),(8,14,),(11,14),]
 
@@ -240,6 +240,7 @@ class ConvertibleBondAnalysis(object):
 			"cb_all": False,
 			"cb_list_filename": None,
 			"cb_list": None,
+			"cb_ignore_list": None,
 			"enable_headless": True,
 			"enable_scrapy": True,
 			"force_update": False,
@@ -300,6 +301,16 @@ class ConvertibleBondAnalysis(object):
 		self.selenium_select_module = None
 		self.wget_module = None
 		self.cb_publish_detail = {}
+
+		self.cb_ignore_set = set()
+		self.cb_stock_ignore_set = set()
+# Don't consider the CB temporarily
+		if self.xcfg["cb_ignore_list"] is not None:
+			import pdb; pdb.set_trace()
+			if type(self.xcfg["cb_ignore_list"]) is str:
+				self.xcfg["cb_ignore_list"] = self.xcfg["cb_ignore_list"].split(",")
+			self.cb_ignore_set = set(self.xcfg["cb_ignore_list"])
+			self.cb_stock_ignore_set = set(map(lambda x: x[:4], self.cb_ignore_set))
 
 		self.STOCK_INFO_SCRAPY_METADATA_DICT = {
 # Daily
@@ -399,8 +410,8 @@ class ConvertibleBondAnalysis(object):
 			else:	
 				self.__get_cb_list_from_file()
 			self.cb_id_list = self.xcfg["cb_list"]
-			if len(self.CB_TRADING_SUSPENSION_SET) != 0:
-				self.cb_id_list = list(set(self.cb_id_list) - self.CB_TRADING_SUSPENSION_SET)
+			if len(self.cb_ignore_set) != 0:
+				self.cb_id_list = list(set(self.cb_id_list) - self.self.cb_ignore_set)
 # Check if the incorrect CB IDs exist
 			# import pdb; pdb.set_trace()
 			cb_id_list = list(filter(lambda x: re.match("[\d]{4,5}", x) is not None, self.cb_id_list))  # Fals to filter the ID whose lenght is more than 5
@@ -645,8 +656,8 @@ class ConvertibleBondAnalysis(object):
 			assert self.xcfg['cb_all'], "Incorrect setting: CB ID list"
 			cb_id_list = list(cb_data_dict.keys())
 			self.cb_id_list = list(filter(self.__is_cb, cb_id_list))
-			if len(self.CB_TRADING_SUSPENSION_SET) != 0:
-				self.cb_id_list = list(set(self.cb_id_list) - self.CB_TRADING_SUSPENSION_SET)
+			if len(self.cb_ignore_set) != 0:
+				self.cb_id_list = list(set(self.cb_id_list) - self.cb_ignore_set)
 		return cb_data_dict
 
 
@@ -739,9 +750,9 @@ class ConvertibleBondAnalysis(object):
 
 	def check_cb_quotation_table_field(self, cb_quotation_data):
 		# import pdb; pdb.set_trace()
-		cb_summary_id_set = set(self.cb_summary.keys()) - self.CB_TRADING_SUSPENSION_SET
-		cb_publish_id_set = set(self.cb_publish.keys()) - self.CB_TRADING_SUSPENSION_SET
-		cb_quotation_id_set = set(self.cb_id_list) - self.CB_TRADING_SUSPENSION_SET
+		cb_summary_id_set = set(self.cb_summary.keys()) - self.cb_ignore_set
+		cb_publish_id_set = set(self.cb_publish.keys()) - self.cb_ignore_set
+		cb_quotation_id_set = set(self.cb_id_list) - self.cb_ignore_set
 		cb_summary_diff_quotation_id_set = cb_summary_id_set - cb_quotation_id_set
 		stock_changed = False
 		if len(cb_summary_diff_quotation_id_set) > 0:
@@ -759,14 +770,14 @@ class ConvertibleBondAnalysis(object):
 			for new_public_cb_str in new_public_cb_str_list: print(new_public_cb_str)
 			# print("The CB IDs are NOT identical[2]: %s" % cb_publish_diff_quotation_id_set)
 		cb_quotation_diff_summary_id_set = cb_quotation_id_set - cb_summary_id_set
-		if len(cb_quotation_diff_summary_id_set) > 0:  # Possible root cause: The CB stops trading
+		if len(cb_quotation_diff_summary_id_set) > 0:  # Possible root cause: The CB stops trading/is NOT updated in the quotation table
 			print("The CB IDs are NOT identical[3]: %s" % cb_quotation_diff_summary_id_set)
-			print("The CBs may stop trading ?")
+			print("The CBs may stop trading/not be updated in the quotation table ...... Consider to Ignore them ??")
 			if not stock_changed: stock_changed = True
 		cb_quotation_diff_publish_id_set = cb_quotation_id_set - cb_publish_id_set
 		if len(cb_quotation_diff_publish_id_set) > 0:  # Possible root cause: The CB stops trading
 			print("The CB IDs are NOT identical[4]: %s" % cb_quotation_diff_publish_id_set)
-			print("The CBs may stop trading ?")
+			print("The CBs may stop trading ? ...... Consider to Ignore them ?")
 			if not stock_changed: stock_changed = True
 		if stock_changed:
 			raise ValueError("The CBs are NOT identical")
@@ -774,8 +785,8 @@ class ConvertibleBondAnalysis(object):
 
 	def check_cb_stock_quotation_table_field(self, cb_quotation_data, cb_stock_quotation_data):
 		# import pdb; pdb.set_trace()
-		new_stock_id_set = set(map(lambda x: x[:4], self.cb_id_list)) - self.CB_STOCK_TRADING_SUSPENSION_SET
-		old_stock_id_set = set(self.cb_stock_id_list) - self.CB_STOCK_TRADING_SUSPENSION_SET
+		new_stock_id_set = set(map(lambda x: x[:4], self.cb_id_list)) - self.cb_stock_ignore_set
+		old_stock_id_set = set(self.cb_stock_id_list) - self.cb_stock_ignore_set
 		deleted_stock_id_set = old_stock_id_set - new_stock_id_set
 		added_stock_id_set = new_stock_id_set - old_stock_id_set
 		stock_changed = False
@@ -2025,6 +2036,7 @@ if __name__ == "__main__":
 	parser.add_argument('-s', '--search', required=False, action='store_true', help='Select targets based on the search rule.')
 	parser.add_argument('-d', '--display', required=False, action='store_true', help='Display specific targets.')
 	parser.add_argument('--cb_list', required=False, help='The list of specific CB targets.')
+	parser.add_argument('--cb_ignore_list', required=False, help='The list of specific CB targets which are ignored.')
 	parser.add_argument('--scrape_stock', required=False, help='Scrape the stock info of specific stocks and exit.')
 	parser.add_argument('--scrape_stock_from_file', required=False, action='store_true', help="Scrape the stock info and exit. The scrapy stocks are from the 'cb_list' file")
 	parser.add_argument('--recursive', required=False, action='store_true', help='Scrape stock recursively. Caution: Only take effect for the "scrape_stock" and "scrape_stock_from_file" argument')
@@ -2037,7 +2049,8 @@ if __name__ == "__main__":
 	args = parser.parse_args()
 
 	cfg = {
-		# "cb_list": "62822,62791,61965,54342,33881"
+		# "cb_list": "62822,62791,61965,54342,33881",
+		# "cb_ignore_list", "",
 	}
 	if args.all:
 		cfg['cb_all'] = args.all
@@ -2046,6 +2059,8 @@ if __name__ == "__main__":
 		if 'cb_all' in cfg:
 			print("The 'all' flag is ignored...")
 			cfg['cb_all'] = False
+	if args.cb_ignore_list:
+		cfg['cb_ignore_list'] = args.cb_ignore_list
 	if args.disable_headless:
 		cfg['enable_headless'] = False
 	if args.disable_scrapy:
