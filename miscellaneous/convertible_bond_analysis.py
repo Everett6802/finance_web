@@ -1735,23 +1735,27 @@ class ConvertibleBondAnalysis(object):
 		issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict = self.search_cb_opportunity_dates(quotation_data_dict, stock_quotation_data_dict, low_conversion_premium_rate_threshold=None, breakeven_threshold=None)
 		if bool(issuing_date_cb_dict):
 			print("=== 近發行日期 ==================================================")
-			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數", '一週%', '一月%', '一季%',]
+			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數", '一週%', '一月%', '一季%', "成交(股)", "總量(股)", '一週%(股)', '一月%(股)', '一季%(股)',]
 			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in issuing_date_cb_dict.items():
+				cb_stock_key = cb_key[:4]
+				cb_stock_data = stock_quotation_data_dict[cb_stock_key]
 				# print("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
-				print("%s[%s]:  %s(%d)  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
+				print("%s[%s]:  %s(%d)  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], self.__float(cb_stock_data["成交"]), self.__int(cb_stock_data["總量"]), cb_stock_data["一週%"], cb_stock_data["一月%"], cb_stock_data["一季%"]))
 			print("=================================================================\n")
 		if bool(convertible_date_cb_dict):
 			print("=== 近可轉換日 ==================================================")
-			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數", '一週%', '一月%', '一季%',]
+			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數", '一週%', '一月%', '一季%', "成交(股)", "總量(股)", '一週%(股)', '一月%(股)', '一季%(股)',]
 			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in convertible_date_cb_dict.items():
+				cb_stock_key = cb_key[:4]
+				cb_stock_data = stock_quotation_data_dict[cb_stock_key]
 				# print("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
-				print("%s[%s]:  %s(%d)  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
+				print("%s[%s]:  %s(%d)  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], self.__float(cb_stock_data["成交"]), self.__int(cb_stock_data["總量"]), cb_stock_data["一週%"], cb_stock_data["一月%"], cb_stock_data["一季%"]))
 			print("=================================================================\n")
 		if bool(maturity_date_cb_dict):
 			print("=== 近到期日期 ==================================================")
-			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行總面額(億)", "股本(億)", '一週%', '一月%', '一季%',]
+			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行總面額(億)", "股本(億)", '一週%', '一月%', '一季%', "成交(股)", "總量(股)", '一週%(股)', '一月%(股)', '一季%(股)',]
 			print("  ===> %s" % ", ".join(title_list))
 			cb_monthly_convert_data = self.get_cb_monthly_convert_data()
 			for cb_key, cb_data in maturity_date_cb_dict.items():
@@ -1760,7 +1764,7 @@ class ConvertibleBondAnalysis(object):
 				mass_convert_cb_data = cb_monthly_convert_data["content"][cb_key]
 				# import pdb; pdb.set_trace()
 				# print("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %.2f  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(mass_convert_cb_data["發行張數"]) * 100000 / 100000000, self.__float(cb_stock_data["股本"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
-				print("%s[%s]:  %s(%d)  %s  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(mass_convert_cb_data["發行張數"]) * 100000 / 100000000, self.__float(cb_stock_data["股本"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
+				print("%s[%s]:  %s(%d)  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(mass_convert_cb_data["發行張數"]) * 100000 / 100000000, self.__float(cb_stock_data["股本"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], self.__float(cb_stock_data["成交"]), self.__int(cb_stock_data["總量"]), cb_stock_data["一週%"], cb_stock_data["一月%"], cb_stock_data["一季%"]))
 			print("=================================================================\n")
 
 
