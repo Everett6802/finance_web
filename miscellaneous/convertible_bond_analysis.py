@@ -167,6 +167,11 @@ class ConvertibleBondAnalysis(object):
 
 
 	@classmethod
+	def __is_not_cb(cls, cb_id):
+		return (not cls.__is_cb(cb_id))
+
+
+	@classmethod
 	def __get_conversion_ratio(cls, conversion_price):
 		return 100.0 / float(conversion_price)
 
@@ -660,13 +665,22 @@ class ConvertibleBondAnalysis(object):
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
 		cb_data_dict = self.__read_worksheet(self.cb_worksheet, self.__check_cb_quotation_data)
 		if sort_by_field is not None:
-			cb_data_dict = OrderedDict(sorted(cb_data_dict.items(), key=lambda x: x[1][sort_by_field]))
+			cb_data_dict = OrderedDict(sorted(cb_data_dict.items(), key=lambda x: x[1][sort_by_field], reverse=True))
 		if self.cb_id_list is None:
 			assert self.xcfg['cb_all'], "Incorrect setting: CB ID list"
 			cb_id_list = list(cb_data_dict.keys())
-			self.cb_id_list = list(filter(self.__is_cb, cb_id_list))
+			not_cb_id_list = list(filter(self.__is_not_cb, cb_id_list))
+			if len(not_cb_id_list) != 0:
+				self.cb_id_list = list(set(cb_id_list) - set(not_cb_id_list))
+				for not_cb_id in not_cb_id_list:
+					cb_data_dict.pop(not_cb_id)
+			# self.cb_id_list = list(filter(self.__is_cb, cb_id_list))
 			if len(self.cb_ignore_set) != 0:
 				self.cb_id_list = list(set(self.cb_id_list) - self.cb_ignore_set)
+				cb_ignore_list = list(self.cb_ignore_set)
+				for cb_ignore in cb_ignore_list:
+					cb_data_dict.pop(cb_ignore)
+		# import pdb; pdb.set_trace()
 		return cb_data_dict
 
 
@@ -1029,35 +1043,6 @@ class ConvertibleBondAnalysis(object):
 			cb_quotation_data = cb_quotation[cb_id]
 			cb_stock_id = cb_id[:4]
 			cb_stock_quotation_data = cb_stock_quotation[cb_stock_id]
-
-			# date_cb_dict = {
-			# 	"商品": cb_quotation_data["商品"],
-			# 	"發行日期": cb_publish_data["發行日期"],
-			# 	"可轉換日": cb_publish_data["可轉換日"],
-			# 	"到期日期": cb_publish_data["到期日期"],
-			# 	"轉換價格": cb_summary_data["轉換價格"],
-			# 	# "天數": issuing_date_days,
-			# 	"溢價率": None,  # conversion_premium_rate,
-			# 	"成交": cb_quotation_data["成交"],
-			# 	"總量": cb_quotation_data["總量"],
-			# 	"發行張數": cb_publish_data["發行總面額"] / 100000,
-			# 	"一週%": cb_quotation_data["一週%"],
-			# 	"一月%": cb_quotation_data["一月%"],
-			# 	"一季%": cb_quotation_data["一季%"],
-			# 	"一年%": cb_quotation_data["一年%"],
-			# 	"成交(股)": cb_stock_quotation_data["成交"],
-			# 	"總量(股)": cb_stock_quotation_data["總量"],
-			# 	"股本": cb_stock_quotation_data["股本"],
-			# 	"一週%(股)": cb_stock_quotation_data["一週%"],
-			# 	"一月%(股)": cb_stock_quotation_data["一月%"],
-			# 	"一季%(股)": cb_stock_quotation_data["一季%"],
-			# 	"一年%(股)": cb_stock_quotation_data["一年%"],
-			# }
-			# conversion_premium_rate = None
-			# if (cb_stock_quotation_data["買進一"] is not None) and (cb_quotation_data["賣出一"] is not None):
-			# 	conversion_premium_rate = self.__get_conversion_premium_rate(cb_summary_data["轉換價格"], cb_quotation_data["賣出一"], cb_stock_quotation_data["買進一"])
-			# 	if use_percentage:
-			# 		conversion_premium_rate *= 100.0
 			cb_data_dict = self.__collect_cb_data(cb_id, cb_quotation, cb_stock_quotation, use_percentage)
 
 			if (not no_filter) and (cb_stock_quotation_data["買進一"] is None):
@@ -1113,7 +1098,7 @@ class ConvertibleBondAnalysis(object):
 				convertible_date_cb_dict[cb_id] = copy.deepcopy(cb_data_dict)
 				convertible_date_cb_dict[cb_id]["日期"] = convertible_date_cb_dict[cb_id]["可轉換日"]
 				convertible_date_cb_dict[cb_id]["天數"] = convertible_date_days
-			maturity_date_days = self.__get_days(cb_publish_data["可轉換日"])
+			maturity_date_days = self.__get_days(cb_publish_data["到期日期"])
 			if 0 <= maturity_date_days <= maturity_date_threshold:
 				# maturity_date_cb_dict[cb_id] = {
 				# 	"商品": cb_quotation_data["商品"],
@@ -1817,12 +1802,13 @@ class ConvertibleBondAnalysis(object):
 		print("=== 依總量排序 ==================================================")
 		for cb_value in quotation_data_dict.items():
 			cb_key = cb_value[0]
-			cb_data = cb_value[1]
-			cb_stock_key = cb_key[:4]
-			cb_stock_data = stock_quotation_data_dict[cb_stock_key]
-			import pdb; pdb.set_trace()
+			# cb_data = cb_value[1]
+			# cb_stock_key = cb_key[:4]
+			# cb_stock_data = stock_quotation_data_dict[cb_stock_key]
+			cb_data = self.__collect_cb_data(cb_key, quotation_data_dict, stock_quotation_data_dict)
+			# import pdb; pdb.set_trace()
 			# print("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
-			print("%s[%s]:  %s(%d)  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], self.__float(cb_stock_data["成交"]), self.__int(cb_stock_data["總量"]), cb_stock_data["一週%"], cb_stock_data["一月%"], cb_stock_data["一季%"]))
+			print("%s[%s]:  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["發行日期"], self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], self.__float(cb_data["成交(股)"]), self.__int(cb_data["總量(股)"]), cb_data["一週%(股)"], cb_data["一月%(股)"], cb_data["一季%(股)"]))
 		print("=================================================================\n")
 		issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict = self.search_cb_opportunity_dates(quotation_data_dict, stock_quotation_data_dict, low_conversion_premium_rate_threshold=None, breakeven_threshold=None)
 		if bool(issuing_date_cb_dict):
