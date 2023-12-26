@@ -1046,22 +1046,14 @@ class ConvertibleBondAnalysis(object):
 		volume_top_position_threshold = int(cb_id_list_len * volume_top_position_ratio_percentage_threshold / 100.0) 
 		# import pdb; pdb.set_trace()
 		for cb_index, cb_id in enumerate(self.cb_id_list):
-			cb_summary_data = self.cb_summary[cb_id]
-			cb_publish_data = self.cb_publish[cb_id]
-			cb_quotation_data = cb_quotation[cb_id]
-			cb_stock_id = cb_id[:4]
-			cb_stock_quotation_data = cb_stock_quotation[cb_stock_id]
 			cb_data_dict = self.__collect_cb_full_data(cb_id, cb_quotation, cb_stock_quotation, use_percentage)
-
-			if (not no_filter) and (cb_quotation_data["成交"] is None):
+			if (not no_filter) and (cb_data_dict["成交"] is None):
 				# print("Ignore CB[%s]: 沒有 成交" % cb_stock_id)
 				continue
-
 			if low_conversion_premium_rate_threshold is not None and cb_data_dict["溢價率"] is not None and cb_data_dict["溢價率"] > low_conversion_premium_rate_threshold:
 				continue
-			if breakeven_threshold is not None and cb_quotation_data["成交"] > breakeven_threshold:
+			if breakeven_threshold is not None and cb_data_dict["成交"] > breakeven_threshold:
 				continue
-
 			# print("id: %s, index: %d, 總量: %d" % (cb_id, cb_index, cb_data_dict["總量"]))
 			volume_daily2total_ratio = 100.0 * cb_data_dict["總量"] / cb_data_dict["發行張數"]
 			if volume_daily2total_ratio >= volume_daily2total_ratio_percentage_threshold:
@@ -1845,12 +1837,13 @@ class ConvertibleBondAnalysis(object):
 		print("=== 依總量排序 ==================================================")
 		title_list = ["發行日期", "溢價率", "成交", "總量", "發行張數", '一週%', '一月%', '一季%', "成交(股)", "總量(股)", '一週%(股)', '一月%(股)', '一季%(股)',]
 		print("  ===> %s" % ", ".join(title_list))
-		for index, cb_value in enumerate(quotation_data_dict.items()):
-			cb_key = cb_value[0]
-			cb_data = self.__collect_cb_full_data(cb_key, quotation_data_dict, stock_quotation_data_dict)
+		# for index, cb_value in enumerate(quotation_data_dict.items()):
+		# 	cb_key = cb_value[0]
+		for index, cb_id in enumerate(self.cb_id_list):
+			cb_data = self.__collect_cb_full_data(cb_id, quotation_data_dict, stock_quotation_data_dict)
 			# import pdb; pdb.set_trace()
 			# print("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
-			print("%s[%s]:  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["發行日期"], self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], self.__float(cb_data["成交(股)"]), self.__int(cb_data["總量(股)"]), cb_data["一週%(股)"], cb_data["一月%(股)"], cb_data["一季%(股)"]))
+			print("%s[%s]:  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_id, cb_data["發行日期"], self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], self.__float(cb_data["成交(股)"]), self.__int(cb_data["總量(股)"]), cb_data["一週%(股)"], cb_data["一月%(股)"], cb_data["一季%(股)"]))
 			if index == 15:
 				break
 		print("=================================================================\n")
@@ -1888,6 +1881,56 @@ class ConvertibleBondAnalysis(object):
 				# print("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %.2f  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(mass_convert_cb_data["發行張數"]) * 100000 / 100000000, self.__float(cb_stock_data["股本"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
 				print("%s[%s]:  %s(%d)  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(mass_convert_cb_data["發行張數"]) * 100000 / 100000000, self.__float(cb_stock_data["股本"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], self.__float(cb_stock_data["成交"]), self.__int(cb_stock_data["總量"]), cb_stock_data["一週%"], cb_stock_data["一月%"], cb_stock_data["一季%"]))
 			print("=================================================================\n")
+
+
+	def __check_validation_case(self, cb_id, cur_datetime, quotation_data_dict, stock_quotation_data_dict, tolorence_day=5):
+		cb_data = self.__collect_cb_full_data(cb_id, quotation_data_dict, stock_quotation_data_dict)
+		issuing_date = datetime.strptime(cb_data["發行日期"], "%m/%d/%Y")
+		issuing_date_window_begin1 = issuing_date + relativedelta(months=1) + relativedelta(days=1)
+		issuing_date_window_end1 = issuing_date_window_begin1 + relativedelta(days=tolorence_day)
+		if (cur_datetime >= issuing_date_window_begin1) and (cur_datetime <= issuing_date_window_end1):
+			return "發行日期後一個月"  #, [issuing_date_window_begin1, issuing_date_window_end1,]
+		issuing_date_window_begin2 = issuing_date + relativedelta(months=3) + relativedelta(days=1)
+		issuing_date_window_end2 = issuing_date_window_begin1 + relativedelta(days=tolorence_day)
+		if (cur_datetime >= issuing_date_window_begin2) and (cur_datetime <= issuing_date_window_end2):
+			return "發行日期後三個月"  #, [issuing_date_window_begin2, issuing_date_window_end2,]
+		convertible_date = datetime.strptime(cb_data["可轉換日"], "%m/%d/%Y")
+		convertible_date_window_begin = convertible_date + relativedelta(months=1) + relativedelta(days=1)
+		convertible_date_window_end = convertible_date_window_begin + relativedelta(days=tolorence_day)
+		if (cur_datetime >= convertible_date_window_begin) and (cur_datetime <= convertible_date_window_end):
+			return "可轉換日後一個月"  #, [convertible_date_window_begin, convertible_date_window_end,]
+		maturity_date = datetime.strptime("到期日期", "%m/%d/%Y")
+		maturity_date_window_end = maturity_date - relativedelta(days=1)
+		maturity_date_window_begin = maturity_date_window_end - relativedelta(days=tolorence_day)
+		if (cur_datetime >= maturity_date_window_begin) and (cur_datetime <= maturity_date_window_end):
+			return "到期日期"  #, [maturity_date_window_begin, maturity_date_window_end,]
+		return None
+
+
+	def validate(self):
+		quotation_data_dict = self.__read_cb_quotation()
+		stock_quotation_data_dict = self.__read_cb_stock_quotation()
+		if self.xcfg['cb_all']:
+			self.check_data_source(quotation_data_dict, stock_quotation_data_dict)
+		cur_datetime = datetime.now()
+		validation_case_dict = OrderedDict()
+		for key in ["發行日期後一個月", "發行日期後三個月", "可轉換日後一個月", "到期日期",]:
+			validation_case_dict[key] = []
+		validation_case_cb_data_dict = {}
+		print("\n*****************************************************************\n")
+		for cb_id in self.cb_id_list:
+			validation_case = self.__check_validation_case(cb_id, cur_datetime, quotation_data_dict, stock_quotation_data_dict)
+			if validation_case is not None:
+				validation_window_dict[validation_case].append(cb_id)
+				validation_case_cb_data_dict[cb_id] = self.__collect_cb_full_data(cb_id, quotation_data_dict, stock_quotation_data_dict)
+		for validation_case, validation_cb_id_list in validation_window_dict.items():
+			if bool(validation_cb_id_list):
+				print("=== %s ==================================================" % validation_case)
+				title_list = ["發行日期","一週", "一月", "一週(股)", "一月(股)",]
+				print("  ===> %s" % ", ".join(title_list))
+				for validation_cb_id in validation_cb_id_list:
+					cb_data = validation_case_cb_data_dict[validation_cb_id]
+					print("%s[%s]:  %s  %s  %s  %s  %s" % (cb_data["商品"], validation_cb_id, cb_data["發行日期"], cb_data["一週%"], cb_data["一月%"], cb_data["一週%(股)"], cb_data["一月%(股)"]))
 
 
 	def search(self):
@@ -2240,6 +2283,7 @@ if __name__ == "__main__":
 	parser.add_argument('-l', '--list', required=False, action='store_true', help='List the potential targets based on the search rule.')
 	parser.add_argument('-s', '--search', required=False, action='store_true', help='Select targets based on the search rule.')
 	parser.add_argument('-d', '--display', required=False, action='store_true', help='Display specific targets.')
+	parser.add_argument('-v', '--validate', required=False, action='store_true', help='Validate the estimation.')
 	parser.add_argument('--cb_list', required=False, help='The list of specific CB targets.')
 	parser.add_argument('--cb_ignore_list', required=False, help='The list of specific CB targets which are ignored.')
 	parser.add_argument('--scrape_stock', required=False, help='Scrape the stock info of specific stocks and exit.')
@@ -2310,6 +2354,8 @@ if __name__ == "__main__":
 		# import pdb; pdb.set_trace()
 		if args.display:
 			obj.display()
+		if args.validate:
+			obj.validate()
 
 
 # 	from selenium import webdriver

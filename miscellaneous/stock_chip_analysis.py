@@ -233,6 +233,19 @@ class StockChipAnalysis(object):
 
 
 	@classmethod
+	def __get_file_modification_date(cls, filepath):
+		if not cls.__check_file_exist(filepath):
+			raise ValueError("The file[%s] does NOT exist" % filepath)
+		# print("filepath: %s" % filepath)
+		# create_time = os.path.getctime(filepath)
+		# print(create_time)
+		modification_time = os.path.getmtime(filepath)
+		# print(modification_time)
+		modification_date = datetime.fromtimestamp(modification_time)
+		return modification_date
+
+
+	@classmethod
 	def show_search_targets_list(cls):
 		print("*****************************************")
 		for index, search_rule_dataset in enumerate(cls.SEARCH_RULE_DATASHEET_LIST):
@@ -521,6 +534,8 @@ class StockChipAnalysis(object):
 
 		if self.xcfg["output_result"]:
 			self.__redirect_stdout2file()
+		file_modification_date = self.__get_file_modification_date(self.xcfg["source_filepath"])
+		print("檔案修改時間: %s\n" % file_modification_date.strftime("%Y/%m/%d %H:%M:%S"))
 		print("************** Search **************")
 		search_rule_list_str = ", ".join(search_rule_list)
 		print ("搜尋規則: " + search_rule_list_str )
@@ -559,7 +574,7 @@ class StockChipAnalysis(object):
 				item_type_list = map(lambda x, y: (x[0], x[1], y), item_list, stock_chip_data_dict[sheet_name]["type"])
 				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌", "漲跌幅", "成交量", "總量",], item_type_list)
 				try:
-					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
+					print("  " + sheet_name + ": " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
 				except ValueError as e:
 					# print("%s:%s Error: %s in %s" % (display_stock, sheet_name, str(e), str(list(item_type_list))))
 					# import pdb; pdb.set_trace()
@@ -584,6 +599,8 @@ class StockChipAnalysis(object):
 
 		if self.xcfg["output_result"]:
 			self.__redirect_stdout2file()
+		file_modification_date = self.__get_file_modification_date(self.xcfg["source_filepath"])
+		print("檔案修改時間: %s\n" % file_modification_date.strftime("%Y/%m/%d %H:%M:%S"))
 		print("************** Display **************")
 		for display_stock in self.xcfg["display_stock_list"]:
 			# print ("*** %s[%s] ***" % (display_stock, stock_name_list[index]))
@@ -614,7 +631,7 @@ class StockChipAnalysis(object):
 				item_type_list = map(lambda x, y: (x[0], x[1], y), item_list, stock_chip_data_dict[sheet_name]["type"])
 				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌", "漲跌幅", "成交量", "總量",], item_type_list)
 				try:
-					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
+					print("  " + sheet_name + ": " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
 				except ValueError as e:
 					# print("%s:%s Error: %s in %s" % (display_stock, sheet_name, str(e), str(list(item_type_list))))
 					# import pdb; pdb.set_trace()
