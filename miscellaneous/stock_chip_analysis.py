@@ -304,6 +304,8 @@ class StockChipAnalysis(object):
 		self.output_result_file = None
 		self.stdout_tmp = None
 
+		self.sorted_ssb_dict = {}
+
 
 	def __enter__(self):
 		# Open the workbook
@@ -455,6 +457,17 @@ class StockChipAnalysis(object):
 		return cb_data
 
 
+	def __get_sorted_ssb(self, field_name, ssb_stock_chip_data_dict):
+		if field_name not in["夏普", "標準差", "貝它",]:
+			raise ValueError("Incorrect field name: %s" % field_name)
+		reverse = False if field_name in ["標準差",] else True
+		if field_name not in self.sorted_ssb_dict:
+			# import pdb; pdb.set_trace()
+			# self.sorted_ssb_dict[field_name] = OrderedDict(sorted(ssb_stock_chip_data_dict["value"].items(), key=lambda x: x[1][field_name], reverse=reverse))
+			self.sorted_ssb_dict[field_name] = sorted([ssb_stock_chip_data[field_name] for ssb_stock_chip_data in ssb_stock_chip_data_dict["value"].values()], reverse=reverse)
+		return self.sorted_ssb_dict[field_name]
+
+
 	def get_stock_chip_data(self, sheet_name_list=None):
 		stock_chip_data_dict = {}
 		if sheet_name_list is None:
@@ -602,6 +615,7 @@ class StockChipAnalysis(object):
 		file_modification_date = self.__get_file_modification_date(self.xcfg["source_filepath"])
 		print("檔案修改時間: %s\n" % file_modification_date.strftime("%Y/%m/%d %H:%M:%S"))
 		print("************** Display **************")
+		ssb_field_name_list = ["夏普", "標準差", "貝它",]
 		for display_stock in self.xcfg["display_stock_list"]:
 			# print ("*** %s[%s] ***" % (display_stock, stock_name_list[index]))
 			target_caption = None
@@ -632,6 +646,19 @@ class StockChipAnalysis(object):
 				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌", "漲跌幅", "成交量", "總量",], item_type_list)
 				try:
 					print("  " + sheet_name + ": " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
+					if sheet_name == "SSB":
+						ssb_field_order_list = []
+						for ssb_field_name in ssb_field_name_list:
+							ssb_stock_chip_data_dict = stock_chip_data_dict["SSB"]
+							ssb_field_data_list = self.__get_sorted_ssb(ssb_field_name, ssb_stock_chip_data_dict)
+							# import pdb; pdb.set_trace()
+							try:
+								display_stock_order = ssb_field_data_list.index(ssb_stock_chip_data_dict["value"][display_stock][ssb_field_name])
+								ssb_field_order_list.append("%s(%d)" % (ssb_field_name, display_stock_order))
+							except ValueError as e:
+								print("Fail to find %s in %s, due to %s", (field_name, display_stock, str(e)))
+								raise e
+						print("    " + ", ".join(ssb_field_order_list))
 				except ValueError as e:
 					# print("%s:%s Error: %s in %s" % (display_stock, sheet_name, str(e), str(list(item_type_list))))
 					# import pdb; pdb.set_trace()
