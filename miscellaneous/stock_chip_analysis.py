@@ -123,6 +123,7 @@ class StockChipAnalysis(object):
 	LARGE_SHAREHOLD_POSITION_SHEETNAME = "大戶籌碼"
 	LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO = "夏普值"
 	LARGE_SHAREHOLD_POSITION_FIELDNAME_STANDARD_DEVIATION = "標準差"
+	SSB_SORT_FIELD_NAME_LIST = ["夏普", "標準差", "貝它",]
 # CB Related
 	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"
 	DEFAULT_CB_PUBLISH_FILENAME = "可轉債發行"
@@ -556,15 +557,17 @@ class StockChipAnalysis(object):
 		stock_list_str = ", ".join(map(lambda x: "%s[%s]" % (x[0], x[1]), zip(stock_list, stock_name_list)))
 		print (stock_list_str + "\n")
 		# import pdb; pdb.set_trace()
-		sheet_name_list = ["SSB", "主法量率", "六大買超",]
+		# sheet_name_list = ["SSB", "主法量率", "六大買超",]
+		sheet_name_list = copy.deepcopy(self.SEARCH_RULE_DATASHEET_LIST[search_rule_index])
+		sheet_name_list.extend(["SSB", "六大買超",])
 		for index, stock in enumerate(stock_list):
-			search_rule_item_list = []
-			for search_rule in search_rule_list[1:]:
-				sheet_index = self.CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST.index(search_rule)
-				field_name = self.CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST[sheet_index]
-				sheet_data_dict = stock_chip_data_dict[search_rule]["value"]
-				stock_sheet_data_dict = sheet_data_dict[stock]
-				search_rule_item_list.append((field_name, str(int(stock_sheet_data_dict[field_name]))))
+			# search_rule_item_list = []
+			# for search_rule in search_rule_list[1:]:
+			# 	sheet_index = self.CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST.index(search_rule)
+			# 	field_name = self.CONSECUTIVE_OVER_BUY_DAYS_FIELDNAME_LIST[sheet_index]
+			# 	sheet_data_dict = stock_chip_data_dict[search_rule]["value"]
+			# 	stock_sheet_data_dict = sheet_data_dict[stock]
+			# 	search_rule_item_list.append((field_name, str(int(stock_sheet_data_dict[field_name]))))
 			print ("*** %s[%s] ***" % (stock, stock_name_list[index]))
 			global_item_list = None
 			for sheet_name in sheet_name_list:				
@@ -577,7 +580,7 @@ class StockChipAnalysis(object):
 					global_item_list = []
 					global_item_list.extend(filter(lambda x: x[0] in ["成交", "漲幅%", "漲跌幅",], item_list))
 					global_item_list.extend(map(lambda x: (x[0], str(int(x[1]))), filter(lambda x: x[0] in ["成交量", "總量",], item_list)))
-					global_item_list.extend(search_rule_item_list)
+					# global_item_list.extend(search_rule_item_list)
 					print(" ==>" + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), global_item_list)))
 				# item_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌幅", "成交量", "總量",], item_list)
 				# if sheet_name in ["六大買超", "法人共同買超累計",]:
@@ -588,6 +591,19 @@ class StockChipAnalysis(object):
 				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌", "漲跌幅", "成交量", "總量",], item_type_list)
 				try:
 					print("  " + sheet_name + ": " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
+					ssb_field_order_list = []
+					if sheet_name == "SSB":
+						for ssb_field_name in self.SSB_SORT_FIELD_NAME_LIST:
+							ssb_stock_chip_data_dict = stock_chip_data_dict["SSB"]
+							ssb_field_data_list = self.__get_sorted_ssb(ssb_field_name, ssb_stock_chip_data_dict)
+							# import pdb; pdb.set_trace()
+							try:
+								display_stock_order = ssb_field_data_list.index(ssb_stock_chip_data_dict["value"][stock][ssb_field_name])
+								ssb_field_order_list.append("%s(%d)" % (ssb_field_name, display_stock_order))
+							except ValueError as e:
+								print("Fail to find %s in %s, due to %s", (field_name, stock, str(e)))
+								raise e
+						print("    " + ", ".join(ssb_field_order_list))
 				except ValueError as e:
 					# print("%s:%s Error: %s in %s" % (display_stock, sheet_name, str(e), str(list(item_type_list))))
 					# import pdb; pdb.set_trace()
@@ -615,7 +631,6 @@ class StockChipAnalysis(object):
 		file_modification_date = self.__get_file_modification_date(self.xcfg["source_filepath"])
 		print("檔案修改時間: %s\n" % file_modification_date.strftime("%Y/%m/%d %H:%M:%S"))
 		print("************** Display **************")
-		ssb_field_name_list = ["夏普", "標準差", "貝它",]
 		for display_stock in self.xcfg["display_stock_list"]:
 			# print ("*** %s[%s] ***" % (display_stock, stock_name_list[index]))
 			target_caption = None
@@ -648,7 +663,7 @@ class StockChipAnalysis(object):
 					print("  " + sheet_name + ": " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
 					if sheet_name == "SSB":
 						ssb_field_order_list = []
-						for ssb_field_name in ssb_field_name_list:
+						for ssb_field_name in self.SSB_SORT_FIELD_NAME_LIST:
 							ssb_stock_chip_data_dict = stock_chip_data_dict["SSB"]
 							ssb_field_data_list = self.__get_sorted_ssb(ssb_field_name, ssb_stock_chip_data_dict)
 							# import pdb; pdb.set_trace()
