@@ -233,6 +233,19 @@ class ConvertibleBondAnalysis(object):
 		return True
 
 
+	@classmethod
+	def __get_file_modification_date(cls, filepath):
+		if not cls.__check_file_exist(filepath):
+			raise ValueError("The file[%s] does NOT exist" % filepath)
+		# print("filepath: %s" % filepath)
+		# create_time = os.path.getctime(filepath)
+		# print(create_time)
+		modification_time = os.path.getmtime(filepath)
+		# print(modification_time)
+		modification_date = datetime.fromtimestamp(modification_time)
+		return modification_date
+
+
 	# @classmethod
 	# def __get_web_driver(cls, web_driver_filepath="C:\chromedriver.exe"):
 	# 	module = __import__("selenium.webdriver")
@@ -263,14 +276,24 @@ class ConvertibleBondAnalysis(object):
 		self.xcfg["cb_data_folderpath"] = os.path.join(self.xcfg["cb_folderpath"], self.DEFAULT_CB_DATA_FOLDERNAME) if self.xcfg["cb_data_folderpath"] is None else self.xcfg["cb_data_folderpath"]
 		self.xcfg["cb_summary_filename"] = self.DEFAULT_CB_SUMMARY_FULL_FILENAME if self.xcfg["cb_summary_filename"] is None else self.xcfg["cb_summary_filename"]
 		self.xcfg["cb_summary_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_summary_filename"])
+		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_summary_filepath"])
+		self.xcfg["cb_summary_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
 		self.xcfg["cb_publish_filename"] = self.DEFAULT_CB_PUBLISH_FULL_FILENAME if self.xcfg["cb_publish_filename"] is None else self.xcfg["cb_publish_filename"]
 		self.xcfg["cb_publish_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_publish_filename"])
+		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_publish_filepath"])
+		self.xcfg["cb_publish_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
 		self.xcfg["cb_quotation_filename"] = self.DEFAULT_CB_QUOTATION_FULL_FILENAME if self.xcfg["cb_quotation_filename"] is None else self.xcfg["cb_quotation_filename"]
 		self.xcfg["cb_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_quotation_filename"])
+		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_quotation_filepath"])
+		self.xcfg["cb_quotation_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
 		self.xcfg["cb_stock_quotation_filename"] = self.DEFAULT_CB_STOCK_QUOTATION_FULL_FILENAME if self.xcfg["cb_stock_quotation_filename"] is None else self.xcfg["cb_stock_quotation_filename"]
 		self.xcfg["cb_stock_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_stock_quotation_filename"])
+		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_stock_quotation_filepath"])
+		self.xcfg["cb_stock_quotation_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
 		self.xcfg["cb_list_filename"] = self.DEFAULT_DISPLAY_CB_LIST_FILENAME if self.xcfg["cb_list_filename"] is None else self.xcfg["cb_list_filename"]
 		self.xcfg["cb_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["cb_list_filename"])
+		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_list_filepath"])
+		self.xcfg["cb_list_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
 # Check file exist
 		file_not_exist_list = []
 		if not self. __check_file_exist(self.xcfg["cb_summary_filepath"]):
@@ -444,6 +467,8 @@ class ConvertibleBondAnalysis(object):
 					else:
 						cb_id_list_tmp.extend(cb_id)
 				self.cb_id_list = cb_id_list_tmp
+
+		self.__print_file_modification_date()
 
 
 	def __enter__(self):
@@ -814,6 +839,16 @@ class ConvertibleBondAnalysis(object):
 				conversion_premium_rate *= 100.0
 			cb_data_dict["溢價率"] = conversion_premium_rate
 		return cb_data_dict
+
+
+	def __print_file_modification_date(self):
+		print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["cb_summary_filepath"]), self.xcfg["cb_summary_file_modification_date_str"]))
+		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["cb_publish_filepath"]), self.xcfg["cb_publish_file_modification_date_str"]))
+		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["cb_quotation_filepath"]), self.xcfg["cb_quotation_file_modification_date_str"]))
+		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["cb_stock_quotation_filepath"]), self.xcfg["cb_stock_quotation_file_modification_date_str"]))
+		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["cb_list_filepath"]), self.xcfg["cb_list_file_modification_date_str"]))
+		print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
 
 
 	def check_cb_quotation_table_field(self, cb_quotation_data):
