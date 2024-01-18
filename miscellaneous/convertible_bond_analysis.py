@@ -124,29 +124,42 @@ class ConvertibleBondAnalysis(object):
 
 
 	@classmethod
+	def __strptime(cls, datetime_str, format_list=["%m/%d/%Y", "%Y/%m/%d",]):
+		for fmt in format_list:
+			try:
+				datetime_obj = datetime.strptime(datetime_str, fmt)
+				return datetime_obj
+			except ValueError:
+				pass
+		raise ValueError("Time string[%s] => Incorrect time format" % (datetime_str, str(format_list)))
+
+
+	@classmethod
 	def __get_days(cls, end_date_str=None, start_date_str=None):
 		# import pdb; pdb.set_trace()
 		time_format = "%m/%d/%Y"  # "%Y/%m/%d"
 		end_date = None
 		start_date = None
 		if end_date_str is not None:
-			try:
-				end_date = datetime.strptime(end_date_str, "%Y/%m/%d")
-			except ValueError:
-				try:
-					end_date = datetime.strptime(end_date_str, "%m/%d/%Y")
-				except ValueError as e:
-					raise e
+			# try:
+			# 	end_date = datetime.strptime(end_date_str, "%Y/%m/%d")
+			# except ValueError:
+			# 	try:
+			# 		end_date = datetime.strptime(end_date_str, "%m/%d/%Y")
+			# 	except ValueError as e:
+			# 		raise e
+			end_date = cls.__strptime(end_date_str)
 		else:
 			end_date = datetime.fromordinal(date.today().toordinal())
 		if start_date_str is not None:
-			try:
-				start_date = datetime.strptime(start_date_str, "%Y/%m/%d")
-			except ValueError:
-				try:
-					start_date = datetime.strptime(start_date_str, "%m/%d/%Y")
-				except ValueError as e:
-					raise e
+			# try:
+			# 	start_date = datetime.strptime(start_date_str, "%Y/%m/%d")
+			# except ValueError:
+			# 	try:
+			# 		start_date = datetime.strptime(start_date_str, "%m/%d/%Y")
+			# 	except ValueError as e:
+			# 		raise e
+			start_date = cls.__strptime(start_date_str)
 		else:
 			start_date = datetime.fromordinal(date.today().toordinal())
 		# end_date = datetime.strptime(end_date_str, time_format) if end_date_str is not None else datetime.fromordinal(date.today().toordinal())
@@ -616,8 +629,7 @@ class ConvertibleBondAnalysis(object):
 						try:
 							if data_index == title_publish_date_index:
 								# import pdb; pdb.set_trace()
-								publish_date = datetime.strptime(data_value, "%m/%d/%Y")
-								# publish_date = datetime.strptime(data_value, "%Y/%m/%d")
+								publish_date = self.__strptime(data_value)
 								convertible_date = publish_date + relativedelta(months=3) + relativedelta(days=1) 
 							elif data_index == title_tenor_index:
 								mobj = re.match(regex, data_value)
@@ -866,8 +878,8 @@ class ConvertibleBondAnalysis(object):
 			today = datetime.fromordinal(date.today().toordinal())
 			cb_publish_diff_quotation_id_list = list(cb_publish_diff_quotation_id_set)
 			# cb_publish_diff_quotation_id_list.sort(key=lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%Y/%m/%d"))
-			cb_publish_diff_quotation_id_list = list(filter(lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%m/%d/%Y") >= today, cb_publish_diff_quotation_id_list))  # 已全數轉換為普通股 資料尚未更新
-			cb_publish_diff_quotation_id_list.sort(key=lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%m/%d/%Y"))
+			cb_publish_diff_quotation_id_list = list(filter(lambda x: self.__strptime(self.cb_publish[x]['發行日期']) >= today, cb_publish_diff_quotation_id_list))  # 已全數轉換為普通股 資料尚未更新
+			cb_publish_diff_quotation_id_list.sort(key=lambda x: self.__strptime(self.cb_publish[x]['發行日期']))
 			new_public_cb_str_list = ["%s[%s]:  %s  %s年  %d張" % (self.cb_publish[cb_publish_id]['債券簡稱'], cb_publish_id, self.cb_publish[cb_publish_id]['發行日期'], self.cb_publish[cb_publish_id]['年期'], self.cb_publish[cb_publish_id]['發行總面額']/100000) for cb_publish_id in cb_publish_diff_quotation_id_list]
 			print("=== 新發行 ===")
 			for new_public_cb_str in new_public_cb_str_list: print(new_public_cb_str)
@@ -1806,7 +1818,7 @@ class ConvertibleBondAnalysis(object):
 		return scrapy_data_dict
 			
 
-	def search_cb_mass_convert(self, table_month=None, mass_convert_threshold=-10.0, filter_cb=True):
+	def search_cb_mass_convert(self, cb_quotation=None, cb_stock_quotation=None, table_month=None, mass_convert_threshold=-10.0, filter_cb=True):
 		# import pdb; pdb.set_trace()
 		mass_convert_cb_dict = None
 		def filter_funcptr(x):
@@ -1816,6 +1828,12 @@ class ConvertibleBondAnalysis(object):
 			if int(data_dict["發行張數"]) == 0: return 0
 			# print(float(data_dict["增減數額"]) / float(data_dict["發行張數"]))
 			return float(data_dict["增減數額"]) / float(data_dict["發行張數"]) * 100.0
+		def update_funcptr(x):
+			# import pdb; pdb.set_trace()
+			cb_data = self.__collect_cb_full_data(x[0], cb_quotation, cb_stock_quotation)
+			cb_data.update(x[1])
+			# print(cb_data)
+			return cb_data
 		try:
 			cb_monthly_convert_data = self.get_cb_monthly_convert_data(table_month)
 			convert_cb_dict = cb_monthly_convert_data["content"]
@@ -1824,9 +1842,13 @@ class ConvertibleBondAnalysis(object):
 					convert_cb_dict = dict(filter(lambda x: x[0] in self.cb_id_list, convert_cb_dict.items()))
 			# mass_convert_cb_dict = dict(filter(lambda x: float(x[1]["增減百分比"]) < mass_convert_threshold, convert_cb_dict.items()))
 			mass_convert_cb_dict = dict(filter(lambda x: filter_funcptr(x) < mass_convert_threshold, convert_cb_dict.items()))
+			if cb_quotation is not None and cb_stock_quotation is not None:
+				mass_convert_cb_dict_tmp = mass_convert_cb_dict
+				mass_convert_cb_dict = dict([(x[0], update_funcptr(x)) for x in mass_convert_cb_dict_tmp.items()])
 		except ValueError as e:
-			# print("CB Mass Convert: %s" & str(e))
+			print("CB Mass Convert: %s" % str(e))
 			return None
+		# import pdb; pdb.set_trace()
 		return mass_convert_cb_dict
 
 
@@ -1920,7 +1942,8 @@ class ConvertibleBondAnalysis(object):
 
 	def __check_validation_case(self, cb_id, cur_datetime, quotation_data_dict, stock_quotation_data_dict, tolorence_day=5):
 		cb_data = self.__collect_cb_full_data(cb_id, quotation_data_dict, stock_quotation_data_dict)
-		issuing_date = datetime.strptime(cb_data["發行日期"], "%m/%d/%Y")
+		# import pdb; pdb.set_trace()
+		issuing_date = self.__strptime(cb_data["發行日期"])
 		issuing_date_window_begin1 = issuing_date + relativedelta(months=1) + relativedelta(days=1)
 		issuing_date_window_end1 = issuing_date_window_begin1 + relativedelta(days=tolorence_day)
 		if (cur_datetime >= issuing_date_window_begin1) and (cur_datetime <= issuing_date_window_end1):
@@ -1929,16 +1952,16 @@ class ConvertibleBondAnalysis(object):
 		issuing_date_window_end2 = issuing_date_window_begin1 + relativedelta(days=tolorence_day)
 		if (cur_datetime >= issuing_date_window_begin2) and (cur_datetime <= issuing_date_window_end2):
 			return "發行日期後三個月"  #, [issuing_date_window_begin2, issuing_date_window_end2,]
-		convertible_date = datetime.strptime(cb_data["可轉換日"], "%m/%d/%Y")
+		convertible_date = self.__strptime(cb_data["可轉換日"])
 		convertible_date_window_begin = convertible_date + relativedelta(months=1) + relativedelta(days=1)
 		convertible_date_window_end = convertible_date_window_begin + relativedelta(days=tolorence_day)
 		if (cur_datetime >= convertible_date_window_begin) and (cur_datetime <= convertible_date_window_end):
 			return "可轉換日後一個月"  #, [convertible_date_window_begin, convertible_date_window_end,]
-		maturity_date = datetime.strptime("到期日期", "%m/%d/%Y")
+		maturity_date = self.__strptime(cb_data["到期日期"])
 		maturity_date_window_end = maturity_date - relativedelta(days=1)
 		maturity_date_window_begin = maturity_date_window_end - relativedelta(days=tolorence_day)
 		if (cur_datetime >= maturity_date_window_begin) and (cur_datetime <= maturity_date_window_end):
-			return "到期日期"  #, [maturity_date_window_begin, maturity_date_window_end,]
+			return "到期日期前六個月"  #, [maturity_date_window_begin, maturity_date_window_end,]
 		return None
 
 
@@ -1949,23 +1972,29 @@ class ConvertibleBondAnalysis(object):
 			self.check_data_source(quotation_data_dict, stock_quotation_data_dict)
 		cur_datetime = datetime.now()
 		validation_case_dict = OrderedDict()
-		for key in ["發行日期後一個月", "發行日期後三個月", "可轉換日後一個月", "到期日期",]:
+		for key in ["發行日期後一個月", "發行日期後三個月", "可轉換日後一個月", "到期日期前六個月",]:
 			validation_case_dict[key] = []
 		validation_case_cb_data_dict = {}
 		print("\n*****************************************************************\n")
 		for cb_id in self.cb_id_list:
 			validation_case = self.__check_validation_case(cb_id, cur_datetime, quotation_data_dict, stock_quotation_data_dict)
 			if validation_case is not None:
-				validation_window_dict[validation_case].append(cb_id)
+				validation_case_dict[validation_case].append(cb_id)
 				validation_case_cb_data_dict[cb_id] = self.__collect_cb_full_data(cb_id, quotation_data_dict, stock_quotation_data_dict)
-		for validation_case, validation_cb_id_list in validation_window_dict.items():
+		for validation_case, validation_cb_id_list in validation_case_dict.items():
 			if bool(validation_cb_id_list):
 				print("=== %s ==================================================" % validation_case)
-				title_list = ["發行日期","一週", "一月", "一週(股)", "一月(股)",]
+				if validation_case == "發行日期後一個月":
+					title_list = ["發行日期","一週", "一月", "一週(股)", "一月(股)",]
+				else:
+					title_list = ["發行日期","一週", "一月", "一季", "一週(股)", "一月(股)", "一季(股)",]
 				print("  ===> %s" % ", ".join(title_list))
 				for validation_cb_id in validation_cb_id_list:
 					cb_data = validation_case_cb_data_dict[validation_cb_id]
-					print("%s[%s]:  %s  %s  %s  %s  %s" % (cb_data["商品"], validation_cb_id, cb_data["發行日期"], cb_data["一週%"], cb_data["一月%"], cb_data["一週%(股)"], cb_data["一月%(股)"]))
+					if validation_case == "發行日期後一個月":
+						print("%s[%s]:  %s  %s  %s  %s  %s" % (cb_data["商品"], validation_cb_id, cb_data["發行日期"], cb_data["一週%"], cb_data["一月%"], cb_data["一週%(股)"], cb_data["一月%(股)"]))
+					else:
+						print("%s[%s]:  %s  %s  %s  %s  %s" % (cb_data["商品"], validation_cb_id, cb_data["發行日期"], cb_data["一週%"], cb_data["一月%"], cb_data["一週%(股)"], cb_data["一月%(股)"]))
 
 
 	def search(self):
@@ -2111,14 +2140,14 @@ class ConvertibleBondAnalysis(object):
 					# print("  最近轉(交)換價格生效日期: %s" % (cb_publish_detail_dict["最近轉(交)換價格生效日期"]))
 				print(" *************")
 			print("=================================================================\n")
-		mass_convert_cb_dict = self.search_cb_mass_convert()
+		mass_convert_cb_dict = self.search_cb_mass_convert(quotation_data_dict, stock_quotation_data_dict)
 		if bool(mass_convert_cb_dict):
 			print("=== CB大量轉換 ==================================================")
-			title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
+			title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數", "到期日期",]
 			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in mass_convert_cb_dict.items():
 				mass_convert_percentage = float(cb_data["增減數額"]) / float(cb_data["發行張數"]) * 100.0
-				print("%s[%s]:  %.2f  %d  %d  %d" % (cb_data["名稱"], cb_key, mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
+				print("%s[%s]:  %.2f  %d  %d  %d  %s" % (cb_data["名稱"], cb_key, mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"]), cb_data["到期日期"]))
 		# multiple_publish_dict = self.search_multiple_publish()
 		# if bool(multiple_publish_dict):
 		# 	print("=== 多次發行 ==================================================")
@@ -2151,7 +2180,7 @@ class ConvertibleBondAnalysis(object):
 		stock_quotation_data_dict = self.__read_cb_stock_quotation()
 		if self.xcfg['cb_all']:
 			self.check_data_source(quotation_data_dict, stock_quotation_data_dict)
-		mass_convert_cb_dict = self.search_cb_mass_convert(filter_cb=False)
+		mass_convert_cb_dict = self.search_cb_mass_convert(quotation_data_dict, stock_quotation_data_dict, filter_cb=False)
 
 		# import pdb; pdb.set_trace()
 		irr_dict = self.calculate_internal_rate_of_return(quotation_data_dict, use_percentage=True)
@@ -2184,11 +2213,11 @@ class ConvertibleBondAnalysis(object):
 			mass_convert_cb_list = list(filter(lambda x: x[:4] == cb_stock_id, mass_convert_cb_dict.keys()))
 			if len(mass_convert_cb_list) != 0:
 				print("=== CB大量轉換 ==================================================")
-				title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
+				title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數", "到期日期"]
 				for cb_id in mass_convert_cb_list:
 					cb_data = mass_convert_cb_dict[cb_id]
 					mass_convert_percentage = float(cb_data["增減數額"]) / float(cb_data["發行張數"]) * 100.0
-					print(" %s  增減百分比: %.2f  前月底保管張數: %d, 本月底保管張數: %d, 發行張數: %d" % (cb_data["名稱"], mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"])))
+					print(" %s  增減百分比: %.2f  前月底保管張數: %d, 本月底保管張數: %d, 發行張數: %d, 到期日期: %s" % (cb_data["名稱"], mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"]), cb_data["到期日期"]))
 # Data from Scrapy
 			if not self.xcfg["enable_scrapy"]: continue
 # Monthly
