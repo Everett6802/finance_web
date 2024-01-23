@@ -1994,7 +1994,7 @@ class ConvertibleBondAnalysis(object):
 					if validation_case == "發行日期後一個月":
 						print("%s[%s]:  %s  %s  %s  %s  %s" % (cb_data["商品"], validation_cb_id, cb_data["發行日期"], cb_data["一週%"], cb_data["一月%"], cb_data["一週%(股)"], cb_data["一月%(股)"]))
 					else:
-						print("%s[%s]:  %s  %s  %s  %s  %s" % (cb_data["商品"], validation_cb_id, cb_data["發行日期"], cb_data["一週%"], cb_data["一月%"], cb_data["一週%(股)"], cb_data["一月%(股)"]))
+						print("%s[%s]:  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], validation_cb_id, cb_data["發行日期"], cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], cb_data["一週%(股)"], cb_data["一月%(股)"], cb_data["一季%(股)"]))
 
 
 	def search(self):
