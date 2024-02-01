@@ -863,6 +863,23 @@ class ConvertibleBondAnalysis(object):
 		print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
 
 
+	def __sort_future_publishing_cb_list(self, cb_publish_diff_quotation_id_list, shift_day=0):
+		today = datetime.fromordinal(date.today().toordinal())
+		if shift_day != 0:
+# shift_day: (1) <0 => before today, (2) >0 => after today
+			today += relativedelta(days=shift_day)
+		cb_publish_diff_quotation_id_list = list(filter(lambda x: self.__strptime(self.cb_publish[x]['發行日期']) >= today, cb_publish_diff_quotation_id_list))  # 已全數轉換為普通股 資料尚未更新
+		cb_publish_diff_quotation_id_list.sort(key=lambda x: self.__strptime(self.cb_publish[x]['發行日期']))
+		return cb_publish_diff_quotation_id_list
+
+
+	def __get_future_publishing_cb_list(self, shift_day=0):
+		cb_publish_id_set = set(self.cb_publish.keys())  # - self.cb_ignore_set
+		cb_quotation_id_set = set(self.cb_id_list)  # - self.cb_ignore_set
+		cb_publish_diff_quotation_id_list = list(cb_publish_id_set - cb_quotation_id_set - self.cb_ignore_set) 
+		return self.__sort_future_publishing_cb_list(cb_publish_diff_quotation_id_list, shift_day=shift_day) if (len(cb_publish_diff_quotation_id_list) > 0) else None
+
+
 	def check_cb_quotation_table_field(self, cb_quotation_data):
 		# import pdb; pdb.set_trace()
 		cb_summary_id_set = set(self.cb_summary.keys()) - self.cb_ignore_set
@@ -875,11 +892,12 @@ class ConvertibleBondAnalysis(object):
 			# if not stock_changed: stock_changed = True
 		cb_publish_diff_quotation_id_set = cb_publish_id_set - cb_quotation_id_set
 		if len(cb_publish_diff_quotation_id_set) > 0:
-			today = datetime.fromordinal(date.today().toordinal())
-			cb_publish_diff_quotation_id_list = list(cb_publish_diff_quotation_id_set)
-			# cb_publish_diff_quotation_id_list.sort(key=lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%Y/%m/%d"))
-			cb_publish_diff_quotation_id_list = list(filter(lambda x: self.__strptime(self.cb_publish[x]['發行日期']) >= today, cb_publish_diff_quotation_id_list))  # 已全數轉換為普通股 資料尚未更新
-			cb_publish_diff_quotation_id_list.sort(key=lambda x: self.__strptime(self.cb_publish[x]['發行日期']))
+			# today = datetime.fromordinal(date.today().toordinal())
+			# cb_publish_diff_quotation_id_list = list(cb_publish_diff_quotation_id_set)
+			# # cb_publish_diff_quotation_id_list.sort(key=lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%Y/%m/%d"))
+			# cb_publish_diff_quotation_id_list = list(filter(lambda x: self.__strptime(self.cb_publish[x]['發行日期']) >= today, cb_publish_diff_quotation_id_list))  # 已全數轉換為普通股 資料尚未更新
+			# cb_publish_diff_quotation_id_list.sort(key=lambda x: self.__strptime(self.cb_publish[x]['發行日期']))
+			cb_publish_diff_quotation_id_list = self.__sort_future_publishing_cb_list(list(cb_publish_diff_quotation_id_set))
 			new_public_cb_str_list = ["%s[%s]:  %s  %s年  %d張" % (self.cb_publish[cb_publish_id]['債券簡稱'], cb_publish_id, self.cb_publish[cb_publish_id]['發行日期'], self.cb_publish[cb_publish_id]['年期'], self.cb_publish[cb_publish_id]['發行總面額']/100000) for cb_publish_id in cb_publish_diff_quotation_id_list]
 			print("=== 新發行 ===")
 			for new_public_cb_str in new_public_cb_str_list: print(new_public_cb_str)
@@ -1995,6 +2013,7 @@ class ConvertibleBondAnalysis(object):
 						print("%s[%s]:  %s  %s  %s  %s  %s" % (cb_data["商品"], validation_cb_id, cb_data["發行日期"], cb_data["一週%"], cb_data["一月%"], cb_data["一週%(股)"], cb_data["一月%(股)"]))
 					else:
 						print("%s[%s]:  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], validation_cb_id, cb_data["發行日期"], cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], cb_data["一週%(股)"], cb_data["一月%(股)"], cb_data["一季%(股)"]))
+				print("=========================================================\n")
 
 
 	def search(self):
@@ -2315,6 +2334,29 @@ class ConvertibleBondAnalysis(object):
 		self.recursive_scrape_stock(stock_id_list, retry_times=retry_times)
 
 
+# Only evaluate that it's required to scrape data if dry_run is True
+	def scrape_stock_from_future_publishing_cb(self, dry_run=False):
+		cb_publish_diff_quotation_id_list = self.__get_future_publishing_cb_list()
+		if len(cb_publish_diff_quotation_id_list) != 0:
+			new_public_cb_str_list = ["%s[%s]:  %s  %s年  %d張" % (self.cb_publish[cb_publish_id]['債券簡稱'], cb_publish_id, self.cb_publish[cb_publish_id]['發行日期'], self.cb_publish[cb_publish_id]['年期'], self.cb_publish[cb_publish_id]['發行總面額']/100000) for cb_publish_id in cb_publish_diff_quotation_id_list]
+			print("=== 新發行 ===")
+			for new_public_cb_str in new_public_cb_str_list: print(new_public_cb_str)
+			self.scrape_stock(cb_publish_diff_quotation_id_list, dry_run=dry_run)
+		else:
+			print("=== * 暫無新發行 * ===")
+
+
+	def recursive_scrape_stock_from_future_publishing_cb(self, retry_times=5):
+		cb_publish_diff_quotation_id_list = self.__get_future_publishing_cb_list()
+		if len(cb_publish_diff_quotation_id_list) != 0:
+			new_public_cb_str_list = ["%s[%s]:  %s  %s年  %d張" % (self.cb_publish[cb_publish_id]['債券簡稱'], cb_publish_id, self.cb_publish[cb_publish_id]['發行日期'], self.cb_publish[cb_publish_id]['年期'], self.cb_publish[cb_publish_id]['發行總面額']/100000) for cb_publish_id in cb_publish_diff_quotation_id_list]
+			print("=== 新發行 ===")
+			for new_public_cb_str in new_public_cb_str_list: print(new_public_cb_str)
+			self.recursive_scrape_stock(cb_publish_diff_quotation_id_list, retry_times=retry_times)
+		else:
+			print("=== * 暫無新發行 * ===")
+
+
 	def print_filepath(self):
 		print("************** File Path **************")
 		for key, value in self.filepath_dict.items():
@@ -2352,9 +2394,11 @@ if __name__ == "__main__":
 	parser.add_argument('--cb_ignore_list', required=False, help='The list of specific CB targets which are ignored.')
 	parser.add_argument('--scrape_stock', required=False, help='Scrape the stock info of specific stocks and exit.')
 	parser.add_argument('--scrape_stock_from_file', required=False, action='store_true', help="Scrape the stock info and exit. The scrapy stocks are from the 'cb_list' file")
-	parser.add_argument('--recursive', required=False, action='store_true', help='Scrape stock recursively. Caution: Only take effect for the "scrape_stock" and "scrape_stock_from_file" argument')
+	parser.add_argument('--scrape_stock_from_future_publishing_cb', required=False, action='store_true', help="Scrape the stock info of future publishing CB and exit")
+	parser.add_argument('--recursive', required=False, action='store_true', help='Scrape stock recursively. Caution: Only take effect for the "scrape_stock", "scrape_stock_from_file" and "scrape_stock_from_future_publishing_cb" argument')
 	parser.add_argument('--check_scrape_stock', required=False, help='Only check if it is required to scrape the stock info of specific stocks and exit.')
 	parser.add_argument('--check_scrape_stock_from_file', required=False, action='store_true', help="Only check if it is required to scrape the stock info and exit. The scrapy stocks are from the 'cb_list' file")
+	parser.add_argument('--check_scrape_stock_from_future_publishing_cb', required=False, action='store_true', help="Only check if it is required to scrape the stock info of future publishing CB and exit")
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	parser.add_argument('--disable_headless', required=False, action='store_true', help='Disable headless web scrapy')
 	parser.add_argument('--disable_scrapy', required=False, action='store_true', help='Disable data from scrapy. Caution: Only take effect for the "display" argument')
@@ -2396,6 +2440,9 @@ if __name__ == "__main__":
 		if args.check_scrape_stock_from_file:
 			obj.scrape_stock_from_file(True)
 			sys.exit(0)
+		if args.check_scrape_stock_from_future_publishing_cb:
+			obj.scrape_stock_from_future_publishing_cb(True)
+			sys.exit(0)
 		if args.scrape_stock:
 			if args.recursive:
 				obj.recursive_scrape_stock(args.scrape_stock)
@@ -2407,6 +2454,12 @@ if __name__ == "__main__":
 				obj.recursive_scrape_stock_from_file()
 			else:
 				obj.scrape_stock_from_file()
+			sys.exit(0)
+		if args.scrape_stock_from_future_publishing_cb:
+			if args.recursive:
+				obj.recursive_scrape_stock_from_future_publishing_cb()
+			else:
+				obj.scrape_stock_from_future_publishing_cb()
 			sys.exit(0)
 		if args.print_filepath:
 			obj.print_filepath()
