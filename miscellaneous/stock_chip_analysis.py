@@ -33,6 +33,14 @@ class StockChipAnalysis(object):
 	# DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
 	DEFAULT_OUTPUT_RESULT_FILENAME = "output_result.txt"
 	SHEET_METADATA_DICT = {
+		u"台股 ETF": {
+			"key_mode": 4, # 00727B
+			"data_start_column_index": 2,
+		},
+		u"美股 ETF": {
+			"key_mode": 5, # JEPQ
+			"data_start_column_index": 2,
+		},
 		u"SSB": {
 			"key_mode": 0, # 2489 瑞軒
 			"data_start_column_index": 1,
@@ -103,7 +111,7 @@ class StockChipAnalysis(object):
 		# },
 	}
 	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
-	DEFAULT_SHEET_NAME_LIST = [u"SSB", u"大戶籌碼", u"成交比重", u"控盤券商3日買超", u"控盤券商3日賣超", u"極光波段", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"上市融資增加", u"上櫃融資增加",]
+	DEFAULT_SHEET_NAME_LIST = [u"台股 ETF", u"美股 ETF", u"SSB", u"大戶籌碼", u"成交比重", u"控盤券商3日買超", u"控盤券商3日賣超", u"極光波段", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"上市融資增加", u"上櫃融資增加",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
@@ -211,6 +219,18 @@ class StockChipAnalysis(object):
 					raise ValueError("%s: Incorrect format3: %s" % (sheet_name, key_str))
 				product_name = mobj.group(1)
 				stock_number = mobj.group(2)
+			elif sheet_metadata["key_mode"] == 4:
+				mobj = re.match("(0[\d]{3}[\dBLKR]{0,3})", key_str)
+				if mobj is None:
+					raise ValueError("%s: Incorrect format4: %s" % (sheet_name, key_str))
+				stock_number = mobj.group(1)
+				product_name = worksheet.cell_value(row_index, 1)
+			elif sheet_metadata["key_mode"] == 5:
+				mobj = re.match("([A-Z]{2,5})", key_str)
+				if mobj is None:
+					raise ValueError("%s: Incorrect format5: %s" % (sheet_name, key_str))
+				stock_number = mobj.group(1)
+				product_name = worksheet.cell_value(row_index, 1)
 			else:
 				raise ValueError("Unknown key mode: %d" % sheet_metadata["key_mode"])
 			# if stock_number is None:
