@@ -150,6 +150,8 @@ class StockChipAnalysis(object):
 	]
 	ETF_SEARCH_RULE_FIELD_LIST = [
 		["Alpha", "Beta", "Sharpe",],
+		["年化標準差", "年報酬",],
+		["年化標準差", "年報酬","Alpha", "Beta", "Sharpe",],
 	]
 
 
@@ -606,13 +608,20 @@ class StockChipAnalysis(object):
 			stock_chip_data_dict = self.get_stock_chip_data()
 		if search_rule_index < 0 or search_rule_index >= len(self.ETF_SEARCH_RULE_FIELD_LIST):
 			raise ValueError("Unsupport ETF search_rule_index: %d" % search_rule_index)
+		if self.xcfg["output_result"]:
+			self.__redirect_stdout2file()
+		print("************** Search ETF **************")
+		search_rule_list = self.ETF_SEARCH_RULE_FIELD_LIST[search_rule_index]
+		search_rule_list_str = ", ".join(search_rule_list)
+		print ("搜尋規則: " + search_rule_list_str)
+
 		field_name_list = self.ETF_SEARCH_RULE_FIELD_LIST[search_rule_index]
-		for sheet_name in ["台股 ETF", "美股 ETF",]:
+		for sheet_name in self.ETF_SHEET_NAME_LIST:
 			stock_set = None
 			sheet_data_dict = stock_chip_data_dict[sheet_name]  # ["value"]
 			# import pdb; pdb.set_trace()
 			for field_name in field_name_list:
-				reverse = False if field_name in ["Beta",] else True
+				reverse = False if field_name in ["年化標準差", "Beta",] else True
 				sorted_stock_list = self.__get_sorted_stock_list(field_name, sheet_data_dict, reverse=reverse)
 				filtered_stock_list = self.__filter_sorted_stock_list(sorted_stock_list)
 				filtered_stock_id_list = [filtered_stock[0] for filtered_stock in filtered_stock_list]
