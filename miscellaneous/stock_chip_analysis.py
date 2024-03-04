@@ -620,6 +620,7 @@ class StockChipAnalysis(object):
 			stock_set = None
 			sheet_data_dict = stock_chip_data_dict[sheet_name]  # ["value"]
 			# import pdb; pdb.set_trace()
+			print("%s" % sheet_name)
 			for field_name in field_name_list:
 				reverse = False if field_name in ["年化標準差", "Beta",] else True
 				sorted_stock_list = self.__get_sorted_stock_list(field_name, sheet_data_dict, reverse=reverse)
@@ -635,6 +636,14 @@ class StockChipAnalysis(object):
 			for index, stock in enumerate(stock_list):
 				stock_name = sheet_data_dict['value'][stock]["商品"]
 				print ("*** %s[%s] ***" % (stock, stock_name))
+				stock_sheet_data_dict = sheet_data_dict['value'][stock]
+				item_list = stock_sheet_data_dict.items()
+				item_type_list = map(lambda x, y: (x[0], x[1], y), item_list, stock_chip_data_dict[sheet_name]["type"])
+				item_type_list = filter(lambda x: x[0] not in ["商品",], item_type_list)
+				try:
+					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
+				except ValueError as e:
+					raise e
 
 
 	def search_targets(self, stock_chip_data_dict=None, search_rule_index=0):
