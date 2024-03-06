@@ -459,7 +459,7 @@ class ConvertibleBondAnalysis(object):
 				self.__get_cb_list_from_file()
 			self.cb_id_list = self.xcfg["cb_list"]
 			if len(self.cb_ignore_set) != 0:
-				self.cb_id_list = list(set(self.cb_id_list) - self.self.cb_ignore_set)
+				self.cb_id_list = list(set(self.cb_id_list) - self.cb_ignore_set)
 # Check if the incorrect CB IDs exist
 			# import pdb; pdb.set_trace()
 			cb_id_list = list(filter(lambda x: re.match("[\d]{4,5}", x) is not None, self.cb_id_list))  # Fals to filter the ID whose lenght is more than 5

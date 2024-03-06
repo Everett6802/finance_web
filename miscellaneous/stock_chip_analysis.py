@@ -644,6 +644,7 @@ class StockChipAnalysis(object):
 					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
 				except ValueError as e:
 					raise e
+			print("\n")
 
 
 	def search_targets(self, stock_chip_data_dict=None, search_rule_index=0):
