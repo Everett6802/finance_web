@@ -827,6 +827,38 @@ class StockChipAnalysis(object):
 				self.xcfg["display_stock_list"].append(line.strip("\n"))
 
 
+	def print_display_stock_list_from_file(self):
+		if self.xcfg["display_stock_list"] is None:
+			self.__get_display_stock_list_from_file()
+		for display_stock in self.xcfg["display_stock_list"]:
+			print(display_stock)
+
+
+	def modify_display_stock_list_from_file(self, modify_display_stock_list_str):
+		# import pdb; pdb.set_trace()
+		if self.xcfg["display_stock_list"] is None:
+			self.__get_display_stock_list_from_file()
+		modify_display_stock_list = modify_display_stock_list_str.split(",")
+		for modify_display_stock in modify_display_stock_list:
+			if modify_display_stock[0] == "+":
+				add_display_stock = modify_display_stock[1:]
+				if add_display_stock in self.xcfg["display_stock_list"]:
+					print("The stock[%s] already exists in the list" % add_display_stock)
+				else:
+					self.xcfg["display_stock_list"].append(add_display_stock)
+			elif modify_display_stock[0] == "x":
+				remove_display_stock = modify_display_stock[1:]
+				if remove_display_stock not in self.xcfg["display_stock_list"]:
+					print("The stock[%s] does NOT exist in the list" % remove_display_stock)
+				else:
+					self.xcfg["display_stock_list"].remove(remove_display_stock)
+			else:
+				raise ValueError("Incorrect operator: %s" % modify_display_stock)
+		with open(self.xcfg['display_stock_list_filepath'], 'w') as fp:
+			for line in self.xcfg["display_stock_list"]:
+				fp.write("%s\n" % line)
+
+
 	def search_sheets(self, search_whole=False):
 		if search_whole:
 			if self.xcfg['stock_list'] is not None:
@@ -873,6 +905,8 @@ if __name__ == "__main__":
 	parser.add_argument('-d', '--display', required=False, action='store_true', help='Display specific targets.')
 	parser.add_argument('--display_stock_list', required=False, help='The list of specific stock targets to be displayed.')
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
+	parser.add_argument('--print_display_stock_list_from_file', required=False, action='store_true', help='Print the stok list tracked in the file and exit.')
+	parser.add_argument('--modify_display_stock_list_from_file', required=False, help='The rule for selecting targets. Default: 0.')
 	parser.add_argument('-o', '--output_result', required=False, action='store_true', help='Output the result to the file instead of STDOUT.')
 	parser.add_argument('--output_result_filename', required=False, action='store_true', help='The filename of outputing the result to the file instead of STDOUT.')
 	args = parser.parse_args()
@@ -892,6 +926,9 @@ if __name__ == "__main__":
 		if args.print_filepath:
 			obj.print_filepath()
 			sys.exit(0)
+		if args.print_display_stock_list_from_file:
+			obj.print_display_stock_list_from_file()
+			sys.exit(0)
 		if args.search:
 			search_rule_index = int(args.search_rule) if args.search_rule else 0
 			obj.search_targets(search_rule_index=search_rule_index)
@@ -900,3 +937,5 @@ if __name__ == "__main__":
 			obj.search_etf_targets(search_rule_index=search_rule_index)
 		if args.display:
 			obj.display_targets()
+		if args.modify_display_stock_list_from_file:
+			obj.modify_display_stock_list_from_file(args.modify_display_stock_list_from_file)

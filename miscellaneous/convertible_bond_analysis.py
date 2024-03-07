@@ -816,10 +816,22 @@ class ConvertibleBondAnalysis(object):
 
 	def __collect_cb_full_data(self, cb_id, cb_quotation, cb_stock_quotation, use_percentage=True):
 		# import pdb; pdb.set_trace()
+		cb_stock_id = cb_id[:4]
+		error_str_list = []
+		if cb_id not in self.cb_summary:
+			error_str_list.append("CB summary")
+		if cb_id not in self.cb_publish:
+			error_str_list.append("CB publish")
+		if cb_id not in cb_quotation:
+			error_str_list.append("CB quotation")
+		if cb_stock_id not in cb_stock_quotation:
+			error_str_list.append("CB stock quotation")
+		if len(error_str_list) != 0:
+			raise ValueError("%s missing data: %s" % (cb_id, ", ".join(error_str_list)))
+
 		cb_summary_data = self.cb_summary[cb_id]
 		cb_publish_data = self.cb_publish[cb_id]
 		cb_quotation_data = cb_quotation[cb_id]
-		cb_stock_id = cb_id[:4]
 		cb_stock_quotation_data = cb_stock_quotation[cb_stock_id]
 
 		cb_data_dict = {
@@ -1830,12 +1842,17 @@ class ConvertibleBondAnalysis(object):
 			return float(data_dict["增減數額"]) / float(data_dict["發行張數"]) * 100.0
 		def update_funcptr(x):
 			# import pdb; pdb.set_trace()
-			cb_data = self.__collect_cb_full_data(x[0], cb_quotation, cb_stock_quotation)
-			cb_data.update(x[1])
+			cb_data = None
+			try:
+				cb_data = self.__collect_cb_full_data(x[0], cb_quotation, cb_stock_quotation)
+				cb_data.update(x[1])
+			except ValueError as e:
+				print("Error: %s" % str(e))
 			# print(cb_data)
 			return cb_data
 		try:
 			cb_monthly_convert_data = self.get_cb_monthly_convert_data(table_month)
+			# import pdb; pdb.set_trace()
 			convert_cb_dict = cb_monthly_convert_data["content"]
 			if filter_cb:
 				if not self.xcfg['cb_all']:
@@ -2146,8 +2163,11 @@ class ConvertibleBondAnalysis(object):
 			title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數", "到期日期",]
 			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in mass_convert_cb_dict.items():
-				mass_convert_percentage = float(cb_data["增減數額"]) / float(cb_data["發行張數"]) * 100.0
-				print("%s[%s]:  %.2f  %d  %d  %d  %s" % (cb_data["名稱"], cb_key, mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"]), cb_data["到期日期"]))
+				if cb_data is None: 
+					print("%s:  missing data" % cb_key)
+				else:
+					mass_convert_percentage = float(cb_data["增減數額"]) / float(cb_data["發行張數"]) * 100.0
+					print("%s[%s]:  %.2f  %d  %d  %d  %s" % (cb_data["名稱"], cb_key, mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"]), cb_data["到期日期"]))
 		# multiple_publish_dict = self.search_multiple_publish()
 		# if bool(multiple_publish_dict):
 		# 	print("=== 多次發行 ==================================================")
