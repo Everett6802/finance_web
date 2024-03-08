@@ -26,7 +26,7 @@ class StockChipAnalysis(object):
 	DEFAULT_SOURCE_FILENAME = "stock_chip_analysis"
 	DEFAULT_SOURCE_FULL_FILENAME = "%s.xlsm" % DEFAULT_SOURCE_FILENAME
 	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
-	DEFAULT_DISPLAY_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
+	DEFAULT_TRACKED_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
 	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"
 	DEFAULT_CB_DATA_FOLDERNAME =  "Data"
 	DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX = "可轉換公司債月分析表"
@@ -287,8 +287,8 @@ class StockChipAnalysis(object):
 			"source_folderpath": None,
 			"cb_data_folderpath": None,
 			"source_filename": self.DEFAULT_SOURCE_FULL_FILENAME,
-			"display_stock_list_filename": self.DEFAULT_DISPLAY_STOCK_LIST_FILENAME,
-			"display_stock_list": None,
+			"tracked_stock_list_filename": self.DEFAULT_TRACKED_STOCK_LIST_FILENAME,
+			"tracked_stock_list": None,
 			"min_consecutive_over_buy_days": self.DEFAULT_MIN_CONSECUTIVE_OVER_BUY_DAYS,
 			"max_consecutive_over_buy_days": self.DEFAULT_MAX_CONSECUTIVE_OVER_BUY_DAYS,
 			"minimum_volume": self.DEFAULT_MINIMUM_VOLUME,
@@ -311,15 +311,15 @@ class StockChipAnalysis(object):
 		self.xcfg["cb_folderpath"] = self.DEFAULT_CB_FOLDERPATH if self.xcfg["cb_folderpath"] is None else self.xcfg["cb_folderpath"]
 		self.xcfg["cb_data_folderpath"] = os.path.join(self.xcfg["cb_folderpath"], self.DEFAULT_CB_DATA_FOLDERNAME) if self.xcfg["cb_data_folderpath"] is None else self.xcfg["cb_data_folderpath"]
 		# print ("__init__: %s" % self.xcfg["source_filepath"])
-		self.xcfg["display_stock_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["display_stock_list_filename"])
-		file_modification_date = self.__get_file_modification_date(self.xcfg["display_stock_list_filepath"])
-		self.xcfg["display_stock_list_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
-		if self.xcfg["display_stock_list"] is not None:
-			if type(self.xcfg["display_stock_list"]) is str:
-				display_stock_list = []
-				for display_stock in self.xcfg["display_stock_list"].split(","):
-					display_stock_list.append(display_stock)
-				self.xcfg["display_stock_list"] = display_stock_list
+		self.xcfg["tracked_stock_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["tracked_stock_list_filename"])
+		file_modification_date = self.__get_file_modification_date(self.xcfg["tracked_stock_list_filepath"])
+		self.xcfg["tracked_stock_list_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
+		if self.xcfg["tracked_stock_list"] is not None:
+			if type(self.xcfg["tracked_stock_list"]) is str:
+				tracked_stock_list = []
+				for tracked_stock in self.xcfg["tracked_stock_list"].split(","):
+					tracked_stock_list.append(tracked_stock)
+				self.xcfg["tracked_stock_list"] = tracked_stock_list
 		# import pdb; pdb.set_trace()
 		self.xcfg["output_result_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["output_result_filename"])
 		self.xcfg["cb_folderpath"] = self.DEFAULT_CB_FOLDERPATH if self.xcfg["cb_folderpath"] is None else self.xcfg["cb_folderpath"]
@@ -332,7 +332,7 @@ class StockChipAnalysis(object):
 
 		self.filepath_dict = OrderedDict()
 		self.filepath_dict["source"] = self.xcfg["source_filepath"]
-		self.filepath_dict["display_stock_list"] = self.xcfg["display_stock_list_filepath"]
+		self.filepath_dict["tracked_stock_list"] = self.xcfg["tracked_stock_list_filepath"]
 		self.filepath_dict["output_result"] = self.xcfg["output_result_filepath"]
 		self.filepath_dict["cb_publish"] = self.xcfg["cb_publish_filepath"]
 
@@ -531,7 +531,7 @@ class StockChipAnalysis(object):
 	def __print_file_modification_date(self):
 		print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["source_filepath"]), self.xcfg["source_file_modification_date_str"]))
-		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["display_stock_list_filepath"]), self.xcfg["display_stock_list_file_modification_date_str"]))
+		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["tracked_stock_list_filepath"]), self.xcfg["tracked_stock_list_file_modification_date_str"]))
 		if self.cb_publish is not None:
 			print("%s  修改時間: %s" % (os.path.basename(self.xcfg["cb_publish_filepath"]), self.xcfg["cb_publish_file_modification_date_str"]))
 		print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
@@ -708,11 +708,11 @@ class StockChipAnalysis(object):
 							ssb_field_data_list = self.__get_sorted_ssb(ssb_field_name, ssb_stock_chip_data_dict)
 							# import pdb; pdb.set_trace()
 							try:
-								# # display_stock_order = ssb_field_data_list.index(ssb_stock_chip_data_dict["value"][stock][ssb_field_name])
-								# display_stock_order_list = [index for index, ssb_field_data in enumerate(ssb_field_data_list) if ssb_field_data[0] == stock]
-								# if len(display_stock_order_list) != 1:
-								# 	raise ValueError("Incorrect search result: %s" % display_stock_order_list)
-								# display_stock_order = display_stock_order_list[0]
+								# # tracked_stock_order = ssb_field_data_list.index(ssb_stock_chip_data_dict["value"][stock][ssb_field_name])
+								# tracked_stock_order_list = [index for index, ssb_field_data in enumerate(ssb_field_data_list) if ssb_field_data[0] == stock]
+								# if len(tracked_stock_order_list) != 1:
+								# 	raise ValueError("Incorrect search result: %s" % tracked_stock_order_list)
+								# tracked_stock_order = tracked_stock_order_list[0]
 								stock_order = self.__get_sorted_stock_index(stock, ssb_field_data_list)
 								ssb_field_order_list.append("%s(%d)" % (ssb_field_name, stock_order))
 							except ValueError as e:
@@ -720,7 +720,7 @@ class StockChipAnalysis(object):
 								raise e
 						print("    " + ", ".join(ssb_field_order_list))
 				except ValueError as e:
-					# print("%s:%s Error: %s in %s" % (display_stock, sheet_name, str(e), str(list(item_type_list))))
+					# print("%s:%s Error: %s in %s" % (tracked_stock, sheet_name, str(e), str(list(item_type_list))))
 					# import pdb; pdb.set_trace()
 					raise e
 			if self.cb_publish is not None:
@@ -732,9 +732,9 @@ class StockChipAnalysis(object):
 			self.__redirect_file2stdout()
 
 
-	def display_targets(self, stock_chip_data_dict=None):
-		if self.xcfg["display_stock_list"] is None:
-			self.__get_display_stock_list_from_file()
+	def tracked_targets(self, stock_chip_data_dict=None):
+		if self.xcfg["tracked_stock_list"] is None:
+			self.__get_tracked_stock_list_from_file()
 		if stock_chip_data_dict is None:
 			stock_chip_data_dict = self.get_stock_chip_data()
 		mass_convert_cb_dict = self.search_cb_mass_convert()
@@ -746,20 +746,20 @@ class StockChipAnalysis(object):
 		file_modification_date = self.__get_file_modification_date(self.xcfg["source_filepath"])
 		print("檔案修改時間: %s\n" % file_modification_date.strftime("%Y/%m/%d %H:%M:%S"))
 		print("************** Display **************")
-		for display_stock in self.xcfg["display_stock_list"]:
-			# print ("*** %s[%s] ***" % (display_stock, stock_name_list[index]))
+		for tracked_stock in self.xcfg["tracked_stock_list"]:
+			# print ("*** %s[%s] ***" % (tracked_stock, stock_name_list[index]))
 			target_caption = None
 			global_item_list = None
 			need_new_line = False
 			for sheet_name in self.DEFAULT_SHEET_NAME_LIST:
 				sheet_data_dict = stock_chip_data_dict[sheet_name]["value"]
-				if display_stock not in sheet_data_dict.keys():
+				if tracked_stock not in sheet_data_dict.keys():
 					continue
 				if not need_new_line:
 					need_new_line = True
-				stock_sheet_data_dict = sheet_data_dict[display_stock]
+				stock_sheet_data_dict = sheet_data_dict[tracked_stock]
 				if target_caption is None:
-					target_caption = "*** %s[%s] ***" % (display_stock, stock_sheet_data_dict["商品"])
+					target_caption = "*** %s[%s] ***" % (tracked_stock, stock_sheet_data_dict["商品"])
 					print(target_caption)
 				item_list = stock_sheet_data_dict.items()
 				if global_item_list is None:
@@ -783,27 +783,27 @@ class StockChipAnalysis(object):
 							ssb_field_data_list = self.__get_sorted_ssb(ssb_field_name, ssb_stock_chip_data_dict)
 							# import pdb; pdb.set_trace()
 							try:
-								# # display_stock_order = ssb_field_data_list.index(ssb_stock_chip_data_dict["value"][display_stock][ssb_field_name])
-								# display_stock_order_list = [index for index, ssb_field_data in enumerate(ssb_field_data_list) if ssb_field_data[0] == display_stock]
-								# if len(display_stock_order_list) != 1:
-								# 	raise ValueError("Incorrect search result: %s" % display_stock_order_list)
-								# display_stock_order = display_stock_order_list[0]
-								display_stock_order = self.__get_sorted_stock_index(display_stock, ssb_field_data_list)
-								ssb_field_order_list.append("%s(%d)" % (ssb_field_name, display_stock_order))
+								# # tracked_stock_order = ssb_field_data_list.index(ssb_stock_chip_data_dict["value"][tracked_stock][ssb_field_name])
+								# tracked_stock_order_list = [index for index, ssb_field_data in enumerate(ssb_field_data_list) if ssb_field_data[0] == tracked_stock]
+								# if len(tracked_stock_order_list) != 1:
+								# 	raise ValueError("Incorrect search result: %s" % tracked_stock_order_list)
+								# tracked_stock_order = tracked_stock_order_list[0]
+								tracked_stock_order = self.__get_sorted_stock_index(tracked_stock, ssb_field_data_list)
+								ssb_field_order_list.append("%s(%d)" % (ssb_field_name, tracked_stock_order))
 							except ValueError as e:
-								print("Fail to find %s in %s, due to %s", (ssb_field_name, display_stock, str(e)))
+								print("Fail to find %s in %s, due to %s", (ssb_field_name, tracked_stock, str(e)))
 								raise e
 						print("    " + ", ".join(ssb_field_order_list))
 				except ValueError as e:
-					# print("%s:%s Error: %s in %s" % (display_stock, sheet_name, str(e), str(list(item_type_list))))
+					# print("%s:%s Error: %s in %s" % (tracked_stock, sheet_name, str(e), str(list(item_type_list))))
 					# import pdb; pdb.set_trace()
 					raise e
 			if self.cb_publish is not None:
-				cb_id_list = list(filter(lambda x: x[:4] == display_stock, self.cb_publish.keys()))
+				cb_id_list = list(filter(lambda x: x[:4] == tracked_stock, self.cb_publish.keys()))
 				if len(cb_id_list) != 0:
 					print("  可轉債發行: " + " ".join(cb_id_list))
 			if mass_convert_cb_dict is not None:
-				mass_convert_cb_list = list(filter(lambda x: x[:4] == display_stock, mass_convert_cb_dict.keys()))
+				mass_convert_cb_list = list(filter(lambda x: x[:4] == tracked_stock, mass_convert_cb_dict.keys()))
 				if len(mass_convert_cb_list) != 0:
 					print("=== CB大量轉換 ==================================================")
 					# title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數",]
@@ -817,45 +817,47 @@ class StockChipAnalysis(object):
 			self.__redirect_file2stdout()
 
 
-	def __get_display_stock_list_from_file(self):
+	def __get_tracked_stock_list_from_file(self):
 		# import pdb; pdb.set_trace()
-		if not self.__check_file_exist(self.xcfg['display_stock_list_filepath']):
-			raise RuntimeError("The file[%s] does NOT exist" % self.xcfg['display_stock_list_filepath'])
-		self.xcfg["display_stock_list"] = []
-		with open(self.xcfg['display_stock_list_filepath'], 'r') as fp:
+		if not self.__check_file_exist(self.xcfg['tracked_stock_list_filepath']):
+			raise RuntimeError("The file[%s] does NOT exist" % self.xcfg['tracked_stock_list_filepath'])
+		self.xcfg["tracked_stock_list"] = []
+		with open(self.xcfg['tracked_stock_list_filepath'], 'r') as fp:
 			for line in fp:
-				self.xcfg["display_stock_list"].append(line.strip("\n"))
+				self.xcfg["tracked_stock_list"].append(line.strip("\n"))
 
 
-	def print_display_stock_list_from_file(self):
-		if self.xcfg["display_stock_list"] is None:
-			self.__get_display_stock_list_from_file()
-		for display_stock in self.xcfg["display_stock_list"]:
-			print(display_stock)
+	def print_tracked_stock(self):
+		if self.xcfg["tracked_stock_list"] is None:
+			self.__get_tracked_stock_list_from_file()
+		for tracked_stock in self.xcfg["tracked_stock_list"]:
+			print(tracked_stock)
 
 
-	def modify_display_stock_list_from_file(self, modify_display_stock_list_str):
+	def modify_tracked_stock(self, modify_tracked_stock_list_str):
 		# import pdb; pdb.set_trace()
-		if self.xcfg["display_stock_list"] is None:
-			self.__get_display_stock_list_from_file()
-		modify_display_stock_list = modify_display_stock_list_str.split(",")
-		for modify_display_stock in modify_display_stock_list:
-			if modify_display_stock[0] == "+":
-				add_display_stock = modify_display_stock[1:]
-				if add_display_stock in self.xcfg["display_stock_list"]:
-					print("The stock[%s] already exists in the list" % add_display_stock)
+		if self.xcfg["tracked_stock_list"] is None:
+			self.__get_tracked_stock_list_from_file()
+		modify_tracked_stock_list = modify_tracked_stock_list_str.split(",")
+		for modify_tracked_stock in modify_tracked_stock_list:
+			if modify_tracked_stock[0] == "+":
+				add_tracked_stock = modify_tracked_stock[1:]
+				if add_tracked_stock in self.xcfg["tracked_stock_list"]:
+					print("The stock[%s] already exists in the list" % add_tracked_stock)
 				else:
-					self.xcfg["display_stock_list"].append(add_display_stock)
-			elif modify_display_stock[0] == "x":
-				remove_display_stock = modify_display_stock[1:]
-				if remove_display_stock not in self.xcfg["display_stock_list"]:
-					print("The stock[%s] does NOT exist in the list" % remove_display_stock)
+					self.xcfg["tracked_stock_list"].append(add_tracked_stock)
+			elif modify_tracked_stock[0] == "x":
+				remove_tracked_stock = modify_tracked_stock[1:]
+				if remove_tracked_stock not in self.xcfg["tracked_stock_list"]:
+					print("The stock[%s] does NOT exist in the list" % remove_tracked_stock)
 				else:
-					self.xcfg["display_stock_list"].remove(remove_display_stock)
+					self.xcfg["tracked_stock_list"].remove(remove_tracked_stock)
 			else:
-				raise ValueError("Incorrect operator: %s" % modify_display_stock)
-		with open(self.xcfg['display_stock_list_filepath'], 'w') as fp:
-			for line in self.xcfg["display_stock_list"]:
+				raise ValueError("Incorrect operator: %s" % modify_tracked_stock)
+		# import pdb; pdb.set_trace()
+		self.xcfg["tracked_stock_list"] = list(filter(lambda x: len(x) != 0, self.xcfg["tracked_stock_list"]))
+		with open(self.xcfg['tracked_stock_list_filepath'], 'w') as fp:
+			for line in self.xcfg["tracked_stock_list"]:
 				fp.write("%s\n" % line)
 
 
@@ -902,11 +904,11 @@ if __name__ == "__main__":
 	parser.add_argument('-r', '--search_rule', required=False, help='The rule for selecting targets. Default: 0.')
 	parser.add_argument('-s', '--search', required=False, action='store_true', help='Select targets based on the search rule.')
 	parser.add_argument('--search_etf', required=False, action='store_true', help='Select ETF targets based on the search rule.')
-	parser.add_argument('-d', '--display', required=False, action='store_true', help='Display specific targets.')
-	parser.add_argument('--display_stock_list', required=False, help='The list of specific stock targets to be displayed.')
+	parser.add_argument('-t', '--track', required=False, action='store_true', help='Track specific targets.')
+	parser.add_argument('--tracked_stock_list', required=False, help='The list of specific stock targets to be trackeded.')
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
-	parser.add_argument('--print_display_stock_list_from_file', required=False, action='store_true', help='Print the stok list tracked in the file and exit.')
-	parser.add_argument('--modify_display_stock_list_from_file', required=False, help='The rule for selecting targets. Default: 0.')
+	parser.add_argument('--print_tracked_stock', required=False, action='store_true', help='Print the stok list tracked in the file and exit.')
+	parser.add_argument('--modify_tracked_stock', required=False, help='The rule for selecting targets. Default: 0.')
 	parser.add_argument('-o', '--output_result', required=False, action='store_true', help='Output the result to the file instead of STDOUT.')
 	parser.add_argument('--output_result_filename', required=False, action='store_true', help='The filename of outputing the result to the file instead of STDOUT.')
 	args = parser.parse_args()
@@ -916,8 +918,8 @@ if __name__ == "__main__":
 		sys.exit(0)
 
 	cfg = {}
-	if args.display_stock_list:
-		cfg['display_stock_list'] = args.display_stock_list
+	if args.tracked_stock_list:
+		cfg['tracked_stock_list'] = args.tracked_stock_list
 	if args.output_result:
 		cfg['output_result'] = True
 	if args.output_result_filename:
@@ -926,8 +928,8 @@ if __name__ == "__main__":
 		if args.print_filepath:
 			obj.print_filepath()
 			sys.exit(0)
-		if args.print_display_stock_list_from_file:
-			obj.print_display_stock_list_from_file()
+		if args.print_tracked_stock:
+			obj.print_tracked_stock()
 			sys.exit(0)
 		if args.search:
 			search_rule_index = int(args.search_rule) if args.search_rule else 0
@@ -935,7 +937,8 @@ if __name__ == "__main__":
 		if args.search_etf:
 			search_rule_index = int(args.search_rule) if args.search_rule else 0
 			obj.search_etf_targets(search_rule_index=search_rule_index)
-		if args.display:
-			obj.display_targets()
-		if args.modify_display_stock_list_from_file:
-			obj.modify_display_stock_list_from_file(args.modify_display_stock_list_from_file)
+		if args.track:
+			obj.tracked_targets()
+		if args.modify_tracked_stock:
+			obj.modify_tracked_stock(args.modify_tracked_stock)
+			obj.print_tracked_stock()
