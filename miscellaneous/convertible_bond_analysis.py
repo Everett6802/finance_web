@@ -2194,6 +2194,40 @@ class ConvertibleBondAnalysis(object):
 				self.xcfg["cb_list"].append(line)
 
 
+	def print_tracked_cb(self):
+		if self.xcfg["cb_list"] is None:
+			self.__get_cb_list_from_file()
+		for cb in self.xcfg["cb_list"]:
+			print(cb)
+
+
+	def modify_tracked_cb(self, modify_cb_list_str):
+		# import pdb; pdb.set_trace()
+		if self.xcfg["cb_list"] is None:
+			self.__get_cb_list_from_file()
+		modify_cb_list = modify_cb_list_str.split(",")
+		for modify_cb in modify_cb_list:
+			if modify_cb[0] == "+":
+				add_cb = modify_cb[1:]
+				if add_cb in self.xcfg["cb_list"]:
+					print("The CB[%s] already exists in the list" % add_cb)
+				else:
+					self.xcfg["cb_list"].append(add_cb)
+			elif modify_cb[0] == "x":
+				remove_cb = modify_cb[1:]
+				if remove_cb not in self.xcfg["cb_list"]:
+					print("The CB[%s] does NOT exist in the list" % remove_cb)
+				else:
+					self.xcfg["cb_list"].remove(remove_cb)
+			else:
+				raise ValueError("Incorrect operator: %s" % modify_cb)
+		# import pdb; pdb.set_trace()
+		self.xcfg["cb_list"] = list(filter(lambda x: len(x) != 0, self.xcfg["cb_list"]))
+		with open(self.xcfg['cb_list_filepath'], 'w') as fp:
+			for line in self.xcfg["cb_list"]:
+				fp.write("%s\n" % line)
+
+
 	def display(self):
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
 		quotation_data_dict = self.__read_cb_quotation()
@@ -2376,6 +2410,8 @@ if __name__ == "__main__":
 	parser.add_argument('--check_scrape_stock', required=False, help='Only check if it is required to scrape the stock info of specific stocks and exit.')
 	parser.add_argument('--check_scrape_stock_from_file', required=False, action='store_true', help="Only check if it is required to scrape the stock info and exit. The scrapy stocks are from the 'cb_list' file")
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
+	parser.add_argument('--print_tracked_cb', required=False, action='store_true', help='Print the CB list tracked in the file and exit.')
+	parser.add_argument('--modify_tracked_cb', required=False, help='The rule for selecting targets. Default: 0.')
 	parser.add_argument('--disable_headless', required=False, action='store_true', help='Disable headless web scrapy')
 	parser.add_argument('--disable_scrapy', required=False, action='store_true', help='Disable data from scrapy. Caution: Only take effect for the "display" argument')
 	parser.add_argument('--force_update', required=False, action='store_true', help='Force to scrape all data')
@@ -2431,6 +2467,9 @@ if __name__ == "__main__":
 		if args.print_filepath:
 			obj.print_filepath()
 			sys.exit(0)
+		if args.print_tracked_cb:
+			obj.print_tracked_cb()
+			sys.exit(0)
 		if args.list:
 			obj.list()
 		if args.search:
@@ -2440,6 +2479,9 @@ if __name__ == "__main__":
 			obj.display()
 		if args.validate:
 			obj.validate()
+		if args.modify_tracked_cb:
+			obj.modify_tracked_cb(args.modify_tracked_cb)
+			obj.print_tracked_cb()
 
 
 # 	from selenium import webdriver

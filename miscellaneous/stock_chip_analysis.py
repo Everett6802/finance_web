@@ -907,7 +907,7 @@ if __name__ == "__main__":
 	parser.add_argument('-t', '--track', required=False, action='store_true', help='Track specific targets.')
 	parser.add_argument('--tracked_stock_list', required=False, help='The list of specific stock targets to be trackeded.')
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
-	parser.add_argument('--print_tracked_stock', required=False, action='store_true', help='Print the stok list tracked in the file and exit.')
+	parser.add_argument('--print_tracked_stock', required=False, action='store_true', help='Print the stock list tracked in the file and exit.')
 	parser.add_argument('--modify_tracked_stock', required=False, help='The rule for selecting targets. Default: 0.')
 	parser.add_argument('-o', '--output_result', required=False, action='store_true', help='Output the result to the file instead of STDOUT.')
 	parser.add_argument('--output_result_filename', required=False, action='store_true', help='The filename of outputing the result to the file instead of STDOUT.')
