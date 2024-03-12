@@ -46,7 +46,7 @@ def retry(max_retry=3, sleep_time=10):
 class ConvertibleBondAnalysis(object):
 
 	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
-	DEFAULT_DISPLAY_CB_LIST_FILENAME = "convertible_bond_list.txt"
+	DEFAULT_TRACKED_CB_LIST_FILENAME = "convertible_bond_list.txt"
 
 	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"
 	DEFAULT_CB_DATA_FOLDERNAME =  "Data"
@@ -303,7 +303,7 @@ class ConvertibleBondAnalysis(object):
 		self.xcfg["cb_stock_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_stock_quotation_filename"])
 		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_stock_quotation_filepath"])
 		self.xcfg["cb_stock_quotation_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
-		self.xcfg["cb_list_filename"] = self.DEFAULT_DISPLAY_CB_LIST_FILENAME if self.xcfg["cb_list_filename"] is None else self.xcfg["cb_list_filename"]
+		self.xcfg["cb_list_filename"] = self.DEFAULT_TRACKED_CB_LIST_FILENAME if self.xcfg["cb_list_filename"] is None else self.xcfg["cb_list_filename"]
 		self.xcfg["cb_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["cb_list_filename"])
 		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_list_filepath"])
 		self.xcfg["cb_list_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
@@ -2228,7 +2228,7 @@ class ConvertibleBondAnalysis(object):
 				fp.write("%s\n" % line)
 
 
-	def display(self):
+	def track(self):
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
 		quotation_data_dict = self.__read_cb_quotation()
 		stock_quotation_data_dict = self.__read_cb_stock_quotation()
@@ -2400,7 +2400,7 @@ if __name__ == "__main__":
 	parser.add_argument('-a', '--all', required=False, action='store_true', help='Check all CBs.')
 	parser.add_argument('-l', '--list', required=False, action='store_true', help='List the potential targets based on the search rule.')
 	parser.add_argument('-s', '--search', required=False, action='store_true', help='Select targets based on the search rule.')
-	parser.add_argument('-d', '--display', required=False, action='store_true', help='Display specific targets.')
+	parser.add_argument('-t', '--track', required=False, action='store_true', help='Track specific targets.')
 	parser.add_argument('-v', '--validate', required=False, action='store_true', help='Validate the estimation.')
 	parser.add_argument('--cb_list', required=False, help='The list of specific CB targets.')
 	parser.add_argument('--cb_ignore_list', required=False, help='The list of specific CB targets which are ignored.')
@@ -2413,7 +2413,7 @@ if __name__ == "__main__":
 	parser.add_argument('--print_tracked_cb', required=False, action='store_true', help='Print the CB list tracked in the file and exit.')
 	parser.add_argument('--modify_tracked_cb', required=False, help='The rule for selecting targets. Default: 0.')
 	parser.add_argument('--disable_headless', required=False, action='store_true', help='Disable headless web scrapy')
-	parser.add_argument('--disable_scrapy', required=False, action='store_true', help='Disable data from scrapy. Caution: Only take effect for the "display" argument')
+	parser.add_argument('--disable_scrapy', required=False, action='store_true', help='Disable data from scrapy. Caution: Only take effect for the "track" argument')
 	parser.add_argument('--force_update', required=False, action='store_true', help='Force to scrape all data')
 	args = parser.parse_args()
 
@@ -2475,8 +2475,8 @@ if __name__ == "__main__":
 		if args.search:
 			obj.search()
 		# import pdb; pdb.set_trace()
-		if args.display:
-			obj.display()
+		if args.track:
+			obj.track()
 		if args.validate:
 			obj.validate()
 		if args.modify_tracked_cb:
