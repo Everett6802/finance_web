@@ -53,18 +53,18 @@ class StockChipAnalysis(object):
 			"key_mode": 0, # 2489 瑞軒
 			"data_start_column_index": 1,
 		},
-		u"控盤券商3日買超": {
-			"key_mode": 3, # 日月光投控(3711)
-			"data_start_column_index": 1,
-		},
-		u"控盤券商3日賣超": {
-			"key_mode": 3, # 日月光投控(3711)
-			"data_start_column_index": 1,
-		},
-		u"極光波段": {
-			"key_mode": 0, # 2489 瑞軒
-			"data_start_column_index": 1,
-		},
+		# u"控盤券商3日買超": {
+		# 	"key_mode": 3, # 日月光投控(3711)
+		# 	"data_start_column_index": 1,
+		# },
+		# u"控盤券商3日賣超": {
+		# 	"key_mode": 3, # 日月光投控(3711)
+		# 	"data_start_column_index": 1,
+		# },
+		# u"極光波段": {
+		# 	"key_mode": 0, # 2489 瑞軒
+		# 	"data_start_column_index": 1,
+		# },
 		# u"短線多空": {
 		# 	"key_mode": 0, # 2504 國產
 		# 	"data_start_column_index": 1,
@@ -111,7 +111,7 @@ class StockChipAnalysis(object):
 		# },
 	}
 	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
-	DEFAULT_SHEET_NAME_LIST = [u"台股 ETF", u"美股 ETF", u"SSB", u"大戶籌碼", u"成交比重", u"控盤券商3日買超", u"控盤券商3日賣超", u"極光波段", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"上市融資增加", u"上櫃融資增加",]
+	DEFAULT_SHEET_NAME_LIST = [u"台股 ETF", u"美股 ETF", u"SSB", u"大戶籌碼", u"成交比重", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"上市融資增加", u"上櫃融資增加",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
