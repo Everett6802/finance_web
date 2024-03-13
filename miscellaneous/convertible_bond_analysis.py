@@ -46,7 +46,7 @@ def retry(max_retry=3, sleep_time=10):
 class ConvertibleBondAnalysis(object):
 
 	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
-	DEFAULT_DISPLAY_CB_LIST_FILENAME = "convertible_bond_list.txt"
+	DEFAULT_TRACKED_CB_LIST_FILENAME = "convertible_bond_list.txt"
 
 	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"
 	DEFAULT_CB_DATA_FOLDERNAME =  "Data"
@@ -303,7 +303,7 @@ class ConvertibleBondAnalysis(object):
 		self.xcfg["cb_stock_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_stock_quotation_filename"])
 		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_stock_quotation_filepath"])
 		self.xcfg["cb_stock_quotation_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
-		self.xcfg["cb_list_filename"] = self.DEFAULT_DISPLAY_CB_LIST_FILENAME if self.xcfg["cb_list_filename"] is None else self.xcfg["cb_list_filename"]
+		self.xcfg["cb_list_filename"] = self.DEFAULT_TRACKED_CB_LIST_FILENAME if self.xcfg["cb_list_filename"] is None else self.xcfg["cb_list_filename"]
 		self.xcfg["cb_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["cb_list_filename"])
 		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_list_filepath"])
 		self.xcfg["cb_list_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
@@ -459,7 +459,7 @@ class ConvertibleBondAnalysis(object):
 				self.__get_cb_list_from_file()
 			self.cb_id_list = self.xcfg["cb_list"]
 			if len(self.cb_ignore_set) != 0:
-				self.cb_id_list = list(set(self.cb_id_list) - self.self.cb_ignore_set)
+				self.cb_id_list = list(set(self.cb_id_list) - self.cb_ignore_set)
 # Check if the incorrect CB IDs exist
 			# import pdb; pdb.set_trace()
 			cb_id_list = list(filter(lambda x: re.match("[\d]{4,5}", x) is not None, self.cb_id_list))  # Fals to filter the ID whose lenght is more than 5
@@ -816,10 +816,22 @@ class ConvertibleBondAnalysis(object):
 
 	def __collect_cb_full_data(self, cb_id, cb_quotation, cb_stock_quotation, use_percentage=True):
 		# import pdb; pdb.set_trace()
+		cb_stock_id = cb_id[:4]
+		error_str_list = []
+		if cb_id not in self.cb_summary:
+			error_str_list.append("CB summary")
+		if cb_id not in self.cb_publish:
+			error_str_list.append("CB publish")
+		if cb_id not in cb_quotation:
+			error_str_list.append("CB quotation")
+		if cb_stock_id not in cb_stock_quotation:
+			error_str_list.append("CB stock quotation")
+		if len(error_str_list) != 0:
+			raise ValueError("%s missing data: %s" % (cb_id, ", ".join(error_str_list)))
+
 		cb_summary_data = self.cb_summary[cb_id]
 		cb_publish_data = self.cb_publish[cb_id]
 		cb_quotation_data = cb_quotation[cb_id]
-		cb_stock_id = cb_id[:4]
 		cb_stock_quotation_data = cb_stock_quotation[cb_stock_id]
 
 		cb_data_dict = {
@@ -1848,12 +1860,17 @@ class ConvertibleBondAnalysis(object):
 			return float(data_dict["增減數額"]) / float(data_dict["發行張數"]) * 100.0
 		def update_funcptr(x):
 			# import pdb; pdb.set_trace()
-			cb_data = self.__collect_cb_full_data(x[0], cb_quotation, cb_stock_quotation)
-			cb_data.update(x[1])
+			cb_data = None
+			try:
+				cb_data = self.__collect_cb_full_data(x[0], cb_quotation, cb_stock_quotation)
+				cb_data.update(x[1])
+			except ValueError as e:
+				print("Error: %s" % str(e))
 			# print(cb_data)
 			return cb_data
 		try:
 			cb_monthly_convert_data = self.get_cb_monthly_convert_data(table_month)
+			# import pdb; pdb.set_trace()
 			convert_cb_dict = cb_monthly_convert_data["content"]
 			if filter_cb:
 				if not self.xcfg['cb_all']:
@@ -2165,8 +2182,11 @@ class ConvertibleBondAnalysis(object):
 			title_list = ["增減百分比", "前月底保管張數", "本月底保管張數", "發行張數", "到期日期",]
 			print("  ===> %s" % ", ".join(title_list))
 			for cb_key, cb_data in mass_convert_cb_dict.items():
-				mass_convert_percentage = float(cb_data["增減數額"]) / float(cb_data["發行張數"]) * 100.0
-				print("%s[%s]:  %.2f  %d  %d  %d  %s" % (cb_data["名稱"], cb_key, mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"]), cb_data["到期日期"]))
+				if cb_data is None: 
+					print("%s:  missing data" % cb_key)
+				else:
+					mass_convert_percentage = float(cb_data["增減數額"]) / float(cb_data["發行張數"]) * 100.0
+					print("%s[%s]:  %.2f  %d  %d  %d  %s" % (cb_data["名稱"], cb_key, mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"]), cb_data["到期日期"]))
 		# multiple_publish_dict = self.search_multiple_publish()
 		# if bool(multiple_publish_dict):
 		# 	print("=== 多次發行 ==================================================")
@@ -2193,7 +2213,41 @@ class ConvertibleBondAnalysis(object):
 				self.xcfg["cb_list"].append(line)
 
 
-	def display(self):
+	def print_tracked_cb(self):
+		if self.xcfg["cb_list"] is None:
+			self.__get_cb_list_from_file()
+		for cb in self.xcfg["cb_list"]:
+			print(cb)
+
+
+	def modify_tracked_cb(self, modify_cb_list_str):
+		# import pdb; pdb.set_trace()
+		if self.xcfg["cb_list"] is None:
+			self.__get_cb_list_from_file()
+		modify_cb_list = modify_cb_list_str.split(",")
+		for modify_cb in modify_cb_list:
+			if modify_cb[0] == "+":
+				add_cb = modify_cb[1:]
+				if add_cb in self.xcfg["cb_list"]:
+					print("The CB[%s] already exists in the list" % add_cb)
+				else:
+					self.xcfg["cb_list"].append(add_cb)
+			elif modify_cb[0] == "x":
+				remove_cb = modify_cb[1:]
+				if remove_cb not in self.xcfg["cb_list"]:
+					print("The CB[%s] does NOT exist in the list" % remove_cb)
+				else:
+					self.xcfg["cb_list"].remove(remove_cb)
+			else:
+				raise ValueError("Incorrect operator: %s" % modify_cb)
+		# import pdb; pdb.set_trace()
+		self.xcfg["cb_list"] = list(filter(lambda x: len(x) != 0, self.xcfg["cb_list"]))
+		with open(self.xcfg['cb_list_filepath'], 'w') as fp:
+			for line in self.xcfg["cb_list"]:
+				fp.write("%s\n" % line)
+
+
+	def track(self):
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
 		quotation_data_dict = self.__read_cb_quotation()
 		stock_quotation_data_dict = self.__read_cb_stock_quotation()
@@ -2388,7 +2442,7 @@ if __name__ == "__main__":
 	parser.add_argument('-a', '--all', required=False, action='store_true', help='Check all CBs.')
 	parser.add_argument('-l', '--list', required=False, action='store_true', help='List the potential targets based on the search rule.')
 	parser.add_argument('-s', '--search', required=False, action='store_true', help='Select targets based on the search rule.')
-	parser.add_argument('-d', '--display', required=False, action='store_true', help='Display specific targets.')
+	parser.add_argument('-t', '--track', required=False, action='store_true', help='Track specific targets.')
 	parser.add_argument('-v', '--validate', required=False, action='store_true', help='Validate the estimation.')
 	parser.add_argument('--cb_list', required=False, help='The list of specific CB targets.')
 	parser.add_argument('--cb_ignore_list', required=False, help='The list of specific CB targets which are ignored.')
@@ -2400,8 +2454,10 @@ if __name__ == "__main__":
 	parser.add_argument('--check_scrape_stock_from_file', required=False, action='store_true', help="Only check if it is required to scrape the stock info and exit. The scrapy stocks are from the 'cb_list' file")
 	parser.add_argument('--check_scrape_stock_from_future_publishing_cb', required=False, action='store_true', help="Only check if it is required to scrape the stock info of future publishing CB and exit")
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
+	parser.add_argument('--print_tracked_cb', required=False, action='store_true', help='Print the CB list tracked in the file and exit.')
+	parser.add_argument('--modify_tracked_cb', required=False, help='The rule for selecting targets. Default: 0.')
 	parser.add_argument('--disable_headless', required=False, action='store_true', help='Disable headless web scrapy')
-	parser.add_argument('--disable_scrapy', required=False, action='store_true', help='Disable data from scrapy. Caution: Only take effect for the "display" argument')
+	parser.add_argument('--disable_scrapy', required=False, action='store_true', help='Disable data from scrapy. Caution: Only take effect for the "track" argument')
 	parser.add_argument('--force_update', required=False, action='store_true', help='Force to scrape all data')
 	args = parser.parse_args()
 
@@ -2464,15 +2520,21 @@ if __name__ == "__main__":
 		if args.print_filepath:
 			obj.print_filepath()
 			sys.exit(0)
+		if args.print_tracked_cb:
+			obj.print_tracked_cb()
+			sys.exit(0)
 		if args.list:
 			obj.list()
 		if args.search:
 			obj.search()
 		# import pdb; pdb.set_trace()
-		if args.display:
-			obj.display()
+		if args.track:
+			obj.track()
 		if args.validate:
 			obj.validate()
+		if args.modify_tracked_cb:
+			obj.modify_tracked_cb(args.modify_tracked_cb)
+			obj.print_tracked_cb()
 
 
 # 	from selenium import webdriver
