@@ -277,7 +277,14 @@ class StockChipAnalysis(object):
 	@classmethod
 	def show_search_targets_list(cls):
 		print("*****************************************")
+		print("Targets search rule")
 		for index, search_rule_dataset in enumerate(cls.SEARCH_RULE_DATASHEET_LIST):
+			print(" %d: %s" % (index, ",".join(search_rule_dataset)))
+		print("*****************************************")
+
+		print("*****************************************")
+		print("ETF Targets search rule")
+		for index, search_rule_dataset in enumerate(cls.ETF_SEARCH_RULE_FIELD_LIST):
 			print(" %d: %s" % (index, ",".join(search_rule_dataset)))
 		print("*****************************************")
 
