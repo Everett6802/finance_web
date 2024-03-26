@@ -41,10 +41,10 @@ class StockChipAnalysis(object):
 			"key_mode": 5, # JEPQ
 			"data_start_column_index": 2,
 		},
-		u"SSB": {
-			"key_mode": 0, # 2489 瑞軒
-			"data_start_column_index": 1,
-		},
+		# u"SSB": {
+		# 	"key_mode": 0, # 2489 瑞軒
+		# 	"data_start_column_index": 1,
+		# },
 		u"大戶籌碼": {
 			"key_mode": 0, # 2489 瑞軒
 			"data_start_column_index": 1,
@@ -111,7 +111,7 @@ class StockChipAnalysis(object):
 		# },
 	}
 	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
-	DEFAULT_SHEET_NAME_LIST = [u"台股 ETF", u"美股 ETF", u"SSB", u"大戶籌碼", u"成交比重", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"上市融資增加", u"上櫃融資增加",]
+	DEFAULT_SHEET_NAME_LIST = [u"台股 ETF", u"美股 ETF", u"大戶籌碼", u"成交比重", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"SSB", u"上市融資增加", u"上櫃融資增加",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
@@ -347,7 +347,7 @@ class StockChipAnalysis(object):
 		self.output_result_file = None
 		self.stdout_tmp = None
 
-		self.sorted_ssb_dict = {}
+		# self.sorted_ssb_dict = {}
 
 		self.__print_file_modification_date()
 
@@ -522,17 +522,17 @@ class StockChipAnalysis(object):
 		return sorted_stock_list[0:filtered_list_len]
 
 
-	def __get_sorted_ssb(self, field_name, ssb_stock_chip_data_dict):
-		if field_name not in self.SSB_SORT_FIELD_NAME_LIST: # ["夏普", "標準差", "貝它",]:
-			raise ValueError("Incorrect field name: %s" % field_name)
-		reverse = False if field_name in ["標準差",] else True
-		if field_name not in self.sorted_ssb_dict:
-			# import pdb; pdb.set_trace()
-			# self.sorted_ssb_dict[field_name] = OrderedDict(sorted(ssb_stock_chip_data_dict["value"].items(), key=lambda x: x[1][field_name], reverse=reverse))
-			# self.sorted_ssb_dict[field_name] = sorted([ssb_stock_chip_data[field_name] for ssb_stock_chip_data in ssb_stock_chip_data_dict["value"].values()], reverse=reverse)
-			self.sorted_ssb_dict[field_name] = self.__get_sorted_stock_list(field_name, ssb_stock_chip_data_dict, reverse=reverse)
-		# import pdb; pdb.set_trace()
-		return self.sorted_ssb_dict[field_name]
+	# def __get_sorted_ssb(self, field_name, ssb_stock_chip_data_dict):
+	# 	if field_name not in self.SSB_SORT_FIELD_NAME_LIST: # ["夏普", "標準差", "貝它",]:
+	# 		raise ValueError("Incorrect field name: %s" % field_name)
+	# 	reverse = False if field_name in ["標準差",] else True
+	# 	if field_name not in self.sorted_ssb_dict:
+	# 		# import pdb; pdb.set_trace()
+	# 		# self.sorted_ssb_dict[field_name] = OrderedDict(sorted(ssb_stock_chip_data_dict["value"].items(), key=lambda x: x[1][field_name], reverse=reverse))
+	# 		# self.sorted_ssb_dict[field_name] = sorted([ssb_stock_chip_data[field_name] for ssb_stock_chip_data in ssb_stock_chip_data_dict["value"].values()], reverse=reverse)
+	# 		self.sorted_ssb_dict[field_name] = self.__get_sorted_stock_list(field_name, ssb_stock_chip_data_dict, reverse=reverse)
+	# 	# import pdb; pdb.set_trace()
+	# 	return self.sorted_ssb_dict[field_name]
 
 
 	def __print_file_modification_date(self):
@@ -676,7 +676,7 @@ class StockChipAnalysis(object):
 		# import pdb; pdb.set_trace()
 		# sheet_name_list = ["SSB", "主法量率", "六大買超",]
 		sheet_name_list = copy.deepcopy(self.SEARCH_RULE_DATASHEET_LIST[search_rule_index])
-		sheet_name_list.extend(["SSB", "六大買超",])
+		sheet_name_list.extend(["六大買超",])  # "SSB", 
 		for index, stock in enumerate(stock_list):
 			# search_rule_item_list = []
 			# for search_rule in search_rule_list[1:]:
@@ -708,24 +708,24 @@ class StockChipAnalysis(object):
 				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌", "漲跌幅", "成交量", "總量",], item_type_list)
 				try:
 					print("  " + sheet_name + ": " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
-					ssb_field_order_list = []
-					if sheet_name == "SSB":
-						for ssb_field_name in self.SSB_SORT_FIELD_NAME_LIST:
-							ssb_stock_chip_data_dict = stock_chip_data_dict["SSB"]
-							ssb_field_data_list = self.__get_sorted_ssb(ssb_field_name, ssb_stock_chip_data_dict)
-							# import pdb; pdb.set_trace()
-							try:
-								# # tracked_stock_order = ssb_field_data_list.index(ssb_stock_chip_data_dict["value"][stock][ssb_field_name])
-								# tracked_stock_order_list = [index for index, ssb_field_data in enumerate(ssb_field_data_list) if ssb_field_data[0] == stock]
-								# if len(tracked_stock_order_list) != 1:
-								# 	raise ValueError("Incorrect search result: %s" % tracked_stock_order_list)
-								# tracked_stock_order = tracked_stock_order_list[0]
-								stock_order = self.__get_sorted_stock_index(stock, ssb_field_data_list)
-								ssb_field_order_list.append("%s(%d)" % (ssb_field_name, stock_order))
-							except ValueError as e:
-								print("Fail to find %s in %s, due to %s", (field_name, stock, str(e)))
-								raise e
-						print("    " + ", ".join(ssb_field_order_list))
+					# ssb_field_order_list = []
+					# if sheet_name == "SSB":
+					# 	for ssb_field_name in self.SSB_SORT_FIELD_NAME_LIST:
+					# 		ssb_stock_chip_data_dict = stock_chip_data_dict["SSB"]
+					# 		ssb_field_data_list = self.__get_sorted_ssb(ssb_field_name, ssb_stock_chip_data_dict)
+					# 		# import pdb; pdb.set_trace()
+					# 		try:
+					# 			# # tracked_stock_order = ssb_field_data_list.index(ssb_stock_chip_data_dict["value"][stock][ssb_field_name])
+					# 			# tracked_stock_order_list = [index for index, ssb_field_data in enumerate(ssb_field_data_list) if ssb_field_data[0] == stock]
+					# 			# if len(tracked_stock_order_list) != 1:
+					# 			# 	raise ValueError("Incorrect search result: %s" % tracked_stock_order_list)
+					# 			# tracked_stock_order = tracked_stock_order_list[0]
+					# 			stock_order = self.__get_sorted_stock_index(stock, ssb_field_data_list)
+					# 			ssb_field_order_list.append("%s(%d)" % (ssb_field_name, stock_order))
+					# 		except ValueError as e:
+					# 			print("Fail to find %s in %s, due to %s", (field_name, stock, str(e)))
+					# 			raise e
+					# 	print("    " + ", ".join(ssb_field_order_list))
 				except ValueError as e:
 					# print("%s:%s Error: %s in %s" % (tracked_stock, sheet_name, str(e), str(list(item_type_list))))
 					# import pdb; pdb.set_trace()
@@ -783,24 +783,24 @@ class StockChipAnalysis(object):
 				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌", "漲跌幅", "成交量", "總量",], item_type_list)
 				try:
 					print("  " + sheet_name + ": " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
-					if sheet_name == "SSB":
-						ssb_field_order_list = []
-						ssb_stock_chip_data_dict = stock_chip_data_dict["SSB"]
-						for ssb_field_name in self.SSB_SORT_FIELD_NAME_LIST:
-							ssb_field_data_list = self.__get_sorted_ssb(ssb_field_name, ssb_stock_chip_data_dict)
-							# import pdb; pdb.set_trace()
-							try:
-								# # tracked_stock_order = ssb_field_data_list.index(ssb_stock_chip_data_dict["value"][tracked_stock][ssb_field_name])
-								# tracked_stock_order_list = [index for index, ssb_field_data in enumerate(ssb_field_data_list) if ssb_field_data[0] == tracked_stock]
-								# if len(tracked_stock_order_list) != 1:
-								# 	raise ValueError("Incorrect search result: %s" % tracked_stock_order_list)
-								# tracked_stock_order = tracked_stock_order_list[0]
-								tracked_stock_order = self.__get_sorted_stock_index(tracked_stock, ssb_field_data_list)
-								ssb_field_order_list.append("%s(%d)" % (ssb_field_name, tracked_stock_order))
-							except ValueError as e:
-								print("Fail to find %s in %s, due to %s", (ssb_field_name, tracked_stock, str(e)))
-								raise e
-						print("    " + ", ".join(ssb_field_order_list))
+					# if sheet_name == "SSB":
+					# 	ssb_field_order_list = []
+					# 	ssb_stock_chip_data_dict = stock_chip_data_dict["SSB"]
+					# 	for ssb_field_name in self.SSB_SORT_FIELD_NAME_LIST:
+					# 		ssb_field_data_list = self.__get_sorted_ssb(ssb_field_name, ssb_stock_chip_data_dict)
+					# 		# import pdb; pdb.set_trace()
+					# 		try:
+					# 			# # tracked_stock_order = ssb_field_data_list.index(ssb_stock_chip_data_dict["value"][tracked_stock][ssb_field_name])
+					# 			# tracked_stock_order_list = [index for index, ssb_field_data in enumerate(ssb_field_data_list) if ssb_field_data[0] == tracked_stock]
+					# 			# if len(tracked_stock_order_list) != 1:
+					# 			# 	raise ValueError("Incorrect search result: %s" % tracked_stock_order_list)
+					# 			# tracked_stock_order = tracked_stock_order_list[0]
+					# 			tracked_stock_order = self.__get_sorted_stock_index(tracked_stock, ssb_field_data_list)
+					# 			ssb_field_order_list.append("%s(%d)" % (ssb_field_name, tracked_stock_order))
+					# 		except ValueError as e:
+					# 			print("Fail to find %s in %s, due to %s", (ssb_field_name, tracked_stock, str(e)))
+					# 			raise e
+					# 	print("    " + ", ".join(ssb_field_order_list))
 				except ValueError as e:
 					# print("%s:%s Error: %s in %s" % (tracked_stock, sheet_name, str(e), str(list(item_type_list))))
 					# import pdb; pdb.set_trace()
