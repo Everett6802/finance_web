@@ -739,7 +739,7 @@ class StockChipAnalysis(object):
 			self.__redirect_file2stdout()
 
 
-	def tracked_targets(self, stock_chip_data_dict=None):
+	def track_targets(self, stock_chip_data_dict=None):
 		if self.xcfg["tracked_stock_list"] is None:
 			self.__get_tracked_stock_list_from_file()
 		if stock_chip_data_dict is None:
@@ -945,7 +945,7 @@ if __name__ == "__main__":
 			search_rule_index = int(args.search_rule) if args.search_rule else 0
 			obj.search_etf_targets(search_rule_index=search_rule_index)
 		if args.track:
-			obj.tracked_targets()
+			obj.track_targets()
 		if args.modify_tracked_stock:
 			obj.modify_tracked_stock(args.modify_tracked_stock)
 			obj.print_tracked_stock()
