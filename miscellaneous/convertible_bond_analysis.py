@@ -2271,14 +2271,14 @@ class ConvertibleBondAnalysis(object):
 			# import pdb; pdb.set_trace()
 			scrapy_data = self.scrape_stock_info(cb_stock_id) if self.xcfg["enable_scrapy"] else None
 			print("%s[%s]:" % (quotation_data["商品"], cb_id))
-			print(" %s" % "  ".join(["溢價率", "成交", "賣出一",]))
+			print(" %s" % "  ".join(["溢價率", "成交", "賣出一", "轉換價格", "成交(股)",]))
 			try:
-				print(" %.2f  %.2f  %.2f" % (float(premium_data["溢價率"]), float(quotation_data["成交"]), float(quotation_data["賣出一"])))
+				print(" %.2f  %.2f  %.2f  %.2f  %.2f" % (float(premium_data["溢價率"]), float(quotation_data["成交"]), float(quotation_data["賣出一"]), float(summary_data["轉換價格"]), float(stock_quotation_data["成交"])))
 			except TypeError:
 				print(" %s" % ("  ".join([str(premium_data["溢價率"]), str(quotation_data["成交"]), str(quotation_data["賣出一"])])))
-			print(" %s" % "  ".join(["發行日期", "年期", "發行總張數",]))
+			print(" %s" % "  ".join(["發行日期", "年期", "發行總張數", "發行總面額(億)", "股本(億)",]))
 			try:
-				print(" %s  %s  %d" % (publish_data["發行日期"], publish_data["年期"], int(publish_data["發行總面額"]) /100000))
+				print(" %s  %s  %d  %d  %.2f" % (publish_data["發行日期"], publish_data["年期"], int(publish_data["發行總面額"]) / 100000, int(publish_data["發行總面額"]) / 100000000, stock_quotation_data["股本"]))
 			except TypeError:
 				print(" %s" % ("  ".join([str(premium_data["溢價率"]), str(quotation_data["成交"]), str(quotation_data["賣出一"])])))
 # Check mass convert
