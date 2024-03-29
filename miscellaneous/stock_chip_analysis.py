@@ -837,8 +837,8 @@ class StockChipAnalysis(object):
 	def print_tracked_stock(self):
 		if self.xcfg["tracked_stock_list"] is None:
 			self.__get_tracked_stock_list_from_file()
-		for tracked_stock in self.xcfg["tracked_stock_list"]:
-			print(tracked_stock)
+		for index, tracked_stock in enumerate(self.xcfg["tracked_stock_list"]):
+			print("%2d: %s" % (index + 1, tracked_stock))
 
 
 	def modify_tracked_stock(self, modify_tracked_stock_list_str):
