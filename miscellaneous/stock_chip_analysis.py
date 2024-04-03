@@ -36,6 +36,8 @@ class StockChipAnalysis(object):
 		u"台股 ETF": {
 			"key_mode": 4, # 00727B
 			"data_start_column_index": 2,
+			"sheet_rows": -1,
+			"sheet_columns": 7,
 		},
 		u"美股 ETF": {
 			"key_mode": 5, # JEPQ
@@ -187,13 +189,18 @@ class StockChipAnalysis(object):
 		start_column_index = sheet_metadata["data_start_column_index"]
 		title_list = ["商品",]
 		type_list = [str,]
-		for column_index in range(start_column_index, worksheet.ncols):
+
+		sheet_ncols = sheet_metadata["sheet_columns"] if "sheet_columns" in sheet_metadata else worksheet.ncols
+		sheet_nrows = 9999 if "sheet_columns" in sheet_metadata else worksheet.nrows
+
+		for column_index in range(start_column_index, sheet_ncols):
 			title = worksheet.cell_value(0, column_index)
 			title_list.append(title)
-		type_list.extend([int,] * (worksheet.ncols - 1))
+		type_list.extend([int,] * (sheet_ncols - 1))
 
+		# print("%s %d x %d" % (sheet_name, sheet_nrows, sheet_ncols))
 		csv_data_value_dict = {}
-		for row_index in range(1, worksheet.nrows):
+		for row_index in range(1, sheet_nrows):
 			data_list = []
 			ignore_data = False
 			stock_number = None
@@ -228,6 +235,8 @@ class StockChipAnalysis(object):
 				product_name = mobj.group(1)
 				stock_number = mobj.group(2)
 			elif sheet_metadata["key_mode"] == 4:
+				if len(key_str) == 0:
+					break
 				mobj = re.match("(0[\d]{3}[\dBLKR]{0,3})", key_str)
 				if mobj is None:
 					raise ValueError("%s: Incorrect format4: %s" % (sheet_name, key_str))
@@ -245,7 +254,7 @@ class StockChipAnalysis(object):
 			#	raise RuntimeError("Fail to parse the stock number")
 			if not ignore_data:
 				data_list.append(product_name)
-				for column_index in range(start_column_index, worksheet.ncols):
+				for column_index in range(start_column_index, sheet_ncols):
 					data = worksheet.cell_value(row_index, column_index)
 					if re.search("[1-9]+", str(data).split(".")[-1]) is not None:
 						type_list[column_index] = float
