@@ -2247,7 +2247,7 @@ class ConvertibleBondAnalysis(object):
 				fp.write("%s\n" % line)
 
 
-	def track(self):
+	def track(self, data_days=5):
 # ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
 		quotation_data_dict = self.__read_cb_quotation()
 		stock_quotation_data_dict = self.__read_cb_stock_quotation()
@@ -2271,6 +2271,7 @@ class ConvertibleBondAnalysis(object):
 			# import pdb; pdb.set_trace()
 			scrapy_data = self.scrape_stock_info(cb_stock_id) if self.xcfg["enable_scrapy"] else None
 			print("%s[%s]:" % (quotation_data["商品"], cb_id))
+			print("====================================================================")
 			print(" %s" % "  ".join(["溢價率", "成交", "賣出一", "轉換價格", "成交(股)",]))
 			try:
 				print(" %.2f  %.2f  %.2f  %.2f  %.2f" % (float(premium_data["溢價率"]), float(quotation_data["成交"]), float(quotation_data["賣出一"]), float(summary_data["轉換價格"]), float(stock_quotation_data["成交"])))
@@ -2293,6 +2294,22 @@ class ConvertibleBondAnalysis(object):
 					print(" %s  增減百分比: %.2f  前月底保管張數: %d, 本月底保管張數: %d, 發行張數: %d, 到期日期: %s" % (cb_data["名稱"], mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"]), cb_data["到期日期"]))
 # Data from Scrapy
 			if not self.xcfg["enable_scrapy"]: continue
+
+			print("\n籌碼面")
+			data_dicts = list(scrapy_data["content"]["法人持股"].items())
+			data_dicts_len = len(data_dicts)
+			data_dicts_count = min(data_days, data_dicts_len)
+			print(" %s" % " ".join(["日期", "外資持股比重", "三大法人持股比重",]))
+			for data_dict in data_dicts[0:data_dicts_count]:
+				print(" %s" % " ".join([data_dict[0], data_dict[1]["外資持股比重"], data_dict[1]["三大法人持股比重"]]))
+			data_dicts = list(scrapy_data["content"]["融資融券"].items())
+			data_dicts_len = len(data_dicts)
+			data_dicts_count = min(data_days, data_dicts_len)
+			print(" %s" % " ".join(["日期", "融資餘額",]))
+			for data_dict in data_dicts[0:data_dicts_count]:
+				print(" %s" % " ".join([data_dict[0], data_dict[1]["融資餘額"]]))
+
+			print("\n基本面")
 # Monthly
 			# import pdb; pdb.set_trace()
 			latest_data_dict = list(scrapy_data["content"]["月營收"].items())[0]
