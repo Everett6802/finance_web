@@ -124,7 +124,15 @@ class ConvertibleBondAnalysis(object):
 
 
 	@classmethod
-	def __strptime(cls, datetime_str, format_list=["%m/%d/%Y", "%Y/%m/%d",]):
+	def __strptime(cls, datetime_str, format_list=["%m/%d/%Y", "%Y/%m/%d",], year_transform=False, year_transform_splitter="/"):
+		def transform_date_str(date_str):
+			year_str, rest_str = date_str.split(year_transform_splitter, 1)
+			new_year_str = str(int(year_str) + 1911)
+			new_date_str = new_year_str + "/" + rest_str
+			return new_date_str
+		if year_transform:
+			datetime_str = transform_date_str(datetime_str)
+
 		for fmt in format_list:
 			try:
 				datetime_obj = datetime.strptime(datetime_str, fmt)
@@ -2294,19 +2302,28 @@ class ConvertibleBondAnalysis(object):
 					print(" %s  增減百分比: %.2f  前月底保管張數: %d, 本月底保管張數: %d, 發行張數: %d, 到期日期: %s" % (cb_data["名稱"], mass_convert_percentage, int(cb_data["前月底保管張數"]), int(cb_data["本月底保管張數"]), int(cb_data["發行張數"]), cb_data["到期日期"]))
 # Data from Scrapy
 			if not self.xcfg["enable_scrapy"]: continue
+			dt_now = datetime.now()
 
 			print("\n籌碼面")
 			data_dicts = list(scrapy_data["content"]["法人持股"].items())
 			data_dicts_len = len(data_dicts)
 			data_dicts_count = min(data_days, data_dicts_len)
+			assert data_dicts_count >= 2, "data_dicts_count[法人持股:%d] should be greater than 2" % data_dicts_count
+			dt_data_date = self.__strptime(data_dicts[0][0], year_transform=True)
+			dt_data = datetime(dt_data_date.year, dt_data_date.month, dt_data_date.day, 22)
+			date_shift = 1 if dt_now < dt_data else 0
 			print(" %s" % " ".join(["日期", "外資持股比重", "三大法人持股比重",]))
-			for data_dict in data_dicts[0:data_dicts_count]:
+			for data_dict in data_dicts[date_shift:min(data_dicts_count + date_shift, data_dicts_len)]:
 				print(" %s" % " ".join([data_dict[0], data_dict[1]["外資持股比重"], data_dict[1]["三大法人持股比重"]]))
 			data_dicts = list(scrapy_data["content"]["融資融券"].items())
 			data_dicts_len = len(data_dicts)
 			data_dicts_count = min(data_days, data_dicts_len)
+			assert data_dicts_count >= 2, "data_dicts_count[融資融券:%d] should be greater than 2" % data_dicts_count
+			dt_data_date = self.__strptime(data_dicts[0][0], year_transform=True)
+			dt_data = datetime(dt_data_date.year, dt_data_date.month, dt_data_date.day, 22)
+			date_shift = 1 if dt_now < dt_data else 0
 			print(" %s" % " ".join(["日期", "融資餘額",]))
-			for data_dict in data_dicts[0:data_dicts_count]:
+			for data_dict in data_dicts[date_shift:min(data_dicts_count + date_shift, data_dicts_len)]:
 				print(" %s" % " ".join([data_dict[0], data_dict[1]["融資餘額"]]))
 
 			print("\n基本面")
