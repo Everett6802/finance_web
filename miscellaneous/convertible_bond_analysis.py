@@ -2314,17 +2314,17 @@ class ConvertibleBondAnalysis(object):
 			date_shift = 1 if dt_now < dt_data else 0
 			print(" %s" % " ".join(["日期", "外資持股比重", "三大法人持股比重",]))
 			for data_dict in data_dicts[date_shift:min(data_dicts_count + date_shift, data_dicts_len)]:
-				print(" %s" % " ".join([data_dict[0], data_dict[1]["外資持股比重"], data_dict[1]["三大法人持股比重"]]))
-			data_dicts = list(scrapy_data["content"]["融資融券"].items())
-			data_dicts_len = len(data_dicts)
-			data_dicts_count = min(data_days, data_dicts_len)
-			assert data_dicts_count >= 2, "data_dicts_count[融資融券:%d] should be greater than 2" % data_dicts_count
-			dt_data_date = self.__strptime(data_dicts[0][0], year_transform=True)
-			dt_data = datetime(dt_data_date.year, dt_data_date.month, dt_data_date.day, 22)
-			date_shift = 1 if dt_now < dt_data else 0
-			print(" %s" % " ".join(["日期", "融資餘額",]))
-			for data_dict in data_dicts[date_shift:min(data_dicts_count + date_shift, data_dicts_len)]:
-				print(" %s" % " ".join([data_dict[0], data_dict[1]["融資餘額"]]))
+				print(" %s" % "  ".join([data_dict[0], data_dict[1]["外資持股比重"], data_dict[1]["三大法人持股比重"]]))
+			# data_dicts = list(scrapy_data["content"]["融資融券"].items())
+			# data_dicts_len = len(data_dicts)
+			# data_dicts_count = min(data_days, data_dicts_len)
+			# assert data_dicts_count >= 2, "data_dicts_count[融資融券:%d] should be greater than 2" % data_dicts_count
+			# dt_data_date = self.__strptime(data_dicts[0][0], year_transform=True)
+			# dt_data = datetime(dt_data_date.year, dt_data_date.month, dt_data_date.day, 22)
+			# date_shift = 1 if dt_now < dt_data else 0
+			# print(" %s" % " ".join(["日期", "融資餘額",]))
+			# for data_dict in data_dicts[date_shift:min(data_dicts_count + date_shift, data_dicts_len)]:
+			# 	print(" %s" % " ".join([data_dict[0], data_dict[1]["融資餘額"]]))
 
 			print("\n基本面")
 # Monthly
