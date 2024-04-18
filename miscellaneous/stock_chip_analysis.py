@@ -35,7 +35,7 @@ class StockChipAnalysis(object):
 	SHEET_METADATA_DICT = {
 		u"台股 ETF": {
 			"key_mode": 4, # 00727B
-			"data_start_column_index": 2,
+			"data_start_column_index": 1,
 			"sheet_rows": -1,
 			"sheet_columns": 7,
 		},
@@ -235,13 +235,14 @@ class StockChipAnalysis(object):
 				product_name = mobj.group(1)
 				stock_number = mobj.group(2)
 			elif sheet_metadata["key_mode"] == 4:
+				# import pdb; pdb.set_trace()
 				if len(key_str) == 0:
 					break
-				mobj = re.match("(0[\d]{3}[\dBLKR]{0,3})", key_str)
+				mobj = re.match("(0[\d]{3}[\dBLKRS]{0,3}) (.+)", key_str)
 				if mobj is None:
 					raise ValueError("%s: Incorrect format4: %s" % (sheet_name, key_str))
 				stock_number = mobj.group(1)
-				product_name = worksheet.cell_value(row_index, 1)
+				product_name = mobj.group(2)  # worksheet.cell_value(row_index, 1)
 			elif sheet_metadata["key_mode"] == 5:
 				mobj = re.match("([A-Z]{2,5})", key_str)
 				if mobj is None:
@@ -305,6 +306,7 @@ class StockChipAnalysis(object):
 			"source_filename": self.DEFAULT_SOURCE_FULL_FILENAME,
 			"tracked_stock_list_filename": self.DEFAULT_TRACKED_STOCK_LIST_FILENAME,
 			"tracked_stock_list": None,
+			"sort_tracked_stock_list_output": True,
 			"min_consecutive_over_buy_days": self.DEFAULT_MIN_CONSECUTIVE_OVER_BUY_DAYS,
 			"max_consecutive_over_buy_days": self.DEFAULT_MAX_CONSECUTIVE_OVER_BUY_DAYS,
 			"minimum_volume": self.DEFAULT_MINIMUM_VOLUME,
@@ -841,6 +843,8 @@ class StockChipAnalysis(object):
 		with open(self.xcfg['tracked_stock_list_filepath'], 'r') as fp:
 			for line in fp:
 				self.xcfg["tracked_stock_list"].append(line.strip("\n"))
+			if self.xcfg["sort_tracked_stock_list_output"]:
+				self.xcfg["tracked_stock_list"].sort()
 
 
 	def print_tracked_stock(self):
