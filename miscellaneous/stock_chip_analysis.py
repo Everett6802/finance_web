@@ -238,11 +238,12 @@ class StockChipAnalysis(object):
 				# import pdb; pdb.set_trace()
 				if len(key_str) == 0:
 					break
-				mobj = re.match("(0[\d]{3}[\dBLKRS]{0,3}) (.+)", key_str)
+				# mobj = re.match("(0[\d]{3}[\dBLKRS]{0,3}) (.+)", key_str)
+				mobj = re.match("(0[\d]{3}[\dBLKRS]{0,3})", key_str)
 				if mobj is None:
 					raise ValueError("%s: Incorrect format4: %s" % (sheet_name, key_str))
 				stock_number = mobj.group(1)
-				product_name = mobj.group(2)  # worksheet.cell_value(row_index, 1)
+				product_name = worksheet.cell_value(row_index, 1)  # mobj.group(2)
 			elif sheet_metadata["key_mode"] == 5:
 				mobj = re.match("([A-Z]{2,5})", key_str)
 				if mobj is None:
