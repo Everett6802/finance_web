@@ -151,9 +151,10 @@ class StockChipAnalysis(object):
 		["主法量率", "主力買超天數累計",],
 	]
 	ETF_SEARCH_RULE_FIELD_LIST = [
-		["Alpha", "Beta", "Sharpe",],
-		["年化標準差", "年報酬",],
-		["年化標準差", "年報酬","Alpha", "Beta", "Sharpe",],
+		OrderedDict([("年化標準差", "低於平均"), ("Sharpe", "高於平均"), ("年報酬", "高到低排序"),]),
+		OrderedDict([("Alpha", "高於平均"), ("Beta", "低於平均"), ("Sharpe", "高於平均"),]),
+		OrderedDict([("年化標準差", "低於平均"), ("年報酬", "高於平均"),]),
+		OrderedDict([("年化標準差", "低於平均"), ("年報酬", "高於平均"), ("Alpha", "高於平均"), ("Beta", "低於平均"), ("Sharpe", "高於平均"),]),
 	]
 
 
@@ -290,13 +291,12 @@ class StockChipAnalysis(object):
 		print("*****************************************")
 		print("Targets search rule")
 		for index, search_rule_dataset in enumerate(cls.SEARCH_RULE_DATASHEET_LIST):
-			print(" %d: %s" % (index, ",".join(search_rule_dataset)))
-		print("*****************************************")
-
+			print(" (%d)  %s" % (index, ", ".join(search_rule_dataset)))
 		print("*****************************************")
 		print("ETF Targets search rule")
 		for index, search_rule_dataset in enumerate(cls.ETF_SEARCH_RULE_FIELD_LIST):
-			print(" %d: %s" % (index, ",".join(search_rule_dataset)))
+			# import pdb; pdb.set_trace()
+			print(" (%d)  %s" % (index, ", ".join(map(lambda x: "%s:%s" % (x[0], x[1]), search_rule_dataset.items()))))
 		print("*****************************************")
 
 
@@ -631,17 +631,20 @@ class StockChipAnalysis(object):
 			self.__redirect_stdout2file()
 		print("************** Search ETF **************")
 		search_rule_list = self.ETF_SEARCH_RULE_FIELD_LIST[search_rule_index]
-		search_rule_list_str = ", ".join(search_rule_list)
+		search_rule_list_str = ", ".join(map(lambda x: "%s:%s" % (x[0], x[1]), search_rule_list.items()))
 		print ("搜尋規則: " + search_rule_list_str)
 
 		field_name_list = self.ETF_SEARCH_RULE_FIELD_LIST[search_rule_index]
 		for sheet_name in self.ETF_SHEET_NAME_LIST:
 			stock_set = None
 			sheet_data_dict = stock_chip_data_dict[sheet_name]  # ["value"]
-			# import pdb; pdb.set_trace()
+			import pdb; pdb.set_trace()
 			print("%s" % sheet_name)
 			for field_name in field_name_list:
-				reverse = False if field_name in ["年化標準差", "Beta",] else True
+				field_process_method = field_name_list[field_name]
+				if field_process_method not in ["高於平均", "低於平均"]:
+					continue
+				reverse = True if field_process_method == "高於平均" else reverse = False
 				sorted_stock_list = self.__get_sorted_stock_list(field_name, sheet_data_dict, reverse=reverse)
 				filtered_stock_list = self.__filter_sorted_stock_list(sorted_stock_list)
 				filtered_stock_id_list = [filtered_stock[0] for filtered_stock in filtered_stock_list]
@@ -649,15 +652,6 @@ class StockChipAnalysis(object):
 					stock_set = set(filtered_stock_id_list)
 				else:
 					stock_set &= set(filtered_stock_id_list)
-			stock_list = list(stock_set)
-			# print("%s: %s" % (sheet_name, ", ".join(stock_list)))
-			# import pdb; pdb.set_trace()
-			for index, stock in enumerate(stock_list):
-				stock_name = sheet_data_dict['value'][stock]["商品"]
-				print ("*** %s[%s] ***" % (stock, stock_name))
-				stock_sheet_data_dict = sheet_data_dict['value'][stock]
-				item_list = stock_sheet_data_dict.items()
-				item_type_list = map(lambda x, y: (x[0], x[1], y), item_list, stock_chip_data_dict[sheet_name]["type"])
 				item_type_list = filter(lambda x: x[0] not in ["商品",], item_type_list)
 				try:
 					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
