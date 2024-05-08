@@ -151,10 +151,10 @@ class StockChipAnalysis(object):
 		["主法量率", "主力買超天數累計",],
 	]
 	ETF_SEARCH_RULE_FIELD_LIST = [
-		["年化標準差", "Sharpe",],
-		["Alpha", "Beta", "Sharpe",],
-		["年化標準差", "年報酬",],
-		["年化標準差", "年報酬","Alpha", "Beta", "Sharpe",],
+		OrderedDict([("年化標準差", "低於平均"), ("Sharpe", "高於平均"), ("年報酬", "高到低排序"),]),
+		OrderedDict([("Alpha", "高於平均"), ("Beta", "低於平均"), ("Sharpe", "高於平均"),]),
+		OrderedDict([("年化標準差", "低於平均"), ("年報酬", "高於平均"),]),
+		OrderedDict([("年化標準差", "低於平均"), ("年報酬", "高於平均"), ("Alpha", "高於平均"), ("Beta", "低於平均"), ("Sharpe", "高於平均"),]),
 	]
 
 
@@ -291,13 +291,12 @@ class StockChipAnalysis(object):
 		print("*****************************************")
 		print("Targets search rule")
 		for index, search_rule_dataset in enumerate(cls.SEARCH_RULE_DATASHEET_LIST):
-			print(" %d: %s" % (index, ",".join(search_rule_dataset)))
-		print("*****************************************")
-
+			print(" (%d)  %s" % (index, ", ".join(search_rule_dataset)))
 		print("*****************************************")
 		print("ETF Targets search rule")
 		for index, search_rule_dataset in enumerate(cls.ETF_SEARCH_RULE_FIELD_LIST):
-			print(" %d: %s" % (index, ",".join(search_rule_dataset)))
+			# import pdb; pdb.set_trace()
+			print(" (%d)  %s" % (index, ", ".join(map(lambda x: "%s:%s" % (x[0], x[1]), search_rule_dataset.items()))))
 		print("*****************************************")
 
 
@@ -632,7 +631,7 @@ class StockChipAnalysis(object):
 			self.__redirect_stdout2file()
 		print("************** Search ETF **************")
 		search_rule_list = self.ETF_SEARCH_RULE_FIELD_LIST[search_rule_index]
-		search_rule_list_str = ", ".join(search_rule_list)
+		search_rule_list_str = ", ".join(map(lambda x: "%s:%s" % (x[0], x[1]), search_rule_list.items()))
 		print ("搜尋規則: " + search_rule_list_str)
 
 		field_name_list = self.ETF_SEARCH_RULE_FIELD_LIST[search_rule_index]
@@ -652,7 +651,7 @@ class StockChipAnalysis(object):
 					stock_set &= set(filtered_stock_id_list)
 			stock_list = list(stock_set)
 			# print("%s: %s" % (sheet_name, ", ".join(stock_list)))
-			# import pdb; pdb.set_trace()
+			import pdb; pdb.set_trace()
 			filtered_sheet_data_value_dict = dict(filter(lambda x: x[0] in stock_list, sheet_data_dict['value'].items()))
 			sorted_sheet_data_value_dict = OrderedDict(sorted(filtered_sheet_data_value_dict.items(), key=lambda x: x[1]["年報酬"], reverse=reverse))
 			for index, stock_data_tuple in enumerate(sorted_sheet_data_value_dict.items()):
