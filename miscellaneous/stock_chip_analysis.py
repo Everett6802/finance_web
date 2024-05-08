@@ -151,6 +151,7 @@ class StockChipAnalysis(object):
 		["主法量率", "主力買超天數累計",],
 	]
 	ETF_SEARCH_RULE_FIELD_LIST = [
+		["年化標準差", "Sharpe",],
 		["Alpha", "Beta", "Sharpe",],
 		["年化標準差", "年報酬",],
 		["年化標準差", "年報酬","Alpha", "Beta", "Sharpe",],
@@ -652,10 +653,13 @@ class StockChipAnalysis(object):
 			stock_list = list(stock_set)
 			# print("%s: %s" % (sheet_name, ", ".join(stock_list)))
 			# import pdb; pdb.set_trace()
-			for index, stock in enumerate(stock_list):
-				stock_name = sheet_data_dict['value'][stock]["商品"]
+			filtered_sheet_data_value_dict = dict(filter(lambda x: x[0] in stock_list, sheet_data_dict['value'].items()))
+			sorted_sheet_data_value_dict = OrderedDict(sorted(filtered_sheet_data_value_dict.items(), key=lambda x: x[1]["年報酬"], reverse=reverse))
+			for index, stock_data_tuple in enumerate(sorted_sheet_data_value_dict.items()):
+				stock = stock_data_tuple[0]
+				stock_sheet_data_dict = stock_data_tuple[1]
+				stock_name = stock_sheet_data_dict["商品"]
 				print ("*** %s[%s] ***" % (stock, stock_name))
-				stock_sheet_data_dict = sheet_data_dict['value'][stock]
 				item_list = stock_sheet_data_dict.items()
 				item_type_list = map(lambda x, y: (x[0], x[1], y), item_list, stock_chip_data_dict[sheet_name]["type"])
 				item_type_list = filter(lambda x: x[0] not in ["商品",], item_type_list)
@@ -663,6 +667,17 @@ class StockChipAnalysis(object):
 					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
 				except ValueError as e:
 					raise e
+			# for index, stock in enumerate(stock_list):
+			# 	stock_name = sheet_data_dict['value'][stock]["商品"]
+			# 	print ("*** %s[%s] ***" % (stock, stock_name))
+			# 	stock_sheet_data_dict = sheet_data_dict['value'][stock]
+			# 	item_list = stock_sheet_data_dict.items()
+			# 	item_type_list = map(lambda x, y: (x[0], x[1], y), item_list, stock_chip_data_dict[sheet_name]["type"])
+			# 	item_type_list = filter(lambda x: x[0] not in ["商品",], item_type_list)
+			# 	try:
+			# 		print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
+			# 	except ValueError as e:
+			# 		raise e
 			print("\n")
 
 
