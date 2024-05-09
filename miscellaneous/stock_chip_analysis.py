@@ -35,7 +35,7 @@ class StockChipAnalysis(object):
 	SHEET_METADATA_DICT = {
 		u"台股 ETF": {
 			"key_mode": 4, # 00727B
-			"data_start_column_index": 1,
+			"data_start_column_index": 2,
 			"sheet_rows": -1,
 			"sheet_columns": 7,
 		},
@@ -187,6 +187,9 @@ class StockChipAnalysis(object):
 		csv_data_dict = {}
 
 		sheet_name = worksheet.name
+		# print(sheet_name)
+		# if sheet_name == "法人共同買超累計":
+		# 	import pdb; pdb.set_trace()
 		start_column_index = sheet_metadata["data_start_column_index"]
 		title_list = ["商品",]
 		type_list = [str,]
@@ -651,7 +654,7 @@ class StockChipAnalysis(object):
 					stock_set &= set(filtered_stock_id_list)
 			stock_list = list(stock_set)
 			# print("%s: %s" % (sheet_name, ", ".join(stock_list)))
-			import pdb; pdb.set_trace()
+			# import pdb; pdb.set_trace()
 			filtered_sheet_data_value_dict = dict(filter(lambda x: x[0] in stock_list, sheet_data_dict['value'].items()))
 			sorted_sheet_data_value_dict = OrderedDict(sorted(filtered_sheet_data_value_dict.items(), key=lambda x: x[1]["年報酬"], reverse=reverse))
 			for index, stock_data_tuple in enumerate(sorted_sheet_data_value_dict.items()):
