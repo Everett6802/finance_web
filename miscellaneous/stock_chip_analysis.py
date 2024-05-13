@@ -637,14 +637,19 @@ class StockChipAnalysis(object):
 		search_rule_list_str = ", ".join(map(lambda x: "%s:%s" % (x[0], x[1]), search_rule_list.items()))
 		print ("搜尋規則: " + search_rule_list_str)
 
-		field_name_list = self.ETF_SEARCH_RULE_FIELD_LIST[search_rule_index]
+		# import pdb; pdb.set_trace()
+		field_rule_dict = self.ETF_SEARCH_RULE_FIELD_LIST[search_rule_index]
 		for sheet_name in self.ETF_SHEET_NAME_LIST:
 			stock_set = None
 			sheet_data_dict = stock_chip_data_dict[sheet_name]  # ["value"]
 			# import pdb; pdb.set_trace()
 			print("%s" % sheet_name)
-			for field_name in field_name_list:
-				reverse = False if field_name in ["年化標準差", "Beta",] else True
+			sort_field_name = None
+			for field_name, field_rule in field_rule_dict.items():
+				if field_rule not in ["高於平均", "低於平均",]:
+					sort_field_name = None
+					continue
+				reverse = False if field_rule == "低於平均" else True
 				sorted_stock_list = self.__get_sorted_stock_list(field_name, sheet_data_dict, reverse=reverse)
 				filtered_stock_list = self.__filter_sorted_stock_list(sorted_stock_list)
 				filtered_stock_id_list = [filtered_stock[0] for filtered_stock in filtered_stock_list]
@@ -656,7 +661,10 @@ class StockChipAnalysis(object):
 			# print("%s: %s" % (sheet_name, ", ".join(stock_list)))
 			# import pdb; pdb.set_trace()
 			filtered_sheet_data_value_dict = dict(filter(lambda x: x[0] in stock_list, sheet_data_dict['value'].items()))
-			sorted_sheet_data_value_dict = OrderedDict(sorted(filtered_sheet_data_value_dict.items(), key=lambda x: x[1]["年報酬"], reverse=reverse))
+			if sort_field_name is not None:
+				sorted_sheet_data_value_dict = OrderedDict(sorted(filtered_sheet_data_value_dict.items(), key=lambda x: x[1][sort_field_name], reverse=reverse))
+			else:
+				sorted_sheet_data_value_dict = filtered_sheet_data_value_dict
 			for index, stock_data_tuple in enumerate(sorted_sheet_data_value_dict.items()):
 				stock = stock_data_tuple[0]
 				stock_sheet_data_dict = stock_data_tuple[1]
