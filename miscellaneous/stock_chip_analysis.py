@@ -537,6 +537,12 @@ class StockChipAnalysis(object):
 		return sorted_stock_list[0:filtered_list_len]
 
 
+	def __get_field_in_sheet_mean(self, field_name, sheet_data_dict, reverse=False):
+		# import pdb; pdb.set_trace()
+		field_value_list = [item[field_name] for item in sheet_data_dict['value'].values()]
+		return sum(field_value_list)/len(field_value_list)
+
+
 	# def __get_sorted_ssb(self, field_name, ssb_stock_chip_data_dict):
 	# 	if field_name not in self.SSB_SORT_FIELD_NAME_LIST: # ["夏普", "標準差", "貝它",]:
 	# 		raise ValueError("Incorrect field name: %s" % field_name)
@@ -649,9 +655,12 @@ class StockChipAnalysis(object):
 				if field_rule not in ["高於平均", "低於平均",]:
 					sort_field_name = None
 					continue
-				reverse = False if field_rule == "低於平均" else True
-				sorted_stock_list = self.__get_sorted_stock_list(field_name, sheet_data_dict, reverse=reverse)
-				filtered_stock_list = self.__filter_sorted_stock_list(sorted_stock_list)
+				# reverse = False if field_rule == "低於平均" else True
+				# sorted_stock_list = self.__get_sorted_stock_list(field_name, sheet_data_dict, reverse=reverse)
+				# filtered_stock_list = self.__filter_sorted_stock_list(sorted_stock_list)
+				mean_value = self.__get_field_in_sheet_mean(field_name, sheet_data_dict)
+				filter_funcptr = (lambda x: x[1][field_name] <= mean_value) if field_rule == "低於平均" else (lambda x: x[1][field_name] >= mean_value)
+				filtered_stock_list = list(filter(filter_funcptr, sheet_data_dict["value"].items()))
 				filtered_stock_id_list = [filtered_stock[0] for filtered_stock in filtered_stock_list]
 				if stock_set is None:
 					stock_set = set(filtered_stock_id_list)
