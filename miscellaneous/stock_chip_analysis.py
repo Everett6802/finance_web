@@ -47,6 +47,10 @@ class StockChipAnalysis(object):
 		# 	"key_mode": 0, # 2489 瑞軒
 		# 	"data_start_column_index": 1,
 		# },
+		u"個股夏普值": {
+			"key_mode": 0, # 2489 瑞軒
+			"data_start_column_index": 1,
+		},
 		u"外資賺錢": {
 			"key_mode": 3, # 台積電(2330)
 			"data_start_column_index": 1,
@@ -121,7 +125,7 @@ class StockChipAnalysis(object):
 		# },
 	}
 	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
-	DEFAULT_SHEET_NAME_LIST = [u"台股 ETF", u"美股 ETF", u"外資賺錢", u"券商賺錢", u"成交比重", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"大戶籌碼", u"SSB", u"上市融資增加", u"上櫃融資增加",]
+	DEFAULT_SHEET_NAME_LIST = [u"台股 ETF", u"美股 ETF", u"個股夏普值", u"外資賺錢", u"券商賺錢", u"成交比重", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"大戶籌碼", u"SSB", u"上市融資增加", u"上櫃融資增加",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
@@ -138,6 +142,8 @@ class StockChipAnalysis(object):
 	DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS = 3
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_SHEETNAME = "主法量率"
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_FIELDNAME = "主力法人佔量率"
+	DEFAULT_STOCK_SHARPE_RATIO_RANKING_PERCENTAGE_THRESHOLD = 20
+	STOCK_SHARPE_RATIO_RANKING_PERCENTAGE_SHEETNAME = "個股夏普值"
 	LARGE_SHAREHOLD_POSITION_SHEETNAME = "大戶籌碼"
 	LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO = "夏普值"
 	LARGE_SHAREHOLD_POSITION_FIELDNAME_STANDARD_DEVIATION = "標準差"
@@ -326,6 +332,7 @@ class StockChipAnalysis(object):
 			"minimum_volume": self.DEFAULT_MINIMUM_VOLUME,
 			"main_force_instuitional_investors_ratio_threshold": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_THRESHOLD,
 			"main_force_instuitional_investors_ratio_consecutive_days": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS,
+			"stock_sharpe_data_ranking_percentrage_threshold": self.DEFAULT_STOCK_SHARPE_RATIO_RANKING_PERCENTAGE_THRESHOLD,
 			"output_result_filename": self.DEFAULT_OUTPUT_RESULT_FILENAME,
 			"output_result": False,
 			"quiet": False,
@@ -423,7 +430,6 @@ class StockChipAnalysis(object):
 		# import pdb; pdb.set_trace()
 		sheet_metadata = self.SHEET_METADATA_DICT[sheet_name]		
 		# print (u"Read sheet: %s" % sheet_name)
-
 		# assert self.workbook is not None, "self.workbook should NOT be None"
 		worksheet = self.__get_workbook().sheet_by_name(sheet_name)
 		# https://www.itread01.com/content/1549650266.html
@@ -468,6 +474,12 @@ class StockChipAnalysis(object):
 								return False
 						return True
 					csv_data_value_dict = dict(filter(lambda x: check_consecutive_days(x), csv_data_value_dict.items()))
+		if self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"] is not None:
+			if sheet_name == self.STOCK_SHARPE_RATIO_RANKING_PERCENTAGE_SHEETNAME:
+				csv_data_value_ranking_count = len(csv_data_value_dict) * self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"] // 100
+# Select only top xxx percent of data
+				csv_data_value_dict = dict(list(sorted(csv_data_value_dict.items(), key=lambda x: x[1]["D"], reverse=True))[0:csv_data_value_ranking_count])
+				# import pdb; pdb.set_trace()
 		if self.xcfg["check_sharpe_ratio"]:
 			if sheet_name == self.LARGE_SHAREHOLD_POSITION_SHEETNAME:
 				sharpe_ratio_sorted_list = sorted([x[self.LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO] for x in csv_data_value_dict.values()], reverse=True)
@@ -815,9 +827,11 @@ class StockChipAnalysis(object):
 			global_item_list = None
 			need_new_line = False
 			for sheet_name in self.DEFAULT_SHEET_NAME_LIST:
+				# print("Sheet name: %s" % sheet_name)
 				sheet_data_dict = stock_chip_data_dict[sheet_name]["value"]
 				if tracked_stock not in sheet_data_dict.keys():
 					continue
+				# print("Sheet name: %s --------> OUTPUT" % sheet_name)
 				if not need_new_line:
 					need_new_line = True
 				stock_sheet_data_dict = sheet_data_dict[tracked_stock]
