@@ -143,7 +143,7 @@ class StockChipAnalysis(object):
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_SHEETNAME = "主法量率"
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_FIELDNAME = "主力法人佔量率"
 	DEFAULT_STOCK_SHARPE_RATIO_RANKING_PERCENTAGE_THRESHOLD = 20
-	STOCK_SHARPE_RATIO_RANKING_PERCENTAGE_SHEETNAME = "個股夏普值"
+	STOCK_SHARPE_RATIO_RANKING_SHEETNAME = "個股夏普值"
 	LARGE_SHAREHOLD_POSITION_SHEETNAME = "大戶籌碼"
 	LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO = "夏普值"
 	LARGE_SHAREHOLD_POSITION_FIELDNAME_STANDARD_DEVIATION = "標準差"
@@ -437,7 +437,9 @@ class StockChipAnalysis(object):
 # The data
 		csv_data_dict = self.__read_from_worksheet(worksheet, sheet_metadata)
 		csv_data_value_dict = csv_data_dict["value"]
-# Filter the data if necessary
+# 		if sheet_name == "個股夏普值":
+# 			import pdb; pdb.set_trace()
+# # Filter the data if necessary
 		if (self.xcfg["min_consecutive_over_buy_days"] is not None) or (self.xcfg["max_consecutive_over_buy_days"] is not None):
 			try:
 				sheet_index = self.CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST.index(sheet_name)
@@ -475,8 +477,9 @@ class StockChipAnalysis(object):
 						return True
 					csv_data_value_dict = dict(filter(lambda x: check_consecutive_days(x), csv_data_value_dict.items()))
 		if self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"] is not None:
-			if sheet_name == self.STOCK_SHARPE_RATIO_RANKING_PERCENTAGE_SHEETNAME:
-				csv_data_value_ranking_count = len(csv_data_value_dict) * self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"] // 100
+			if sheet_name == self.STOCK_SHARPE_RATIO_RANKING_SHEETNAME:
+				# csv_data_value_ranking_count = len(csv_data_value_dict) * self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"] // 100
+				csv_data_value_ranking_count = self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"]
 # Select only top xxx percent of data
 				csv_data_value_dict = dict(list(sorted(csv_data_value_dict.items(), key=lambda x: x[1]["D"], reverse=True))[0:csv_data_value_ranking_count])
 				# import pdb; pdb.set_trace()
