@@ -482,6 +482,9 @@ class StockChipAnalysis(object):
 				csv_data_value_ranking_count = self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"]
 # Select only top xxx percent of data
 				csv_data_value_dict = dict(list(sorted(csv_data_value_dict.items(), key=lambda x: x[1]["D"], reverse=True))[0:csv_data_value_ranking_count])
+# Don't do in this way. pop() returns a value and not the key-value pair for a dictionary
+				# csv_data_value_dict = dict(map(lambda x: x[1].pop("趨勢"), csv_data_value_dict.items()))
+				for key, value in csv_data_value_dict.items(): value.pop("趨勢")
 				# import pdb; pdb.set_trace()
 		if self.xcfg["check_sharpe_ratio"]:
 			if sheet_name == self.LARGE_SHAREHOLD_POSITION_SHEETNAME:
@@ -855,6 +858,7 @@ class StockChipAnalysis(object):
 				item_type_list = map(lambda x, y: (x[0], x[1], y), item_list, stock_chip_data_dict[sheet_name]["type"])
 				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌", "漲跌幅", "成交量", "總量",], item_type_list)
 				try:
+					# import pdb; pdb.set_trace()
 					print("  " + sheet_name + ": " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
 					# if sheet_name == "SSB":
 					# 	ssb_field_order_list = []
