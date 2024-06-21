@@ -99,10 +99,27 @@ class TakeProfitTracker(object):
 		return worksheet_data
 
 
-	def track(self):
+	def __read_record(self):
 		line_list = self.__get_line_list_from_file(self.xcfg["record_filepath"])
+		record_data = {}
+		# import pdb; pdb.set_trace()
+		title_list = line[0].split(",")
+		title_list_len = len(title_list)
+		for line in line_list[1:]:
+			line_data_list = line.split(",")
+			line_data_list_len = len(line_data_list)
+			if line_data_list_len < title_list_len:
+				len_diff = title_list_len - line_data_list_len
+				line_data_list.extend([None,] * len_diff)
+			record_data[line_data_list[0]] = dict(zip(title_list[1:], line_data_list[1:])) 
+		return record_data
+
+
+	def track(self):
 # ['商品', '成交', '漲幅%', '漲跌']
 		stock_data_dict = self.__read_worksheet(self.worksheet)
+		record_data = self.__read_record()
+		stock_data_dict.update(record_data)
 
 
 if __name__ == "__main__":
