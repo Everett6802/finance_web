@@ -76,7 +76,7 @@ class TakeProfitTracker(object):
 		return False
 
 
-	def __read_worksheet(self, worksheet):
+	def __read_worksheet(self, worksheet, filterd_stock_id_list=None):
 		worksheet_data = {}
 		# import pdb; pdb.set_trace()
 		title_list = []
@@ -89,6 +89,8 @@ class TakeProfitTracker(object):
 # data
 		for row_index in range(1, worksheet.nrows):
 			data_key = worksheet.cell_value(row_index, 0)
+			if (filterd_stock_id_list is not None) and (data_key not in filterd_stock_id_list):
+				continue
 			data_list = []
 			for column_index in range(1, worksheet.ncols):
 				data_value = worksheet.cell_value(row_index, column_index)
@@ -103,7 +105,7 @@ class TakeProfitTracker(object):
 		line_list = self.__get_line_list_from_file(self.xcfg["record_filepath"])
 		record_data = {}
 		# import pdb; pdb.set_trace()
-		title_list = line[0].split(",")
+		title_list = line_list[0].split(",")
 		title_list_len = len(title_list)
 		for line in line_list[1:]:
 			line_data_list = line.split(",")
@@ -117,9 +119,11 @@ class TakeProfitTracker(object):
 
 	def track(self):
 # ['商品', '成交', '漲幅%', '漲跌']
-		stock_data_dict = self.__read_worksheet(self.worksheet)
+		import pdb; pdb.set_trace()
 		record_data = self.__read_record()
+		stock_data_dict = self.__read_worksheet(self.worksheet, filterd_stock_id_list=record_data.keys())
 		stock_data_dict.update(record_data)
+		print(stock_data_dict)
 
 
 if __name__ == "__main__":
