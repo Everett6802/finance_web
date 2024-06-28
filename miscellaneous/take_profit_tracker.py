@@ -15,12 +15,14 @@ class TakeProfitTracker(object):
 	DEFAULT_SOURCE_FULL_FILENAME = "%s.xlsx" % DEFAULT_SOURCE_FILENAME
 	DEFAULT_RECORD_FILENAME = "take_profile_tracker_record"
 	DEFAULT_RECORD_FULL_FILENAME = "%s.txt" % DEFAULT_RECORD_FILENAME
+	DEFAULT_TRAILING_STOP_RATIO = 0.7
 
 	def __init__(self, cfg):
 		self.xcfg = {
 			"data_folderpath": None,
 			"source_filename": self.DEFAULT_SOURCE_FULL_FILENAME,
 			"record_filename": self.DEFAULT_RECORD_FULL_FILENAME,
+			"trailing_stop_ratio": self.DEFAULT_TRAILING_STOP_RATIO,
 		}
 		self.xcfg.update(cfg)
 		self.xcfg["data_folderpath"] = self.DEFAULT_DATA_FOLDERPATH if self.xcfg["data_folderpath"] is None else self.xcfg["data_folderpath"]
@@ -119,11 +121,23 @@ class TakeProfitTracker(object):
 
 	def track(self):
 # ['商品', '成交', '漲幅%', '漲跌']
-		import pdb; pdb.set_trace()
+		# import pdb; pdb.set_trace()
 		record_data = self.__read_record()
 		stock_data_dict = self.__read_worksheet(self.worksheet, filterd_stock_id_list=record_data.keys())
-		stock_data_dict.update(record_data)
-		print(stock_data_dict)
+# update() doesn't return any value (returns None).
+		# stock_data_dict = [(key, value, record_data[key], value.update(record_data[key])) for key, value in stock_data_dict.items()]
+		# stock_data_dict.update(record_data)
+		for key, value in stock_data_dict.items():
+			value.update(record_data[key])
+			if value["成交"] - value["平圴成本"] > 0:
+				profile = (value["成交"] - value["平圴成本"]) * value["股數"]
+				if value["最大獲利"] is None or profile > data["最大獲利"]:
+					value["最大獲利"] = profile
+	 				value["停利價格"] = profile * self.xcfg["trailing_stop_ratio"] / value["股數"] + value["平圴成本"]
+				else:
+					if value["成交"] < value["停利價格"]:
+						print("停利: %s" % key)
+		# print(stock_data_dict)
 
 
 if __name__ == "__main__":
