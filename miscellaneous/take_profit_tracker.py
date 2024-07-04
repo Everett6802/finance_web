@@ -16,6 +16,11 @@ class TakeProfitTracker(object):
 	DEFAULT_RECORD_FILENAME = "take_profile_tracker_record"
 	DEFAULT_RECORD_FULL_FILENAME = "%s.txt" % DEFAULT_RECORD_FILENAME
 	DEFAULT_TRAILING_STOP_RATIO = 0.7
+	DEFAULT_STOCK_SYMBOL_LOOKUP_FILENAME = "股號查詢"
+	DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME = "%s.xlsx" % DEFAULT_STOCK_SYMBOL_LOOKUP_FILENAME
+# 代碼,平圴成本,股數,最大獲利,停利價格
+	DEFAULT_RECORD_FIELD_NAME = ["代碼", "平圴成本", "股數", "最大獲利", "停利價格"]
+	DEFAULT_RECORD_FIELD_TYPE = [str, float, int, int, float]
 
 	def __init__(self, cfg):
 		self.xcfg = {
@@ -30,9 +35,13 @@ class TakeProfitTracker(object):
 		self.xcfg["source_filepath"] = os.path.join(self.xcfg["data_folderpath"], self.xcfg["source_filename"])
 		self.xcfg["record_filename"] = self.DEFAULT_RECORD_FULL_FILENAME if self.xcfg["record_filename"] is None else self.xcfg["record_filename"]
 		self.xcfg["record_filepath"] = os.path.join(self.xcfg["data_folderpath"], self.xcfg["record_filename"])
+		self.xcfg["stock_symbol_lookup_filename"] = self.DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME if self.xcfg["stock_symbol_lookup_filename"] is None else self.xcfg["stock_symbol_lookup_filename"]
+		self.xcfg["stock_symbol_lookup_filepath"] = os.path.join(self.xcfg["data_folderpath"], self.xcfg["stock_symbol_lookup_filename"])
 
 		self.workbook = None
 		self.worksheet = None
+		self.stock_symbol_lookup_dict = {}  # 股名 -> 股號
+		self.stock_symbol_reverse_lookup_dict = {}  # 股號 -> 股名
 
 
 	@classmethod
@@ -104,8 +113,9 @@ class TakeProfitTracker(object):
 
 
 	def __read_record(self):
+# 代碼,平圴成本,股數,最大獲利,停利價格
 		line_list = self.__get_line_list_from_file(self.xcfg["record_filepath"])
-		record_data = {}
+		record_data_dict = {}
 		# import pdb; pdb.set_trace()
 		title_list = line_list[0].split(",")
 		title_list_len = len(title_list)
@@ -115,28 +125,67 @@ class TakeProfitTracker(object):
 			if line_data_list_len < title_list_len:
 				len_diff = title_list_len - line_data_list_len
 				line_data_list.extend([None,] * len_diff)
-			record_data[line_data_list[0]] = dict(zip(title_list[1:], line_data_list[1:])) 
-		return record_data
+			for index, line_data in enumerate(line_data_list):
+				if line_data is not None:
+					data_type = self.DEFAULT_RECORD_FIELD_TYPE[index]
+					line_data_list[index] = data_type(line_data)
+			record_data_dict[line_data_list[0]] = dict(zip(title_list[1:], line_data_list[1:])) 
+		return record_data_dict
+
+
+	def __write_record(self, record_data_dict):
+# 代碼,平圴成本,股數,最大獲利,停利價格
+		# import pdb; pdb.set_trace()
+		with open(self.xcfg['record_filepath'], 'w') as fp:
+			line = ",".join(self.DEFAULT_RECORD_FIELD_NAME)
+			fp.write("%s\n" % line)
+			for stock in record_data_dict.keys():
+				line_data_list = [stock,]
+				line_data_list.append(record_data_dict[stock]["平圴成本"])
+				line_data_list.append(record_data_dict[stock]["股數"])
+				line_data_list.append(record_data_dict[stock]["最大獲利"])
+				line_data_list.append(record_data_dict[stock]["停利價格"])
+				line_data_list = map(str, line_data_list)
+				line = ",".join(line_data_list)
+				fp.write("%s\n" % line)
+
+
+	def __read_stock_symbol_mapping_table(self):
+# 代碼,商品,股本
+		line_list = self.__get_line_list_from_file(self.xcfg["stock_symbol_lookup_filepath"])
+		for line in line_list[1:]:
+			
 
 
 	def track(self):
 # ['商品', '成交', '漲幅%', '漲跌']
-		# import pdb; pdb.set_trace()
-		record_data = self.__read_record()
-		stock_data_dict = self.__read_worksheet(self.worksheet, filterd_stock_id_list=record_data.keys())
+		record_data_dict = self.__read_record()
+		stock_data_dict = self.__read_worksheet(self.worksheet, filterd_stock_id_list=record_data_dict.keys())
 # update() doesn't return any value (returns None).
-		# stock_data_dict = [(key, value, record_data[key], value.update(record_data[key])) for key, value in stock_data_dict.items()]
-		# stock_data_dict.update(record_data)
+		# stock_data_dict = [(key, value, record_data_dict[key], value.update(record_data_dict[key])) for key, value in stock_data_dict.items()]
+		# stock_data_dict.update(record_data_dict)
+		need_update_record = False
+		# import pdb; pdb.set_trace()
 		for key, value in stock_data_dict.items():
-			value.update(record_data[key])
+			value.update(record_data_dict[key])
 			if value["成交"] - value["平圴成本"] > 0:
-				profile = (value["成交"] - value["平圴成本"]) * value["股數"]
-				if value["最大獲利"] is None or profile > data["最大獲利"]:
+				# import pdb; pdb.set_trace()
+				profile = int((value["成交"] - value["平圴成本"]) * value["股數"])
+				if value["最大獲利"] is None or profile > value["最大獲利"]:
+					need_update_record = True
 					value["最大獲利"] = profile
-	 				value["停利價格"] = profile * self.xcfg["trailing_stop_ratio"] / value["股數"] + value["平圴成本"]
+					tmp = profile * self.xcfg["trailing_stop_ratio"] / value["股數"] + value["平圴成本"]
+					value["停利價格"] = float("%.2f" % tmp)
 				else:
 					if value["成交"] < value["停利價格"]:
 						print("停利: %s" % key)
+			else:
+				if value["最大獲利"] is None:
+					value["最大獲利"] = 0
+					value["停利價格"] = 0.00
+					need_update_record = True
+		if need_update_record:
+			self.__write_record(stock_data_dict)
 		# print(stock_data_dict)
 
 
