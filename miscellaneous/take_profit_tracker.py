@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 import os
-
+import re
 import xlrd
 # import xlsxwriter
 import argparse
@@ -40,8 +40,10 @@ class TakeProfitTracker(object):
 
 		self.workbook = None
 		self.worksheet = None
-		self.stock_symbol_lookup_dict = {}  # 股名 -> 股號
-		self.stock_symbol_reverse_lookup_dict = {}  # 股號 -> 股名
+		self.can_lookup_stock_symbol = False
+		self.stock_symbol_lookup_dict = None  # 股名 -> 股號
+		self.stock_symbol_reverse_lookup_dict = None  # 股號 -> 股名
+		self.__read_stock_symbol_mapping_table()
 
 
 	@classmethod
@@ -88,6 +90,7 @@ class TakeProfitTracker(object):
 
 
 	def __read_worksheet(self, worksheet, filterd_stock_id_list=None):
+# Check if it's required to transform from stock name to stock symbol
 		worksheet_data = {}
 		# import pdb; pdb.set_trace()
 		title_list = []
@@ -97,6 +100,12 @@ class TakeProfitTracker(object):
 			title_list.append(title_value)
 		# print(title_list)
 		# import pdb; pdb.set_trace()
+		need_lookup_stock_symbol = False
+		if re.match("[\d]{4,}", worksheet.cell_value(1, 0)) is None:
+			if not self.can_lookup_stock_symbol:
+				raise RuntimeError("No stock symbol lookup table !!!")
+			else:
+				need_lookup_stock_symbol = True
 # data
 		for row_index in range(1, worksheet.nrows):
 			data_key = worksheet.cell_value(row_index, 0)
@@ -105,6 +114,8 @@ class TakeProfitTracker(object):
 			data_list = []
 			for column_index in range(1, worksheet.ncols):
 				data_value = worksheet.cell_value(row_index, column_index)
+				if need_lookup_stock_symbol:
+					data_value = self.stock_symbol_lookup_dict[data_value]
 				data_list.append(data_value)
 			# print("%s: %s" % (data_key, data_list))
 			data_dict = dict(zip(title_list, data_list))
@@ -139,8 +150,8 @@ class TakeProfitTracker(object):
 		with open(self.xcfg['record_filepath'], 'w') as fp:
 			line = ",".join(self.DEFAULT_RECORD_FIELD_NAME)
 			fp.write("%s\n" % line)
-			for stock in record_data_dict.keys():
-				line_data_list = [stock,]
+			for stock_symbol in record_data_dict.keys():
+				line_data_list = [stock_symbol,]
 				line_data_list.append(record_data_dict[stock]["平圴成本"])
 				line_data_list.append(record_data_dict[stock]["股數"])
 				line_data_list.append(record_data_dict[stock]["最大獲利"])
@@ -152,15 +163,29 @@ class TakeProfitTracker(object):
 
 	def __read_stock_symbol_mapping_table(self):
 # 代碼,商品,股本
-		line_list = self.__get_line_list_from_file(self.xcfg["stock_symbol_lookup_filepath"])
-		for line in line_list[1:]:
-			
+		if self.can_lookup_stock_symbol: return
+		if not self.__check_file_exist(self.xcfg["stock_symbol_lookup_filepath"]):
+			print("WARNING: The stock symbol mapping file[%s] does NOT exist" % self.xcfg["stock_symbol_lookup_filepath"])
+			return
+		stock_symbol_lookup_workbook = xlrd.open_workbook(self.xcfg["stock_symbol_lookup_filepath"])
+		stock_symbol_lookup_worksheet = stock_symbol_lookup_workbook.sheet_by_index(0)
+# data
+		for row_index in range(1, stock_symbol_lookup_worksheet.nrows):
+			stock_symbol = stock_symbol_lookup_worksheet.cell_value(row_index, 0)
+			stock_name = stock_symbol_lookup_worksheet.cell_value(row_index, 1)
+			self.stock_symbol_lookup_dict[stock_name] = stock_symbol
+			self.stock_symbol_reverse_lookup_dict[stock_symbol] = stock_name
+		self.can_lookup_stock_symbol = True
+		if stock_symbol_lookup_workbook is not None:
+			stock_symbol_lookup_workbook.release_resources()
+			del stock_symbol_lookup_workbook
+			stock_symbol_lookup_workbook = None
 
 
 	def track(self):
-# ['商品', '成交', '漲幅%', '漲跌']
+# ['商品', '成交', '漲跌', '漲幅%']
 		record_data_dict = self.__read_record()
-		stock_data_dict = self.__read_worksheet(self.worksheet, filterd_stock_id_list=record_data_dict.keys())
+		stock_data_dict = self.__read_worksheet(self.worksheet, filterd_stock_id_list=record_data_dict.keys())			
 # update() doesn't return any value (returns None).
 		# stock_data_dict = [(key, value, record_data_dict[key], value.update(record_data_dict[key])) for key, value in stock_data_dict.items()]
 		# stock_data_dict.update(record_data_dict)
