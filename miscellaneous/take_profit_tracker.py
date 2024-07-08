@@ -15,9 +15,9 @@ class TakeProfitTracker(object):
 	DEFAULT_SOURCE_FULL_FILENAME = "%s.xlsx" % DEFAULT_SOURCE_FILENAME
 	DEFAULT_RECORD_FILENAME = "take_profile_tracker_record"
 	DEFAULT_RECORD_FULL_FILENAME = "%s.txt" % DEFAULT_RECORD_FILENAME
-	DEFAULT_TRAILING_STOP_RATIO = 0.7
 	DEFAULT_STOCK_SYMBOL_LOOKUP_FILENAME = "股號查詢"
 	DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME = "%s.xlsx" % DEFAULT_STOCK_SYMBOL_LOOKUP_FILENAME
+	DEFAULT_TRAILING_STOP_RATIO = 0.7
 # 代碼,平圴成本,股數,最大獲利,停利價格
 	DEFAULT_RECORD_FIELD_NAME = ["代碼", "平圴成本", "股數", "最大獲利", "停利價格"]
 	DEFAULT_RECORD_FIELD_TYPE = [str, float, int, int, float]
@@ -27,6 +27,7 @@ class TakeProfitTracker(object):
 			"data_folderpath": None,
 			"source_filename": self.DEFAULT_SOURCE_FULL_FILENAME,
 			"record_filename": self.DEFAULT_RECORD_FULL_FILENAME,
+			"stock_symbol_lookup_filename": self.DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME,
 			"trailing_stop_ratio": self.DEFAULT_TRAILING_STOP_RATIO,
 		}
 		self.xcfg.update(cfg)
@@ -109,13 +110,13 @@ class TakeProfitTracker(object):
 # data
 		for row_index in range(1, worksheet.nrows):
 			data_key = worksheet.cell_value(row_index, 0)
+			if need_lookup_stock_symbol:
+				data_key = self.stock_symbol_lookup_dict[data_key]
 			if (filterd_stock_id_list is not None) and (data_key not in filterd_stock_id_list):
 				continue
 			data_list = []
 			for column_index in range(1, worksheet.ncols):
 				data_value = worksheet.cell_value(row_index, column_index)
-				if need_lookup_stock_symbol:
-					data_value = self.stock_symbol_lookup_dict[data_value]
 				data_list.append(data_value)
 			# print("%s: %s" % (data_key, data_list))
 			data_dict = dict(zip(title_list, data_list))
@@ -152,10 +153,10 @@ class TakeProfitTracker(object):
 			fp.write("%s\n" % line)
 			for stock_symbol in record_data_dict.keys():
 				line_data_list = [stock_symbol,]
-				line_data_list.append(record_data_dict[stock]["平圴成本"])
-				line_data_list.append(record_data_dict[stock]["股數"])
-				line_data_list.append(record_data_dict[stock]["最大獲利"])
-				line_data_list.append(record_data_dict[stock]["停利價格"])
+				line_data_list.append(record_data_dict[stock_symbol]["平圴成本"])
+				line_data_list.append(record_data_dict[stock_symbol]["股數"])
+				line_data_list.append(record_data_dict[stock_symbol]["最大獲利"])
+				line_data_list.append(record_data_dict[stock_symbol]["停利價格"])
 				line_data_list = map(str, line_data_list)
 				line = ",".join(line_data_list)
 				fp.write("%s\n" % line)
@@ -170,6 +171,8 @@ class TakeProfitTracker(object):
 		stock_symbol_lookup_workbook = xlrd.open_workbook(self.xcfg["stock_symbol_lookup_filepath"])
 		stock_symbol_lookup_worksheet = stock_symbol_lookup_workbook.sheet_by_index(0)
 # data
+		self.stock_symbol_lookup_dict = {}
+		self.stock_symbol_reverse_lookup_dict = {}
 		for row_index in range(1, stock_symbol_lookup_worksheet.nrows):
 			stock_symbol = stock_symbol_lookup_worksheet.cell_value(row_index, 0)
 			stock_name = stock_symbol_lookup_worksheet.cell_value(row_index, 1)
