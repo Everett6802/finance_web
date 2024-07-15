@@ -21,6 +21,7 @@ class TakeProfitTracker(object):
 # 代碼,平圴成本,股數,最大獲利,停利價格
 	DEFAULT_RECORD_FIELD_NAME = ["代碼", "平圴成本", "股數", "最大獲利", "停利價格"]
 	DEFAULT_RECORD_FIELD_TYPE = [str, float, int, int, float]
+	YAHOO_STOCK_URL_FORMAT = "https://tw.stock.yahoo.com/quote/%s.TW"
 
 	def __init__(self, cfg):
 		self.xcfg = {
@@ -44,7 +45,9 @@ class TakeProfitTracker(object):
 		self.can_lookup_stock_symbol = False
 		self.stock_symbol_lookup_dict = None  # 股名 -> 股號
 		self.stock_symbol_reverse_lookup_dict = None  # 股號 -> 股名
-		self.__read_stock_symbol_mapping_table()
+		self.can_scrape = self.__can_scrape()
+		self.requests_module = None
+		self.beautifulsoup_class = None
 
 
 	@classmethod
@@ -75,6 +78,31 @@ class TakeProfitTracker(object):
 		return line_list
 
 
+	@classmethod
+	def __check_request_module_installed(cls):
+		try:
+			module = __import__("requests")
+		except ModuleNotFoundError:
+			return False
+		return True
+
+
+	@classmethod
+	def __check_bs4_module_installed(cls):
+		try:
+			module = __import__("bs4")
+		except ModuleNotFoundError:
+			return False
+		return True
+
+
+	@classmethod
+	def __can_scrape(cls):
+		if not cls.__check_request_module_installed(): return False
+		if not cls.__check_bs4_module_installed(): return False
+		return True
+
+
 	def __enter__(self):
 # Open the workbook
 		self.workbook = xlrd.open_workbook(self.xcfg["source_filepath"])
@@ -88,6 +116,23 @@ class TakeProfitTracker(object):
 			del self.workbook
 			self.workbook = None
 		return False
+
+
+	def __get_requests_module(self):
+		if not self.__check_request_module_installed():
+			raise RuntimeError("The requests module is NOT installed!!!")
+		if self.requests_module is None:
+			self.requests_module = __import__("requests")
+		return self.requests_module
+
+
+	def __get_beautifulsoup_class(self):
+		if not self.__check_bs4_module_installed():
+			raise RuntimeError("The bs4 module is NOT installed!!!")
+		if self.beautifulsoup_class is None:
+			bs4_module = __import__("bs4")
+			self.beautifulsoup_class = getattr(bs4_module, "BeautifulSoup")
+		return self.beautifulsoup_class
 
 
 	def __read_worksheet(self, worksheet, filterd_stock_id_list=None):
@@ -185,6 +230,33 @@ class TakeProfitTracker(object):
 			stock_symbol_lookup_workbook = None
 
 
+	def __scrape_stock_price(self, stock_symbol):
+		import pdb; pdb.set_trace()
+		url = self.YAHOO_STOCK_URL_FORMAT % stock_symbol
+		resp = self.__get_requests_module().get(url)
+		if re.search(stock_symbol, resp.text) is None:
+			raise ValueError("The stock[%s] does NOT exist" % stock_symbol)
+		# print(resp.text)
+		beautifulsoup_class = self.__get_beautifulsoup_class()
+		soup = beautifulsoup_class(resp.text, "html.parser")
+		div = soup.find("div", {"id": "main-2-QuoteOverview-Proxy"})
+		div1 = div.find_all("div", {"class": "D(f)"})
+		div2 = div1.find_all("div", {"class": "Pos(r)"})
+		lis = div2.find_all("li")
+		for li in lis:
+			print(li.text)
+# 		try:
+# 			table_trs = table[0].find_all("tr")
+# 		except Exception as e:
+# # Too many query requests from your ip, please wait and try again later!!
+# 			print(e)
+# 			# raise RetryException("Too many query requests from your ip, please wait and try again later")
+
+
+	def scrape(self):
+		self.__scrape_stock_price("2317")
+
+
 	def track(self):
 # ['商品', '成交', '漲跌', '漲幅%']
 		record_data_dict = self.__read_record()
@@ -223,4 +295,4 @@ if __name__ == "__main__":
 	cfg = {}
 	
 	with TakeProfitTracker(cfg) as obj:
-		obj.track()
+		obj.scrape()
