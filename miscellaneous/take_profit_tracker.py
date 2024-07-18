@@ -23,6 +23,7 @@ class TakeProfitTracker(object):
 	DEFAULT_RECORD_FIELD_TYPE = [str, float, int, int, float]
 	YAHOO_STOCK_URL_FORMAT = "https://tw.stock.yahoo.com/quote/%s.TW"
 
+
 	def __init__(self, cfg):
 		self.xcfg = {
 			"data_folderpath": None,
@@ -30,6 +31,7 @@ class TakeProfitTracker(object):
 			"record_filename": self.DEFAULT_RECORD_FULL_FILENAME,
 			"stock_symbol_lookup_filename": self.DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME,
 			"trailing_stop_ratio": self.DEFAULT_TRAILING_STOP_RATIO,
+			"read_from_scrapy": False
 		}
 		self.xcfg.update(cfg)
 		self.xcfg["data_folderpath"] = self.DEFAULT_DATA_FOLDERPATH if self.xcfg["data_folderpath"] is None else self.xcfg["data_folderpath"]
@@ -45,6 +47,7 @@ class TakeProfitTracker(object):
 		self.can_lookup_stock_symbol = False
 		self.stock_symbol_lookup_dict = None  # 股名 -> 股號
 		self.stock_symbol_reverse_lookup_dict = None  # 股號 -> 股名
+		self.__read_stock_symbol_mapping_table()
 		self.can_scrape = self.__can_scrape()
 		self.requests_module = None
 		self.beautifulsoup_class = None
@@ -135,33 +138,33 @@ class TakeProfitTracker(object):
 		return self.beautifulsoup_class
 
 
-	def __read_worksheet(self, worksheet, filterd_stock_id_list=None):
+	def __read_worksheet(self, stock_id_list=None):
 # Check if it's required to transform from stock name to stock symbol
 		worksheet_data = {}
 		# import pdb; pdb.set_trace()
 		title_list = []
 # title
-		for column_index in range(1, worksheet.ncols):
-			title_value = worksheet.cell_value(0, column_index)
+		for column_index in range(1, self.worksheet.ncols):
+			title_value = self.worksheet.cell_value(0, column_index)
 			title_list.append(title_value)
 		# print(title_list)
 		# import pdb; pdb.set_trace()
 		need_lookup_stock_symbol = False
-		if re.match("[\d]{4,}", worksheet.cell_value(1, 0)) is None:
+		if re.match("[\d]{4,}", self.worksheet.cell_value(1, 0)) is None:
 			if not self.can_lookup_stock_symbol:
 				raise RuntimeError("No stock symbol lookup table !!!")
 			else:
 				need_lookup_stock_symbol = True
 # data
-		for row_index in range(1, worksheet.nrows):
-			data_key = worksheet.cell_value(row_index, 0)
+		for row_index in range(1, self.worksheet.nrows):
+			data_key = self.worksheet.cell_value(row_index, 0)
 			if need_lookup_stock_symbol:
 				data_key = self.stock_symbol_lookup_dict[data_key]
-			if (filterd_stock_id_list is not None) and (data_key not in filterd_stock_id_list):
+			if (stock_id_list is not None) and (data_key not in stock_id_list):
 				continue
 			data_list = []
-			for column_index in range(1, worksheet.ncols):
-				data_value = worksheet.cell_value(row_index, column_index)
+			for column_index in range(1, self.worksheet.ncols):
+				data_value = self.worksheet.cell_value(row_index, column_index)
 				data_list.append(data_value)
 			# print("%s: %s" % (data_key, data_list))
 			data_dict = dict(zip(title_list, data_list))
@@ -210,6 +213,7 @@ class TakeProfitTracker(object):
 	def __read_stock_symbol_mapping_table(self):
 # 代碼,商品,股本
 		if self.can_lookup_stock_symbol: return
+		# import pdb; pdb.set_trace()
 		if not self.__check_file_exist(self.xcfg["stock_symbol_lookup_filepath"]):
 			print("WARNING: The stock symbol mapping file[%s] does NOT exist" % self.xcfg["stock_symbol_lookup_filepath"])
 			return
@@ -231,36 +235,55 @@ class TakeProfitTracker(object):
 
 
 	def __scrape_stock_price(self, stock_symbol):
-		import pdb; pdb.set_trace()
 		url = self.YAHOO_STOCK_URL_FORMAT % stock_symbol
 		resp = self.__get_requests_module().get(url)
 		if re.search(stock_symbol, resp.text) is None:
 			raise ValueError("The stock[%s] does NOT exist" % stock_symbol)
 		# print(resp.text)
+		# import pdb; pdb.set_trace()
 		beautifulsoup_class = self.__get_beautifulsoup_class()
 		soup = beautifulsoup_class(resp.text, "html.parser")
 		div = soup.find("div", {"id": "main-2-QuoteOverview-Proxy"})
-		div1 = div.find_all("div", {"class": "D(f)"})
-		div2 = div1.find_all("div", {"class": "Pos(r)"})
-		lis = div2.find_all("li")
-		for li in lis:
-			print(li.text)
-# 		try:
-# 			table_trs = table[0].find_all("tr")
-# 		except Exception as e:
-# # Too many query requests from your ip, please wait and try again later!!
-# 			print(e)
-# 			# raise RetryException("Too many query requests from your ip, please wait and try again later")
+		ul = div.find("ul", {"class": "D(f) Fld(c) Flw(w) H(192px) Mx(-16px)"})
+		lis = ul.find_all("li")
+		# for index, li in enumerate(lis):
+		# 	print("================== %d ==================" % index)
+		# 	spans = li.find_all("span")
+		# 	print(spans[0].text + ": " + spans[1].text)
+		def get_value(list_index):
+			spans = lis[list_index].find_all("span")
+			# print(spans[1].text)
+			return spans[1].text
+		single_stock_data_dict = {}
+		single_stock_data_dict["成交"] = float(get_value(0))
+		single_stock_data_dict["漲跌"] = float(get_value(8))
+		single_stock_data_dict["漲幅%"] = float(get_value(7).strip("%"))
+		is_negative = True if (float(single_stock_data_dict["成交"]) < float(get_value(6))) else False
+		if is_negative:
+			# single_stock_data_dict["漲跌"] = "-" + single_stock_data_dict["漲跌"]
+			# single_stock_data_dict["漲幅%"] = "-" + single_stock_data_dict["漲幅%"]
+			single_stock_data_dict["漲跌"] = -1 * single_stock_data_dict["漲跌"]
+			single_stock_data_dict["漲幅%"] = -1 * single_stock_data_dict["漲幅%"]
+		return single_stock_data_dict
 
 
-	def scrape(self):
-		self.__scrape_stock_price("2317")
+	def __read_scrapy(self, stock_id_list):
+		stock_data_dict = {}
+		# import pdb; pdb.set_trace()
+		for stock_id in stock_id_list:
+			stock_data_dict[stock_id] = self.__scrape_stock_price(stock_id)
+		return stock_data_dict
 
 
 	def track(self):
 # ['商品', '成交', '漲跌', '漲幅%']
 		record_data_dict = self.__read_record()
-		stock_data_dict = self.__read_worksheet(self.worksheet, filterd_stock_id_list=record_data_dict.keys())			
+		stock_data_dict = None
+		if self.xcfg["read_from_scrapy"]:
+			stock_data_dict = self.__read_scrapy(stock_id_list=record_data_dict.keys())
+		else:
+			stock_data_dict = self.__read_worksheet(stock_id_list=record_data_dict.keys())
+		# import pdb; pdb.set_trace()
 # update() doesn't return any value (returns None).
 		# stock_data_dict = [(key, value, record_data_dict[key], value.update(record_data_dict[key])) for key, value in stock_data_dict.items()]
 		# stock_data_dict.update(record_data_dict)
@@ -284,15 +307,35 @@ class TakeProfitTracker(object):
 					value["最大獲利"] = 0
 					value["停利價格"] = 0.00
 					need_update_record = True
+				else:
+					print("虧損: %s" % key)	
 		if need_update_record:
 			self.__write_record(stock_data_dict)
 		# print(stock_data_dict)
 
 
+	@property
+	def ReadFromScrapy(self):
+		return self.xcfg["read_from_scrapy"]
+
+
+	@ReadFromScrapy.setter
+	def ReadFromScrapy(self, read_from_scrapy):
+		self.xcfg["read_from_scrapy"] = read_from_scrapy
+
+
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Print help')
-	
+
+	parser.add_argument('-t', '--track', required=False, action='store_true', help='Track specific targets.')
+	parser.add_argument('--read_from_scrapy', required=False, action='store_true', help='Read stock data from scrapy. Caution: Only take effect for the "track" argument')
+	args = parser.parse_args()
+
 	cfg = {}
 	
+	# import pdb; pdb.set_trace()
 	with TakeProfitTracker(cfg) as obj:
-		obj.scrape()
+		if args.read_from_scrapy:
+			obj.ReadFromScrapy = True
+		if args.track:
+			obj.track()
