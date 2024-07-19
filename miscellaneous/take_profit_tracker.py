@@ -6,6 +6,7 @@ import re
 import xlrd
 # import xlsxwriter
 import argparse
+import errno
 
 
 class TakeProfitTracker(object):
@@ -21,6 +22,7 @@ class TakeProfitTracker(object):
 # 代碼,平圴成本,股數,最大獲利,停利價格
 	DEFAULT_RECORD_FIELD_NAME = ["代碼", "平圴成本", "股數", "最大獲利", "停利價格"]
 	DEFAULT_RECORD_FIELD_TYPE = [str, float, int, int, float]
+	DEFAULT_PRINT_TRACK_FIELD_NAME = ['商品', '漲跌', '漲幅%', "股數", "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
 	YAHOO_STOCK_URL_FORMAT = "https://tw.stock.yahoo.com/quote/%s.TW"
 
 
@@ -283,7 +285,7 @@ class TakeProfitTracker(object):
 			stock_data_dict = self.__read_scrapy(stock_id_list=record_data_dict.keys())
 		else:
 			stock_data_dict = self.__read_worksheet(stock_id_list=record_data_dict.keys())
-		# import pdb; pdb.set_trace()
+		# import pdb; pdb.set_trace()	
 # update() doesn't return any value (returns None).
 		# stock_data_dict = [(key, value, record_data_dict[key], value.update(record_data_dict[key])) for key, value in stock_data_dict.items()]
 		# stock_data_dict.update(record_data_dict)
@@ -314,6 +316,27 @@ class TakeProfitTracker(object):
 		# print(stock_data_dict)
 
 
+	def print_track(self):
+# ['商品', '漲跌', '漲幅%', "股數", "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
+		record_data_dict = self.__read_record()
+		stock_data_dict = None
+		if self.xcfg["read_from_scrapy"]:
+			stock_data_dict = self.__read_scrapy(stock_id_list=record_data_dict.keys())
+		else:
+			stock_data_dict = self.__read_worksheet(stock_id_list=record_data_dict.keys())
+		print("  ".join(self.DEFAULT_PRINT_TRACK_FIELD_NAME))
+		# import pdb; pdb.set_trace()
+		for key, value in stock_data_dict.items():
+			value.update(record_data_dict[key])
+			data_list = [key,]
+			for field_name in self.DEFAULT_PRINT_TRACK_FIELD_NAME[1:8]:
+				data_list.append(value[field_name])
+			diff_value = value['成交'] - value['停利價格']
+			diff_value_percentage = diff_value / value['停利價格']
+			data_list.extend([diff_value, diff_value_percentage,])
+			print("  ".join(data_list))
+
+
 	@property
 	def ReadFromScrapy(self):
 		return self.xcfg["read_from_scrapy"]
@@ -328,6 +351,7 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Print help')
 
 	parser.add_argument('-t', '--track', required=False, action='store_true', help='Track specific targets.')
+	parser.add_argument('-p', '--print_track', required=False, action='store_true', help='Print the tracking result of specific targets.')
 	parser.add_argument('--read_from_scrapy', required=False, action='store_true', help='Read stock data from scrapy. Caution: Only take effect for the "track" argument')
 	args = parser.parse_args()
 
@@ -339,3 +363,5 @@ if __name__ == "__main__":
 			obj.ReadFromScrapy = True
 		if args.track:
 			obj.track()
+		if args.print_track:
+			obj.print_track()
