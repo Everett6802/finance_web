@@ -331,10 +331,11 @@ class TakeProfitTracker(object):
 			data_list = [key,]
 			for field_name in self.DEFAULT_PRINT_TRACK_FIELD_NAME[1:8]:
 				data_list.append(value[field_name])
-			diff_value = value['成交'] - value['停利價格']
-			diff_value_percentage = diff_value / value['停利價格']
+			# import pdb; pdb.set_trace()
+			diff_value = float("%.2f" % (value['成交'] - value['停利價格']))
+			diff_value_percentage = float("%.2f" % (diff_value / value['停利價格'] * 100.0))
 			data_list.extend([diff_value, diff_value_percentage,])
-			print("  ".join(data_list))
+			print("  ".join(map(str, data_list)))
 
 
 	@property
