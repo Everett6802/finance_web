@@ -7,6 +7,7 @@ import xlrd
 # import xlsxwriter
 import argparse
 import errno
+import time
 
 
 class TakeProfitTracker(object):
@@ -24,6 +25,7 @@ class TakeProfitTracker(object):
 	DEFAULT_RECORD_FIELD_TYPE = [str, float, int, int, float]
 	DEFAULT_PRINT_TRACK_FIELD_NAME = ['商品', '漲跌', '漲幅%', "股數", "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
 	YAHOO_STOCK_URL_FORMAT = "https://tw.stock.yahoo.com/quote/%s.TW"
+	DEFAULT_MONITOR_TIME_INTERVAL = 300
 
 
 	def __init__(self, cfg):
@@ -33,7 +35,9 @@ class TakeProfitTracker(object):
 			"record_filename": self.DEFAULT_RECORD_FULL_FILENAME,
 			"stock_symbol_lookup_filename": self.DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME,
 			"trailing_stop_ratio": self.DEFAULT_TRAILING_STOP_RATIO,
-			"read_from_scrapy": False
+			"read_from_scrapy": False,
+			"monitor_mode": False,
+			"monitor_time_interval": self.DEFAULT_MONITOR_TIME_INTERVAL,
 		}
 		self.xcfg.update(cfg)
 		self.xcfg["data_folderpath"] = self.DEFAULT_DATA_FOLDERPATH if self.xcfg["data_folderpath"] is None else self.xcfg["data_folderpath"]
@@ -291,6 +295,8 @@ class TakeProfitTracker(object):
 		# stock_data_dict.update(record_data_dict)
 		need_update_record = False
 		# import pdb; pdb.set_trace()
+		take_profit_list = []
+		loss_list = []
 		for key, value in stock_data_dict.items():
 			value.update(record_data_dict[key])
 			if value["成交"] - value["平圴成本"] > 0:
@@ -303,16 +309,25 @@ class TakeProfitTracker(object):
 					value["停利價格"] = float("%.2f" % tmp)
 				else:
 					if value["成交"] < value["停利價格"]:
-						print("停利: %s" % key)
+						# print("停利: %s" % key)
+						take_profit_list.append(key)
 			else:
 				if value["最大獲利"] is None:
 					value["最大獲利"] = 0
 					value["停利價格"] = 0.00
 					need_update_record = True
 				else:
-					print("虧損: %s" % key)	
+					# print("虧損: %s" % key)
+					loss_list.append(key)
 		if need_update_record:
 			self.__write_record(stock_data_dict)
+		if len(take_profit_list) != 0 or len(loss_list) != 0:
+			print("\n************************************************")
+			if len(take_profit_list) != 0:
+				print("停利: %s" % " ".join(take_profit_list))
+			if len(loss_list) != 0:
+				print("虧損: %s" % " ".join(loss_list))
+			print("************************************************\n")
 		# print(stock_data_dict)
 
 
@@ -348,12 +363,34 @@ class TakeProfitTracker(object):
 		self.xcfg["read_from_scrapy"] = read_from_scrapy
 
 
+	@property
+	def MonitorMode(self):
+		return self.xcfg["monitor_mode"]
+
+
+	@MonitorMode.setter
+	def MonitorMode(self, monitor_mode):
+		self.xcfg["monitor_mode"] = monitor_mode
+
+
+	@property
+	def MonitorTimeInterval(self):
+		return self.xcfg["monitor_time_interval"]
+
+
+	@MonitorTimeInterval.setter
+	def MonitorTimeInterval(self, monitor_time_interval):
+		self.xcfg["monitor_time_interval"] = monitor_time_interval
+
+
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Print help')
 
 	parser.add_argument('-t', '--track', required=False, action='store_true', help='Track specific targets.')
 	parser.add_argument('-p', '--print_track', required=False, action='store_true', help='Print the tracking result of specific targets.')
 	parser.add_argument('--read_from_scrapy', required=False, action='store_true', help='Read stock data from scrapy. Caution: Only take effect for the "track" argument')
+	parser.add_argument('-m', '--monitor_mode', required=False, action='store_true', help='Monitor mode. Execute periodically')
+	parser.add_argument('--monitor_time_interval', required=False, help='Time interval of monitor mode')
 	args = parser.parse_args()
 
 	cfg = {}
@@ -362,7 +399,15 @@ if __name__ == "__main__":
 	with TakeProfitTracker(cfg) as obj:
 		if args.read_from_scrapy:
 			obj.ReadFromScrapy = True
-		if args.track:
-			obj.track()
-		if args.print_track:
-			obj.print_track()
+		if args.monitor_mode:
+			obj.MonitorMode = True
+		if args.monitor_time_interval:
+			obj.MonitorTimeInterval = int(args.monitor_time_interval)
+		while True:
+			if args.track:
+				obj.track()
+			if args.print_track:
+				obj.print_track()
+			if not obj.MonitorMode:
+				break
+			time.sleep(obj.MonitorTimeInterval)
