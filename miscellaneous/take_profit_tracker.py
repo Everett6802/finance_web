@@ -118,6 +118,11 @@ class TakeProfitTracker(object):
 
 
 	@classmethod
+	def __get_cur_time(cls):
+		return datetime.now()
+
+
+	@classmethod
 	def __get_cur_timestr(cls):
 		return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
@@ -261,6 +266,8 @@ class TakeProfitTracker(object):
 
 
 	def __scrape_stock_price(self, stock_symbol):
+		# print("Scrape %s: %s" % (stock_symbol, self.__get_cur_timestr()))
+		# start_datetime = self.__get_cur_time()
 		url = self.YAHOO_STOCK_URL_FORMAT % stock_symbol
 		resp = self.__get_requests_module().get(url)
 		if re.search(stock_symbol, resp.text) is None:
@@ -290,6 +297,9 @@ class TakeProfitTracker(object):
 			# single_stock_data_dict["漲幅%"] = "-" + single_stock_data_dict["漲幅%"]
 			single_stock_data_dict["漲跌"] = -1 * single_stock_data_dict["漲跌"]
 			single_stock_data_dict["漲幅%"] = -1 * single_stock_data_dict["漲幅%"]
+		# print("Scrape %s: %s ... Done" % (stock_symbol, self.__get_cur_timestr()))
+		# end_datetime = self.__get_cur_time()
+		# print("Scrape %s, Time elaped: %s" % (stock_symbol, (end_datetime - start_datetime)))
 		return single_stock_data_dict
 
 
@@ -455,14 +465,14 @@ if __name__ == "__main__":
 			obj.MonitorMode = True
 		if args.monitor_time_interval:
 			obj.MonitorTimeInterval = int(args.monitor_time_interval)
-		while True:
-			print("Data Time: %s" % obj.CurTimeString)
-			if args.track:
+		if args.track:
+			while True:
+				print("Data Time: %s" % obj.CurTimeString)
 				try:
 					obj.track()
 				except ScrapyError:
 					pass
-			if not obj.MonitorMode:
-				break
-			obj.refresh_data()
-			time.sleep(obj.MonitorTimeInterval)
+				if not obj.MonitorMode:
+					break
+				obj.refresh_data()
+				time.sleep(obj.MonitorTimeInterval)
