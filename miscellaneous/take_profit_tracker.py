@@ -8,6 +8,7 @@ import xlrd
 import argparse
 import errno
 import time
+from datetime import datetime
 
 
 class TakeProfitTracker(object):
@@ -38,6 +39,7 @@ class TakeProfitTracker(object):
 			"read_from_scrapy": False,
 			"monitor_mode": False,
 			"monitor_time_interval": self.DEFAULT_MONITOR_TIME_INTERVAL,
+			"show_result": False,
 		}
 		self.xcfg.update(cfg)
 		self.xcfg["data_folderpath"] = self.DEFAULT_DATA_FOLDERPATH if self.xcfg["data_folderpath"] is None else self.xcfg["data_folderpath"]
@@ -57,6 +59,7 @@ class TakeProfitTracker(object):
 		self.can_scrape = self.__can_scrape()
 		self.requests_module = None
 		self.beautifulsoup_class = None
+		self.stock_data_dict = None
 
 
 	@classmethod
@@ -110,6 +113,11 @@ class TakeProfitTracker(object):
 		if not cls.__check_request_module_installed(): return False
 		if not cls.__check_bs4_module_installed(): return False
 		return True
+
+
+	@classmethod
+	def __get_cur_timestr(cls):
+		return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 
 	def __enter__(self):
@@ -281,24 +289,39 @@ class TakeProfitTracker(object):
 		return stock_data_dict
 
 
+	def __update_data(self):
+		record_data_dict = self.__read_record()
+		if self.xcfg["read_from_scrapy"]:
+			self.stock_data_dict = self.__read_scrapy(stock_id_list=record_data_dict.keys())
+		else:
+			self.stock_data_dict = self.__read_worksheet(stock_id_list=record_data_dict.keys())
+		for key, value in self.stock_data_dict.items():
+			value.update(record_data_dict[key])
+
+
+	def refresh_data(self):
+		self.stock_data_dict = None
+
+
 	def track(self):
 # ['商品', '成交', '漲跌', '漲幅%']
-		record_data_dict = self.__read_record()
-		stock_data_dict = None
-		if self.xcfg["read_from_scrapy"]:
-			stock_data_dict = self.__read_scrapy(stock_id_list=record_data_dict.keys())
-		else:
-			stock_data_dict = self.__read_worksheet(stock_id_list=record_data_dict.keys())
+		# record_data_dict = self.__read_record()
+		# stock_data_dict = None
+		# if self.xcfg["read_from_scrapy"]:
+		# 	stock_data_dict = self.__read_scrapy(stock_id_list=record_data_dict.keys())
+		# else:
+		# 	stock_data_dict = self.__read_worksheet(stock_id_list=record_data_dict.keys())
 		# import pdb; pdb.set_trace()	
 # update() doesn't return any value (returns None).
 		# stock_data_dict = [(key, value, record_data_dict[key], value.update(record_data_dict[key])) for key, value in stock_data_dict.items()]
 		# stock_data_dict.update(record_data_dict)
+		if self.stock_data_dict is None: self.__update_data()
 		need_update_record = False
 		# import pdb; pdb.set_trace()
 		take_profit_list = []
 		loss_list = []
-		for key, value in stock_data_dict.items():
-			value.update(record_data_dict[key])
+		for key, value in self.stock_data_dict.items():
+			# value.update(record_data_dict[key])
 			if value["成交"] - value["平圴成本"] > 0:
 				# import pdb; pdb.set_trace()
 				profile = int((value["成交"] - value["平圴成本"]) * value["股數"])
@@ -329,20 +352,23 @@ class TakeProfitTracker(object):
 				print("虧損: %s" % " ".join(loss_list))
 			print("************************************************\n")
 		# print(stock_data_dict)
+		if self.xcfg["show_result"]:
+			self.__show_result()
 
 
-	def print_track(self):
+	def __show_result(self):
+		if self.stock_data_dict is None: self.__update_data()
 # ['商品', '漲跌', '漲幅%', "股數", "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
-		record_data_dict = self.__read_record()
-		stock_data_dict = None
-		if self.xcfg["read_from_scrapy"]:
-			stock_data_dict = self.__read_scrapy(stock_id_list=record_data_dict.keys())
-		else:
-			stock_data_dict = self.__read_worksheet(stock_id_list=record_data_dict.keys())
+		# record_data_dict = self.__read_record()
+		# stock_data_dict = None
+		# if self.xcfg["read_from_scrapy"]:
+		# 	stock_data_dict = self.__read_scrapy(stock_id_list=record_data_dict.keys())
+		# else:
+		# 	stock_data_dict = self.__read_worksheet(stock_id_list=record_data_dict.keys())
 		print("  ".join(self.DEFAULT_PRINT_TRACK_FIELD_NAME))
 		# import pdb; pdb.set_trace()
-		for key, value in stock_data_dict.items():
-			value.update(record_data_dict[key])
+		for key, value in self.stock_data_dict.items():
+			# value.update(record_data_dict[key])
 			data_list = [key,]
 			for field_name in self.DEFAULT_PRINT_TRACK_FIELD_NAME[1:8]:
 				data_list.append(value[field_name])
@@ -383,12 +409,27 @@ class TakeProfitTracker(object):
 		self.xcfg["monitor_time_interval"] = monitor_time_interval
 
 
+	@property
+	def CurTimeString(self):
+		return self.__get_cur_timestr()
+
+
+	@property
+	def ShowResult(self):
+		return self.xcfg["show_result"]
+
+
+	@ShowResult.setter
+	def ShowResult(self, show_result):
+		self.xcfg["show_result"] = show_result
+
+
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Print help')
 
 	parser.add_argument('-t', '--track', required=False, action='store_true', help='Track specific targets.')
-	parser.add_argument('-p', '--print_track', required=False, action='store_true', help='Print the tracking result of specific targets.')
 	parser.add_argument('--read_from_scrapy', required=False, action='store_true', help='Read stock data from scrapy. Caution: Only take effect for the "track" argument')
+	parser.add_argument('-s', '--show_result', required=False, action='store_true', help='Show the tracking result of specific targets.')
 	parser.add_argument('-m', '--monitor_mode', required=False, action='store_true', help='Monitor mode. Execute periodically')
 	parser.add_argument('--monitor_time_interval', required=False, help='Time interval of monitor mode')
 	args = parser.parse_args()
@@ -399,15 +440,19 @@ if __name__ == "__main__":
 	with TakeProfitTracker(cfg) as obj:
 		if args.read_from_scrapy:
 			obj.ReadFromScrapy = True
+		if args.show_result:
+			obj.ShowResult = True
 		if args.monitor_mode:
 			obj.MonitorMode = True
 		if args.monitor_time_interval:
 			obj.MonitorTimeInterval = int(args.monitor_time_interval)
 		while True:
+			print("Data Time: %s" % obj.CurTimeString)
 			if args.track:
 				obj.track()
-			if args.print_track:
-				obj.print_track()
+			# if args.print_track:
+			# 	obj.print_track()
 			if not obj.MonitorMode:
 				break
+			obj.refresh_data()
 			time.sleep(obj.MonitorTimeInterval)
