@@ -121,9 +121,9 @@ class TakeProfitTracker(object):
 
 
 	def __enter__(self):
-# Open the workbook
-		self.workbook = xlrd.open_workbook(self.xcfg["source_filepath"])
-		self.worksheet = self.workbook.sheet_by_index(0)
+# # Open the workbook
+# 		self.workbook = xlrd.open_workbook(self.xcfg["source_filepath"])
+# 		self.worksheet = self.workbook.sheet_by_index(0)
 		return self
 
 
@@ -131,8 +131,18 @@ class TakeProfitTracker(object):
 		if self.workbook is not None:
 			self.workbook.release_resources()
 			del self.workbook
+			self.worksheet = None
 			self.workbook = None
 		return False
+
+
+	def __get_worksheet(self):
+		if self.workbook is None:
+			if not self.__check_file_exist(self.xcfg["source_filepath"]):
+				raise RuntimeError("The worksheet[%s] does NOT exist" % self.xcfg["source_filepath"])
+			self.workbook = xlrd.open_workbook(self.xcfg["source_filepath"])
+			self.worksheet = self.workbook.sheet_by_index(0)
+		return self.worksheet
 
 
 	def __get_requests_module(self):
@@ -158,27 +168,27 @@ class TakeProfitTracker(object):
 		# import pdb; pdb.set_trace()
 		title_list = []
 # title
-		for column_index in range(1, self.worksheet.ncols):
-			title_value = self.worksheet.cell_value(0, column_index)
+		for column_index in range(1, self.Worksheet.ncols):
+			title_value = self.Worksheet.cell_value(0, column_index)
 			title_list.append(title_value)
 		# print(title_list)
 		# import pdb; pdb.set_trace()
 		need_lookup_stock_symbol = False
-		if re.match("[\d]{4,}", self.worksheet.cell_value(1, 0)) is None:
+		if re.match("[\d]{4,}", self.Worksheet.cell_value(1, 0)) is None:
 			if not self.can_lookup_stock_symbol:
 				raise RuntimeError("No stock symbol lookup table !!!")
 			else:
 				need_lookup_stock_symbol = True
 # data
-		for row_index in range(1, self.worksheet.nrows):
-			data_key = self.worksheet.cell_value(row_index, 0)
+		for row_index in range(1, self.Worksheet.nrows):
+			data_key = self.Worksheet.cell_value(row_index, 0)
 			if need_lookup_stock_symbol:
 				data_key = self.stock_symbol_lookup_dict[data_key]
 			if (stock_id_list is not None) and (data_key not in stock_id_list):
 				continue
 			data_list = []
-			for column_index in range(1, self.worksheet.ncols):
-				data_value = self.worksheet.cell_value(row_index, column_index)
+			for column_index in range(1, self.Worksheet.ncols):
+				data_value = self.Worksheet.cell_value(row_index, column_index)
 				data_list.append(data_value)
 			# print("%s: %s" % (data_key, data_list))
 			data_dict = dict(zip(title_list, data_list))
@@ -305,12 +315,6 @@ class TakeProfitTracker(object):
 
 	def track(self):
 # ['商品', '成交', '漲跌', '漲幅%']
-		# record_data_dict = self.__read_record()
-		# stock_data_dict = None
-		# if self.xcfg["read_from_scrapy"]:
-		# 	stock_data_dict = self.__read_scrapy(stock_id_list=record_data_dict.keys())
-		# else:
-		# 	stock_data_dict = self.__read_worksheet(stock_id_list=record_data_dict.keys())
 		# import pdb; pdb.set_trace()	
 # update() doesn't return any value (returns None).
 		# stock_data_dict = [(key, value, record_data_dict[key], value.update(record_data_dict[key])) for key, value in stock_data_dict.items()]
@@ -359,12 +363,6 @@ class TakeProfitTracker(object):
 	def __show_result(self):
 		if self.stock_data_dict is None: self.__update_data()
 # ['商品', '漲跌', '漲幅%', "股數", "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
-		# record_data_dict = self.__read_record()
-		# stock_data_dict = None
-		# if self.xcfg["read_from_scrapy"]:
-		# 	stock_data_dict = self.__read_scrapy(stock_id_list=record_data_dict.keys())
-		# else:
-		# 	stock_data_dict = self.__read_worksheet(stock_id_list=record_data_dict.keys())
 		print("  ".join(self.DEFAULT_PRINT_TRACK_FIELD_NAME))
 		# import pdb; pdb.set_trace()
 		for key, value in self.stock_data_dict.items():
@@ -424,6 +422,11 @@ class TakeProfitTracker(object):
 		self.xcfg["show_result"] = show_result
 
 
+	@property
+	def Worksheet(self):
+		return self.__get_worksheet()
+
+
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Print help')
 
@@ -450,8 +453,6 @@ if __name__ == "__main__":
 			print("Data Time: %s" % obj.CurTimeString)
 			if args.track:
 				obj.track()
-			# if args.print_track:
-			# 	obj.print_track()
 			if not obj.MonitorMode:
 				break
 			obj.refresh_data()
