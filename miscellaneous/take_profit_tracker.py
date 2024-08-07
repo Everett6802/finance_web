@@ -11,6 +11,8 @@ import time
 from datetime import datetime
 
 
+class ScrapyError(Exception): pass
+
 class TakeProfitTracker(object):
 
 	DEFAULT_DATA_FOLDERPATH =  "C:\\停利追蹤"
@@ -302,7 +304,11 @@ class TakeProfitTracker(object):
 	def __update_data(self):
 		record_data_dict = self.__read_record()
 		if self.xcfg["read_from_scrapy"]:
-			self.stock_data_dict = self.__read_scrapy(stock_id_list=record_data_dict.keys())
+			try:
+				self.stock_data_dict = self.__read_scrapy(stock_id_list=record_data_dict.keys())
+			except Exception as e:
+				print("Scrapy Error: %s" % str(e))
+				raise ScrapyError()
 		else:
 			self.stock_data_dict = self.__read_worksheet(stock_id_list=record_data_dict.keys())
 		for key, value in self.stock_data_dict.items():
@@ -452,7 +458,10 @@ if __name__ == "__main__":
 		while True:
 			print("Data Time: %s" % obj.CurTimeString)
 			if args.track:
-				obj.track()
+				try:
+					obj.track()
+				except ScrapyError:
+					pass
 			if not obj.MonitorMode:
 				break
 			obj.refresh_data()
