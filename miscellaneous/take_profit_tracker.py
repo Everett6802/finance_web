@@ -8,7 +8,8 @@ import xlrd
 import argparse
 import errno
 import time
-from datetime import datetime
+# from datetime import datetime
+import datetime
 
 
 class ScrapyError(Exception): pass
@@ -29,6 +30,8 @@ class TakeProfitTracker(object):
 	DEFAULT_PRINT_TRACK_FIELD_NAME = ['商品', '漲跌', '漲幅%', "股數", "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
 	YAHOO_STOCK_URL_FORMAT = "https://tw.stock.yahoo.com/quote/%s.TW"
 	DEFAULT_MONITOR_TIME_INTERVAL = 300
+	DEFAULT_CAN_SCRAPE_TIME_RANGE_START = datetime.time(8, 59, 0)
+	DEFAULT_CAN_SCRAPE_TIME_RANGE_END = datetime.time(13, 36, 0)
 
 
 	def __init__(self, cfg):
@@ -118,13 +121,24 @@ class TakeProfitTracker(object):
 
 
 	@classmethod
-	def __get_cur_time(cls):
-		return datetime.now()
+	def __get_cur_time(cls, time_only=False):
+		cur_time = datetime.datetime.now()
+		if time_only:
+			cur_time = datetime.time(cur_time.hour, cur_time.minute, cur_time.second)
+		return cur_time  # datetime.datetime.now()
 
 
 	@classmethod
 	def __get_cur_timestr(cls):
-		return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+		return self.__get_cur_time().strftime('%Y-%m-%d %H:%M:%S')
+
+
+	@classmethod
+	def __check_time_in_range(cls, time_range_start, time_range_end, time_check):
+		if time_range_start <= time_range_end:
+			return time_range_start <= time_check <= time_range_end
+		else:
+			return time_range_start <= time_check or time_check <= time_range_end
 
 
 	def __enter__(self):
@@ -443,6 +457,14 @@ class TakeProfitTracker(object):
 		return self.__get_worksheet()
 
 
+	@property
+	def CanTrack(self):
+		# time_check = datetime.time(13, 36, 1)
+		time_check = self.__get_cur_time(True)
+		time_in_range = self.__check_time_in_range(self.DEFAULT_CAN_SCRAPE_TIME_RANGE_START, self.DEFAULT_CAN_SCRAPE_TIME_RANGE_END, time_check)
+		return time_in_range
+
+
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Print help')
 
@@ -457,6 +479,7 @@ if __name__ == "__main__":
 	
 	# import pdb; pdb.set_trace()
 	with TakeProfitTracker(cfg) as obj:
+		# print("Check Scrapy: %s" % ("True" if obj.CanTrack else "False"))
 		if args.read_from_scrapy:
 			obj.ReadFromScrapy = True
 		if args.show_result:
@@ -467,12 +490,13 @@ if __name__ == "__main__":
 			obj.MonitorTimeInterval = int(args.monitor_time_interval)
 		if args.track:
 			while True:
-				print("Data Time: %s" % obj.CurTimeString)
-				try:
-					obj.track()
-				except ScrapyError:
-					pass
-				if not obj.MonitorMode:
-					break
-				obj.refresh_data()
+				if obj.CanTrack:
+					print("Data Time: %s" % obj.CurTimeString)
+					try:
+						obj.track()
+					except ScrapyError:
+						pass
+					if not obj.MonitorMode:
+						break
+					obj.refresh_data()
 				time.sleep(obj.MonitorTimeInterval)
