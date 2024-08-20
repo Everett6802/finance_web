@@ -82,14 +82,17 @@ class TakeProfitTracker(object):
 
 
 	@classmethod
-	def __get_line_list_from_file(self, filepath):
+	def __get_line_list_from_file(self, filepath, startswith=None):
 		# import pdb; pdb.set_trace()
 		if not self.__check_file_exist(filepath):
 			raise RuntimeError("The file[%s] does NOT exist" % filepath)
 		line_list = []
 		with open(filepath, 'r') as fp:
 			for line in fp:
-				if line.startswith("#"): continue
+				if startswith is None:
+					if line.startswith("#"): continue
+				else:
+					if not line.startswith("#"): continue
 				line = line.strip("\n")
 				if len(line) == 0: continue
 				line_list.append(line)
@@ -242,6 +245,7 @@ class TakeProfitTracker(object):
 	def __write_record(self, record_data_dict):
 # 代碼,平圴成本,股數,最大獲利,停利價格
 		# import pdb; pdb.set_trace()
+		skipped_line_list = self.__get_line_list_from_file(self.xcfg["record_filepath"], startswith="#")
 		with open(self.xcfg['record_filepath'], 'w') as fp:
 			line = ",".join(self.DEFAULT_RECORD_FIELD_NAME)
 			fp.write("%s\n" % line)
@@ -254,6 +258,11 @@ class TakeProfitTracker(object):
 				line_data_list = map(str, line_data_list)
 				line = ",".join(line_data_list)
 				fp.write("%s\n" % line)
+		# import pdb; pdb.set_trace()
+		if len(skipped_line_list) != 0:
+			with open(self.xcfg['record_filepath'], 'a+') as fp:
+				for skipped_line in skipped_line_list:
+					fp.write("%s\n" % skipped_line)
 
 
 	def __read_stock_symbol_mapping_table(self):
