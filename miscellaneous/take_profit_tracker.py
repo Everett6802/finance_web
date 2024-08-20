@@ -65,6 +65,7 @@ class TakeProfitTracker(object):
 		self.requests_module = None
 		self.beautifulsoup_class = None
 		self.stock_data_dict = None
+		self.first_track = True
 
 
 	@classmethod
@@ -130,7 +131,7 @@ class TakeProfitTracker(object):
 
 	@classmethod
 	def __get_cur_timestr(cls):
-		return self.__get_cur_time().strftime('%Y-%m-%d %H:%M:%S')
+		return cls.__get_cur_time().strftime('%Y-%m-%d %H:%M:%S')
 
 
 	@classmethod
@@ -377,7 +378,7 @@ class TakeProfitTracker(object):
 					# print("虧損: %s" % key)
 					loss_list.append(key)
 		if need_update_record:
-			self.__write_record(stock_data_dict)
+			self.__write_record(self.stock_data_dict)
 		if len(take_profit_list) != 0 or len(loss_list) != 0:
 			print("\n************************************************")
 			if len(take_profit_list) != 0:
@@ -393,7 +394,8 @@ class TakeProfitTracker(object):
 	def __show_result(self):
 		if self.stock_data_dict is None: self.__update_data()
 # ['商品', '漲跌', '漲幅%', "股數", "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
-		print("  ".join(self.DEFAULT_PRINT_TRACK_FIELD_NAME))
+		# print("  ".join(self.DEFAULT_PRINT_TRACK_FIELD_NAME))
+		print("  ".join(map(lambda x: "%4s" % x, self.DEFAULT_PRINT_TRACK_FIELD_NAME)))
 		# import pdb; pdb.set_trace()
 		for key, value in self.stock_data_dict.items():
 			# value.update(record_data_dict[key])
@@ -404,7 +406,8 @@ class TakeProfitTracker(object):
 			diff_value = float("%.2f" % (value['成交'] - value['停利價格']))
 			diff_value_percentage = float("%.2f" % (diff_value / value['停利價格'] * 100.0))
 			data_list.extend([diff_value, diff_value_percentage,])
-			print("  ".join(map(str, data_list)))
+			# print("  ".join(map(str, data_list)))
+			print("  ".join(map(lambda x: "%8s" % str(x), data_list)))
 
 
 	@property
@@ -460,9 +463,13 @@ class TakeProfitTracker(object):
 	@property
 	def CanTrack(self):
 		# time_check = datetime.time(13, 36, 1)
-		time_check = self.__get_cur_time(True)
-		time_in_range = self.__check_time_in_range(self.DEFAULT_CAN_SCRAPE_TIME_RANGE_START, self.DEFAULT_CAN_SCRAPE_TIME_RANGE_END, time_check)
-		return time_in_range
+		can_track = True
+		if self.first_track:
+			self.first_track = False
+		else:
+			time_check = self.__get_cur_time(True)
+			can_track = self.__check_time_in_range(self.DEFAULT_CAN_SCRAPE_TIME_RANGE_START, self.DEFAULT_CAN_SCRAPE_TIME_RANGE_END, time_check)
+		return can_track
 
 
 if __name__ == "__main__":
