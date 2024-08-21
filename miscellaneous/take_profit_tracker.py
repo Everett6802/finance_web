@@ -25,9 +25,9 @@ class TakeProfitTracker(object):
 	DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME = "%s.xlsx" % DEFAULT_STOCK_SYMBOL_LOOKUP_FILENAME
 	DEFAULT_TRAILING_STOP_RATIO = 0.7
 # 代碼,平圴成本,股數,最大獲利,停利價格
-	DEFAULT_RECORD_FIELD_NAME = ["代碼", "平圴成本", "股數", "最大獲利", "停利價格"]
-	DEFAULT_RECORD_FIELD_TYPE = [str, float, int, int, float]
-	DEFAULT_PRINT_TRACK_FIELD_NAME = ['商品', '漲跌', '漲幅%', "股數", "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
+	DEFAULT_RECORD_FIELD_NAME = ["代碼", "平圴成本", "股數", '獲利%', "最大獲利", "停利價格"]
+	DEFAULT_RECORD_FIELD_TYPE = [str, float, int, float, int, float]
+	DEFAULT_PRINT_TRACK_FIELD_NAME = ['商品', '漲跌', '漲幅%', "股數", '獲利%', "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
 	YAHOO_STOCK_URL_FORMAT = "https://tw.stock.yahoo.com/quote/%s.TW"
 	DEFAULT_MONITOR_TIME_INTERVAL = 300
 	DEFAULT_CAN_SCRAPE_TIME_RANGE_START = datetime.time(8, 59, 0)
@@ -42,6 +42,7 @@ class TakeProfitTracker(object):
 			"stock_symbol_lookup_filename": self.DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME,
 			"trailing_stop_ratio": self.DEFAULT_TRAILING_STOP_RATIO,
 			"read_from_scrapy": False,
+			"force_update_record": False,
 			"monitor_mode": False,
 			"monitor_time_interval": self.DEFAULT_MONITOR_TIME_INTERVAL,
 			"show_result": False,
@@ -143,6 +144,12 @@ class TakeProfitTracker(object):
 			return time_range_start <= time_check <= time_range_end
 		else:
 			return time_range_start <= time_check or time_check <= time_range_end
+
+
+	@classmethod
+	def __float(cls, float_value):
+		assert type(float_value) in [int, float], "Incorrect value type: %s" % type(float_value)
+		return float("%.2f" % float_value)
 
 
 	def __enter__(self):
@@ -253,6 +260,7 @@ class TakeProfitTracker(object):
 				line_data_list = [stock_symbol,]
 				line_data_list.append(record_data_dict[stock_symbol]["平圴成本"])
 				line_data_list.append(record_data_dict[stock_symbol]["股數"])
+				line_data_list.append(record_data_dict[stock_symbol]["獲利%"])
 				line_data_list.append(record_data_dict[stock_symbol]["最大獲利"])
 				line_data_list.append(record_data_dict[stock_symbol]["停利價格"])
 				line_data_list = map(str, line_data_list)
@@ -368,24 +376,28 @@ class TakeProfitTracker(object):
 			# value.update(record_data_dict[key])
 			if value["成交"] - value["平圴成本"] > 0:
 				# import pdb; pdb.set_trace()
-				profile = int((value["成交"] - value["平圴成本"]) * value["股數"])
-				if value["最大獲利"] is None or profile > value["最大獲利"]:
+				profit = int((value["成交"] - value["平圴成本"]) * value["股數"])
+				profit_ratio = profit / (value["平圴成本"] * value["股數"])
+				value["獲利%"] = self.__float(profit_ratio * 100)
+				if value["最大獲利"] is None or profit > value["最大獲利"]:
 					need_update_record = True
-					value["最大獲利"] = profile
-					tmp = profile * self.xcfg["trailing_stop_ratio"] / value["股數"] + value["平圴成本"]
-					value["停利價格"] = float("%.2f" % tmp)
+					value["最大獲利"] = profit
+					tmp = profit * self.xcfg["trailing_stop_ratio"] / value["股數"] + value["平圴成本"]
+					value["停利價格"] = self.__float(tmp)
 				else:
 					if value["成交"] < value["停利價格"]:
 						# print("停利: %s" % key)
 						take_profit_list.append(key)
 			else:
 				if value["最大獲利"] is None:
+					value["獲利%"] = 0.00
 					value["最大獲利"] = 0
 					value["停利價格"] = 0.00
 					need_update_record = True
 				else:
 					# print("虧損: %s" % key)
 					loss_list.append(key)
+		if self.xcfg["force_update_record"]: need_update_record = True
 		if need_update_record:
 			self.__write_record(self.stock_data_dict)
 		if len(take_profit_list) != 0 or len(loss_list) != 0:
@@ -412,8 +424,8 @@ class TakeProfitTracker(object):
 			for field_name in self.DEFAULT_PRINT_TRACK_FIELD_NAME[1:8]:
 				data_list.append(value[field_name])
 			# import pdb; pdb.set_trace()
-			diff_value = float("%.2f" % (value['成交'] - value['停利價格']))
-			diff_value_percentage = float("%.2f" % (diff_value / value['停利價格'] * 100.0))
+			diff_value = self.__float(value['成交'] - value['停利價格'])
+			diff_value_percentage = self.__float(diff_value / value['停利價格'] * 100.0)
 			data_list.extend([diff_value, diff_value_percentage,])
 			# print("  ".join(map(str, data_list)))
 			print("  ".join(map(lambda x: "%8s" % str(x), data_list)))
@@ -427,6 +439,16 @@ class TakeProfitTracker(object):
 	@ReadFromScrapy.setter
 	def ReadFromScrapy(self, read_from_scrapy):
 		self.xcfg["read_from_scrapy"] = read_from_scrapy
+
+
+	@property
+	def ForceUpdateRecord(self):
+		return self.xcfg["force_update_record"]
+
+
+	@ForceUpdateRecord.setter
+	def ForceUpdateRecord(self, force_update_record):
+		self.xcfg["force_update_record"] = force_update_record
 
 
 	@property
@@ -486,6 +508,7 @@ if __name__ == "__main__":
 
 	parser.add_argument('-t', '--track', required=False, action='store_true', help='Track specific targets.')
 	parser.add_argument('--read_from_scrapy', required=False, action='store_true', help='Read stock data from scrapy. Caution: Only take effect for the "track" argument')
+	parser.add_argument('--force_update_record', required=False, action='store_true', help='Update the record file forcibly. Caution: Only take effect for the "track" argument')
 	parser.add_argument('-s', '--show_result', required=False, action='store_true', help='Show the tracking result of specific targets.')
 	parser.add_argument('-m', '--monitor_mode', required=False, action='store_true', help='Monitor mode. Execute periodically')
 	parser.add_argument('--monitor_time_interval', required=False, help='Time interval of monitor mode')
@@ -498,6 +521,8 @@ if __name__ == "__main__":
 		# print("Check Scrapy: %s" % ("True" if obj.CanTrack else "False"))
 		if args.read_from_scrapy:
 			obj.ReadFromScrapy = True
+		if args.force_update_record:
+			obj.ForceUpdateRecord = True
 		if args.show_result:
 			obj.ShowResult = True
 		if args.monitor_mode:
