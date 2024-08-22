@@ -24,9 +24,10 @@ class TakeProfitTracker(object):
 	DEFAULT_STOCK_SYMBOL_LOOKUP_FILENAME = "股號查詢"
 	DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME = "%s.xlsx" % DEFAULT_STOCK_SYMBOL_LOOKUP_FILENAME
 	DEFAULT_TRAILING_STOP_RATIO = 0.7
+	DEFAULT_TRIGGER_TRAILING_STOP_PROFIT_RATIO = 0.15
 # 代碼,平圴成本,股數,最大獲利,停利價格
-	DEFAULT_RECORD_FIELD_NAME = ["代碼", "平圴成本", "股數", '獲利%', "最大獲利", "停利價格"]
-	DEFAULT_RECORD_FIELD_TYPE = [str, float, int, float, int, float]
+	DEFAULT_RECORD_FIELD_NAME = ["代碼", "平圴成本", "股數", '獲利%', "啟動停利", "最大獲利", "停利價格"]
+	DEFAULT_RECORD_FIELD_TYPE = [str, float, int, float, str, int, float]
 	DEFAULT_PRINT_TRACK_FIELD_NAME = ['商品', '漲跌', '漲幅%', "股數", '獲利%', "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
 	YAHOO_STOCK_URL_FORMAT = "https://tw.stock.yahoo.com/quote/%s.TW"
 	DEFAULT_MONITOR_TIME_INTERVAL = 300
@@ -41,6 +42,7 @@ class TakeProfitTracker(object):
 			"record_filename": self.DEFAULT_RECORD_FULL_FILENAME,
 			"stock_symbol_lookup_filename": self.DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME,
 			"trailing_stop_ratio": self.DEFAULT_TRAILING_STOP_RATIO,
+			"trigger_trailing_stop_profit_ratio": self.DEFAULT_TRIGGER_TRAILING_STOP_PROFIT_RATIO,
 			"read_from_scrapy": False,
 			"force_update_record": False,
 			"monitor_mode": False,
@@ -150,6 +152,16 @@ class TakeProfitTracker(object):
 	def __float(cls, float_value):
 		assert type(float_value) in [int, float], "Incorrect value type: %s" % type(float_value)
 		return float("%.2f" % float_value)
+
+
+	@classmethod
+	def __is_trailing_stop_triggered(cls, value):
+		mobj = None
+		try: 
+			re.match("O", value, re.I)
+		except TypeError:
+			return False
+		return True if (mobj is not None) else False
 
 
 	def __enter__(self):
@@ -369,7 +381,7 @@ class TakeProfitTracker(object):
 		# stock_data_dict.update(record_data_dict)
 		if self.stock_data_dict is None: self.__update_data()
 		need_update_record = False
-		# import pdb; pdb.set_trace()
+		import pdb; pdb.set_trace()
 		take_profit_list = []
 		loss_list = []
 		for key, value in self.stock_data_dict.items():
@@ -384,8 +396,9 @@ class TakeProfitTracker(object):
 					value["最大獲利"] = profit
 					tmp = profit * self.xcfg["trailing_stop_ratio"] / value["股數"] + value["平圴成本"]
 					value["停利價格"] = self.__float(tmp)
+					value["啟動停利"] = "O" if profit_ratio > self.xcfg["trigger_trailing_stop_profit_ratio"] else "X"
 				else:
-					if value["成交"] < value["停利價格"]:
+					if self.__is_trailing_stop_triggered(value["啟動停利"]) and value["成交"] < value["停利價格"]:
 						# print("停利: %s" % key)
 						take_profit_list.append(key)
 			else:
@@ -393,6 +406,7 @@ class TakeProfitTracker(object):
 					value["獲利%"] = 0.00
 					value["最大獲利"] = 0
 					value["停利價格"] = 0.00
+					value["啟動停利"] = "X"
 					need_update_record = True
 				else:
 					# print("虧損: %s" % key)
@@ -428,7 +442,9 @@ class TakeProfitTracker(object):
 			diff_value_percentage = self.__float(diff_value / value['停利價格'] * 100.0)
 			data_list.extend([diff_value, diff_value_percentage,])
 			# print("  ".join(map(str, data_list)))
-			print("  ".join(map(lambda x: "%8s" % str(x), data_list)))
+			str_tmp = "  ".join(map(lambda x: "%8s" % str(x), data_list))
+			marker = "* " if self.__is_trailing_stop_triggered(value['啟動停利']) else "  "
+			print(marker + str_tmp)
 
 
 	@property
