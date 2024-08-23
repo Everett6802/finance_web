@@ -26,8 +26,10 @@ class TakeProfitTracker(object):
 	DEFAULT_TRAILING_STOP_RATIO = 0.7
 	DEFAULT_TRIGGER_TRAILING_STOP_PROFIT_RATIO = 0.15
 # 代碼,平圴成本,股數,最大獲利,停利價格
-	DEFAULT_RECORD_FIELD_NAME = ["代碼", "平圴成本", "股數", '獲利%', "啟動停利", "最大獲利", "停利價格"]
-	DEFAULT_RECORD_FIELD_TYPE = [str, float, int, float, str, int, float]
+	DEFAULT_RECORD_FIELD_METADATA = [["代碼", str], ["平圴成本", float], ["股數", int], ['獲利%', float], ["啟動停利", str], ["最大獲利", int], ["停利價格", float]]
+	DEFAULT_RECORD_FIELD_NAME = [metadata[0] for metadata in DEFAULT_RECORD_FIELD_METADATA]
+	DEFAULT_RECORD_FIELD_TYPE = [metadata[1] for metadata in DEFAULT_RECORD_FIELD_METADATA]
+	DEFAULT_RECORD_FIELD_METADATA_LEN = len(DEFAULT_RECORD_FIELD_METADATA)
 	DEFAULT_PRINT_TRACK_FIELD_NAME = ['商品', '漲跌', '漲幅%', "股數", '獲利%', "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
 	YAHOO_STOCK_URL_FORMAT = "https://tw.stock.yahoo.com/quote/%s.TW"
 	DEFAULT_MONITOR_TIME_INTERVAL = 300
@@ -158,7 +160,7 @@ class TakeProfitTracker(object):
 	def __is_trailing_stop_triggered(cls, value):
 		mobj = None
 		try: 
-			re.match("O", value, re.I)
+			mobj = re.match("O", value, re.I)
 		except TypeError:
 			return False
 		return True if (mobj is not None) else False
@@ -273,6 +275,7 @@ class TakeProfitTracker(object):
 				line_data_list.append(record_data_dict[stock_symbol]["平圴成本"])
 				line_data_list.append(record_data_dict[stock_symbol]["股數"])
 				line_data_list.append(record_data_dict[stock_symbol]["獲利%"])
+				line_data_list.append(record_data_dict[stock_symbol]["啟動停利"])
 				line_data_list.append(record_data_dict[stock_symbol]["最大獲利"])
 				line_data_list.append(record_data_dict[stock_symbol]["停利價格"])
 				line_data_list = map(str, line_data_list)
@@ -381,7 +384,7 @@ class TakeProfitTracker(object):
 		# stock_data_dict.update(record_data_dict)
 		if self.stock_data_dict is None: self.__update_data()
 		need_update_record = False
-		import pdb; pdb.set_trace()
+		# import pdb; pdb.set_trace()
 		take_profit_list = []
 		loss_list = []
 		for key, value in self.stock_data_dict.items():
@@ -390,19 +393,25 @@ class TakeProfitTracker(object):
 				# import pdb; pdb.set_trace()
 				profit = int((value["成交"] - value["平圴成本"]) * value["股數"])
 				profit_ratio = profit / (value["平圴成本"] * value["股數"])
+				should_trigger = profit_ratio > self.xcfg["trigger_trailing_stop_profit_ratio"]
+				if  value["啟動停利"] is None: 
+					value["啟動停利"] = "O" if should_trigger else "X"
+				else:
+					if not self.__is_trailing_stop_triggered(value["啟動停利"]) and should_trigger:
+						value["啟動停利"] = "O"
 				value["獲利%"] = self.__float(profit_ratio * 100)
 				if value["最大獲利"] is None or profit > value["最大獲利"]:
-					need_update_record = True
 					value["最大獲利"] = profit
 					tmp = profit * self.xcfg["trailing_stop_ratio"] / value["股數"] + value["平圴成本"]
 					value["停利價格"] = self.__float(tmp)
-					value["啟動停利"] = "O" if profit_ratio > self.xcfg["trigger_trailing_stop_profit_ratio"] else "X"
+					need_update_record = True
 				else:
 					if self.__is_trailing_stop_triggered(value["啟動停利"]) and value["成交"] < value["停利價格"]:
 						# print("停利: %s" % key)
 						take_profit_list.append(key)
 			else:
 				if value["最大獲利"] is None:
+# Initial update
 					value["獲利%"] = 0.00
 					value["最大獲利"] = 0
 					value["停利價格"] = 0.00
