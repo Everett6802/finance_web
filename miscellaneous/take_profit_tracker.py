@@ -25,8 +25,8 @@ class TakeProfitTracker(object):
 	DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME = "%s.xlsx" % DEFAULT_STOCK_SYMBOL_LOOKUP_FILENAME
 	DEFAULT_TRAILING_STOP_RATIO = 0.7
 	DEFAULT_TRIGGER_TRAILING_STOP_PROFIT_RATIO = 0.15
-# 代碼,平圴成本,股數,最大獲利,停利價格
-	DEFAULT_RECORD_FIELD_METADATA = [["代碼", str], ["平圴成本", float], ["股數", int], ['獲利%', float], ["啟動停利", str], ["最大獲利", int], ["停利價格", float]]
+# 代碼,平圴成本,股數,最大獲利,獲利%,啟動停利,停利價格
+	DEFAULT_RECORD_FIELD_METADATA = [["代碼", str], ["平圴成本", float], ["股數", int], ["最大獲利", int], ['獲利%', float], ["啟動停利", str], ["停利價格", float]]
 	DEFAULT_RECORD_FIELD_NAME = [metadata[0] for metadata in DEFAULT_RECORD_FIELD_METADATA]
 	DEFAULT_RECORD_FIELD_TYPE = [metadata[1] for metadata in DEFAULT_RECORD_FIELD_METADATA]
 	DEFAULT_RECORD_FIELD_METADATA_LEN = len(DEFAULT_RECORD_FIELD_METADATA)
@@ -451,7 +451,7 @@ class TakeProfitTracker(object):
 			diff_value_percentage = self.__float(diff_value / value['停利價格'] * 100.0)
 			data_list.extend([diff_value, diff_value_percentage,])
 			# print("  ".join(map(str, data_list)))
-			str_tmp = "  ".join(map(lambda x: "%8s" % str(x), data_list))
+			str_tmp = "  ".join(map(lambda x: "%-8s" % str(x), data_list))
 			marker = "* " if self.__is_trailing_stop_triggered(value['啟動停利']) else "  "
 			print(marker + str_tmp)
 
