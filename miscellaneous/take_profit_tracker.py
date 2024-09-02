@@ -29,6 +29,10 @@ class TakeProfitTracker(object):
 	DEFAULT_RECORD_FIELD_METADATA = [["代碼", str], ["平圴成本", float], ["股數", int], ["最大獲利", int], ['獲利%', float], ["啟動停利", str], ["停利價格", float]]
 	DEFAULT_RECORD_FIELD_NAME = [metadata[0] for metadata in DEFAULT_RECORD_FIELD_METADATA]
 	DEFAULT_RECORD_FIELD_TYPE = [metadata[1] for metadata in DEFAULT_RECORD_FIELD_METADATA]
+	DEFAULT_RECORD_FIELD_BRAND_NEW_NAME_LEN = 3
+	DEFAULT_RECORD_FIELD_BRAND_NEW_NAME = DEFAULT_RECORD_FIELD_NAME[0:DEFAULT_RECORD_FIELD_BRAND_NEW_NAME_LEN]
+	DEFAULT_RECORD_FIELD_EXISTING_DATA_NAME_LEN = 4
+	DEFAULT_RECORD_FIELD_EXISTING_DATA_NAME = DEFAULT_RECORD_FIELD_NAME[0:DEFAULT_RECORD_FIELD_EXISTING_DATA_NAME_LEN]
 	DEFAULT_RECORD_FIELD_METADATA_LEN = len(DEFAULT_RECORD_FIELD_METADATA)
 	DEFAULT_PRINT_TRACK_FIELD_NAME = ['商品', '漲跌', '漲幅%', "股數", '獲利%', "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
 	YAHOO_STOCK_URL_FORMAT = "https://tw.stock.yahoo.com/quote/%s.TW"
@@ -400,15 +404,40 @@ class TakeProfitTracker(object):
 					if not self.__is_trailing_stop_triggered(value["啟動停利"]) and should_trigger:
 						value["啟動停利"] = "O"
 				value["獲利%"] = self.__float(profit_ratio * 100)
-				if value["最大獲利"] is None or profit > value["最大獲利"]:
-					value["最大獲利"] = profit
-					tmp = profit * self.xcfg["trailing_stop_ratio"] / value["股數"] + value["平圴成本"]
-					value["停利價格"] = self.__float(tmp)
-					need_update_record = True
+
+				if value["停利價格"] is None:
+					if value["最大獲利"] is None:
+# Brand New
+						if profit > value["最大獲利"]:
+							value["最大獲利"] = profit
+							need_update_record = True
+					else:
+# Exising Data
+						if profit > value["最大獲利"]:
+							value["最大獲利"] = profit
+						need_update_record = True
 				else:
-					if self.__is_trailing_stop_triggered(value["啟動停利"]) and value["成交"] < value["停利價格"]:
-						# print("停利: %s" % key)
-						take_profit_list.append(key)
+					if value["最大獲利"] is None:
+						raise ValueError("最大獲利 is None, but 停利價格 is NOT None")
+					else:
+						if profit > value["最大獲利"]:
+							value["最大獲利"] = profit
+							need_update_record = True
+				if need_update_record:
+					tmp = value["最大獲利"] * self.xcfg["trailing_stop_ratio"] / value["股數"] + value["平圴成本"]
+					value["停利價格"] = self.__float(tmp)
+				if self.__is_trailing_stop_triggered(value["啟動停利"]) and value["成交"] < value["停利價格"]:
+					# print("停利: %s" % key)
+					take_profit_list.append(key)
+				# if value["最大獲利"] is None or profit > value["最大獲利"]:
+				# 	value["最大獲利"] = profit
+				# 	tmp = profit * self.xcfg["trailing_stop_ratio"] / value["股數"] + value["平圴成本"]
+				# 	value["停利價格"] = self.__float(tmp)
+				# 	need_update_record = True
+				# else:
+				# 	if self.__is_trailing_stop_triggered(value["啟動停利"]) and value["成交"] < value["停利價格"]:
+				# 		# print("停利: %s" % key)
+				# 		take_profit_list.append(key)
 			else:
 				if value["最大獲利"] is None:
 # Initial update
