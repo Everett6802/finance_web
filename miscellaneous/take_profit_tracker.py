@@ -25,8 +25,8 @@ class TakeProfitTracker(object):
 	DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME = "%s.xlsx" % DEFAULT_STOCK_SYMBOL_LOOKUP_FILENAME
 	DEFAULT_TRAILING_STOP_RATIO = 0.7
 	DEFAULT_TRIGGER_TRAILING_STOP_PROFIT_RATIO = 0.15
-# 代碼,平圴成本,股數,最大獲利,獲利%,啟動停利,停利價格
-	DEFAULT_RECORD_FIELD_METADATA = [["代碼", str], ["平圴成本", float], ["股數", int], ["最大獲利", int], ['獲利%', float], ["啟動停利", str], ["停利價格", float]]
+# 商品,平圴成本,股數,最大獲利,停利價格,啟動停利
+	DEFAULT_RECORD_FIELD_METADATA = [["商品", str], ["平圴成本", float], ["股數", int], ["最大獲利", int], ["停利價格", float], ["啟動停利", str]]  # , ['獲利%', float]
 	DEFAULT_RECORD_FIELD_NAME = [metadata[0] for metadata in DEFAULT_RECORD_FIELD_METADATA]
 	DEFAULT_RECORD_FIELD_TYPE = [metadata[1] for metadata in DEFAULT_RECORD_FIELD_METADATA]
 	DEFAULT_RECORD_FIELD_BRAND_NEW_NAME_LEN = 3
@@ -34,7 +34,8 @@ class TakeProfitTracker(object):
 	DEFAULT_RECORD_FIELD_EXISTING_DATA_NAME_LEN = 4
 	DEFAULT_RECORD_FIELD_EXISTING_DATA_NAME = DEFAULT_RECORD_FIELD_NAME[0:DEFAULT_RECORD_FIELD_EXISTING_DATA_NAME_LEN]
 	DEFAULT_RECORD_FIELD_METADATA_LEN = len(DEFAULT_RECORD_FIELD_METADATA)
-	DEFAULT_PRINT_TRACK_FIELD_NAME = ['商品', '漲跌', '漲幅%', "股數", '獲利%', "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
+	DEFAULT_SHOW_TRACK_FIELD_NAME = ['商品', '漲跌', '漲幅%', "股數", '獲利%', "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
+	DEFAULT_SHOW_TRACK_FIELD_NAME_LEN = len(DEFAULT_SHOW_TRACK_FIELD_NAME)
 	YAHOO_STOCK_URL_FORMAT = "https://tw.stock.yahoo.com/quote/%s.TW"
 	DEFAULT_MONITOR_TIME_INTERVAL = 300
 	DEFAULT_CAN_SCRAPE_TIME_RANGE_START = datetime.time(8, 59, 0)
@@ -247,7 +248,7 @@ class TakeProfitTracker(object):
 
 
 	def __read_record(self):
-# 代碼,平圴成本,股數,最大獲利,停利價格
+# 商品,平圴成本,股數,最大獲利,停利價格
 		line_list = self.__get_line_list_from_file(self.xcfg["record_filepath"])
 		record_data_dict = {}
 		# import pdb; pdb.set_trace()
@@ -268,20 +269,21 @@ class TakeProfitTracker(object):
 
 
 	def __write_record(self, record_data_dict):
-# 代碼,平圴成本,股數,最大獲利,停利價格
+# 商品,平圴成本,股數,最大獲利,停利價格,啟動停利
 		# import pdb; pdb.set_trace()
 		skipped_line_list = self.__get_line_list_from_file(self.xcfg["record_filepath"], startswith="#")
 		with open(self.xcfg['record_filepath'], 'w') as fp:
 			line = ",".join(self.DEFAULT_RECORD_FIELD_NAME)
 			fp.write("%s\n" % line)
 			for stock_symbol in record_data_dict.keys():
+
 				line_data_list = [stock_symbol,]
 				line_data_list.append(record_data_dict[stock_symbol]["平圴成本"])
 				line_data_list.append(record_data_dict[stock_symbol]["股數"])
-				line_data_list.append(record_data_dict[stock_symbol]["獲利%"])
-				line_data_list.append(record_data_dict[stock_symbol]["啟動停利"])
+				# line_data_list.append(record_data_dict[stock_symbol]["獲利%"])
 				line_data_list.append(record_data_dict[stock_symbol]["最大獲利"])
 				line_data_list.append(record_data_dict[stock_symbol]["停利價格"])
+				line_data_list.append(record_data_dict[stock_symbol]["啟動停利"])
 				line_data_list = map(str, line_data_list)
 				line = ",".join(line_data_list)
 				fp.write("%s\n" % line)
@@ -293,7 +295,7 @@ class TakeProfitTracker(object):
 
 
 	def __read_stock_symbol_mapping_table(self):
-# 代碼,商品,股本
+# 商品,商品,股本
 		if self.can_lookup_stock_symbol: return
 		# import pdb; pdb.set_trace()
 		if not self.__check_file_exist(self.xcfg["stock_symbol_lookup_filepath"]):
@@ -380,8 +382,12 @@ class TakeProfitTracker(object):
 		self.stock_data_dict = None
 
 
+	def __calculate_trailing_stop_price(self, stock_value):
+		tmp = stock_value["最大獲利"] * self.xcfg["trailing_stop_ratio"] / stock_value["股數"] + stock_value["平圴成本"]
+		return self.__float(tmp)
+
+
 	def track(self):
-# ['商品', '成交', '漲跌', '漲幅%']
 		# import pdb; pdb.set_trace()	
 # update() doesn't return any value (returns None).
 		# stock_data_dict = [(key, value, record_data_dict[key], value.update(record_data_dict[key])) for key, value in stock_data_dict.items()]
@@ -391,6 +397,7 @@ class TakeProfitTracker(object):
 		# import pdb; pdb.set_trace()
 		take_profit_list = []
 		loss_list = []
+# 商品,平圴成本,股數,最大獲利,停利價格,啟動停利
 		for key, value in self.stock_data_dict.items():
 			# value.update(record_data_dict[key])
 			if value["成交"] - value["平圴成本"] > 0:
@@ -398,37 +405,43 @@ class TakeProfitTracker(object):
 				profit = int((value["成交"] - value["平圴成本"]) * value["股數"])
 				profit_ratio = profit / (value["平圴成本"] * value["股數"])
 				should_trigger = profit_ratio > self.xcfg["trigger_trailing_stop_profit_ratio"]
-				if  value["啟動停利"] is None: 
-					value["啟動停利"] = "O" if should_trigger else "X"
-				else:
-					if not self.__is_trailing_stop_triggered(value["啟動停利"]) and should_trigger:
-						value["啟動停利"] = "O"
 				value["獲利%"] = self.__float(profit_ratio * 100)
 
+				data_changed = False
 				if value["停利價格"] is None:
 					if value["最大獲利"] is None:
 # Brand New
-						if profit > value["最大獲利"]:
-							value["最大獲利"] = profit
-							need_update_record = True
+						value["最大獲利"] = profit
 					else:
 # Exising Data
 						if profit > value["最大獲利"]:
 							value["最大獲利"] = profit
-						need_update_record = True
+					if value["啟動停利"] is not None:
+						raise ValueError("啟動停利 is NOT None")
+
+					value["啟動停利"] = "O" if should_trigger else "X"
+					value["停利價格"] = self.__calculate_trailing_stop_price(value)
+					data_changed = True
 				else:
 					if value["最大獲利"] is None:
 						raise ValueError("最大獲利 is None, but 停利價格 is NOT None")
 					else:
 						if profit > value["最大獲利"]:
 							value["最大獲利"] = profit
-							need_update_record = True
-				if need_update_record:
-					tmp = value["最大獲利"] * self.xcfg["trailing_stop_ratio"] / value["股數"] + value["平圴成本"]
-					value["停利價格"] = self.__float(tmp)
+							value["停利價格"] = self.__calculate_trailing_stop_price(value)
+							data_changed = True
+						if not self.__is_trailing_stop_triggered(value["啟動停利"]) and should_trigger:
+							value["啟動停利"] = "O"
+							data_changed = True
+				need_update_record = need_update_record or data_changed
 				if self.__is_trailing_stop_triggered(value["啟動停利"]) and value["成交"] < value["停利價格"]:
 					# print("停利: %s" % key)
 					take_profit_list.append(key)
+				# if value["啟動停利"] is None: 
+				# 	value["啟動停利"] = "O" if should_trigger else "X"
+				# else:
+				# 	if not self.__is_trailing_stop_triggered(value["啟動停利"]) and should_trigger:
+				# 		value["啟動停利"] = "O"
 				# if value["最大獲利"] is None or profit > value["最大獲利"]:
 				# 	value["最大獲利"] = profit
 				# 	tmp = profit * self.xcfg["trailing_stop_ratio"] / value["股數"] + value["平圴成本"]
@@ -439,9 +452,9 @@ class TakeProfitTracker(object):
 				# 		# print("停利: %s" % key)
 				# 		take_profit_list.append(key)
 			else:
+				value["獲利%"] = 0.00
 				if value["最大獲利"] is None:
 # Initial update
-					value["獲利%"] = 0.00
 					value["最大獲利"] = 0
 					value["停利價格"] = 0.00
 					value["啟動停利"] = "X"
@@ -466,18 +479,22 @@ class TakeProfitTracker(object):
 
 	def __show_result(self):
 		if self.stock_data_dict is None: self.__update_data()
-# ['商品', '漲跌', '漲幅%', "股數", "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
-		# print("  ".join(self.DEFAULT_PRINT_TRACK_FIELD_NAME))
-		print("  ".join(map(lambda x: "%4s" % x, self.DEFAULT_PRINT_TRACK_FIELD_NAME)))
+# ['商品', '漲跌', '漲幅%', "股數", '獲利%', "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
+		# print("  ".join(self.DEFAULT_SHOW_TRACK_FIELD_NAME))
+		print("  ".join(map(lambda x: "%4s" % x, self.DEFAULT_SHOW_TRACK_FIELD_NAME)))
 		# import pdb; pdb.set_trace()
 		for key, value in self.stock_data_dict.items():
 			# value.update(record_data_dict[key])
 			data_list = [key,]
-			for field_name in self.DEFAULT_PRINT_TRACK_FIELD_NAME[1:8]:
+			# import pdb; pdb.set_trace()
+			for field_name in self.DEFAULT_SHOW_TRACK_FIELD_NAME[1:9]:
 				data_list.append(value[field_name])
 			# import pdb; pdb.set_trace()
-			diff_value = self.__float(value['成交'] - value['停利價格'])
-			diff_value_percentage = self.__float(diff_value / value['停利價格'] * 100.0)
+			diff_value = 0.00
+			diff_value_percentage = 0.00
+			if value["成交"] - value["平圴成本"] > 0:
+				diff_value = self.__float(value['成交'] - value['停利價格'])
+				diff_value_percentage = self.__float(diff_value / value['停利價格'] * 100.0)
 			data_list.extend([diff_value, diff_value_percentage,])
 			# print("  ".join(map(str, data_list)))
 			str_tmp = "  ".join(map(lambda x: "%-8s" % str(x), data_list))
