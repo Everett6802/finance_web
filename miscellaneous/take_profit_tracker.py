@@ -2,6 +2,7 @@
 # -*- coding: utf8 -*-
 
 import os
+import sys
 import re
 import xlrd
 # import xlsxwriter
@@ -10,6 +11,7 @@ import errno
 import time
 # from datetime import datetime
 import datetime
+from collections import OrderedDict
 
 
 class ScrapyError(Exception): pass
@@ -76,6 +78,11 @@ class TakeProfitTracker(object):
 		self.beautifulsoup_class = None
 		self.stock_data_dict = None
 		self.first_track = True
+
+		self.filepath_dict = OrderedDict()
+		self.filepath_dict["source"] = self.xcfg["source_filepath"]
+		self.filepath_dict["record"] = self.xcfg["record_filepath"]
+		self.filepath_dict["stock_symbol_lookup"] = self.xcfg["stock_symbol_lookup_filepath"]
 
 
 	@classmethod
@@ -169,6 +176,22 @@ class TakeProfitTracker(object):
 		except TypeError:
 			return False
 		return True if (mobj is not None) else False
+
+
+	@classmethod
+	def __get_file_modification_date(cls, filepath):
+		if not cls.__check_file_exist(filepath):
+			raise ValueError("The file[%s] does NOT exist" % filepath)
+		modification_time = os.path.getmtime(filepath)
+		# print(modification_time)
+		modification_date = datetime.datetime.fromtimestamp(modification_time)
+		return modification_date
+
+
+	@classmethod
+	def __get_file_modification_date_str(cls, filepath):
+		file_modification_date = cls.__get_file_modification_date(filepath)
+		return file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
 
 
 	def __enter__(self):
@@ -502,6 +525,12 @@ class TakeProfitTracker(object):
 			print(marker + str_tmp)
 
 
+	def print_filepath(self):
+		print("************** File Path **************")
+		for key, value in self.filepath_dict.items():
+			print("%s: %s   %s" % (key, value, self.__get_file_modification_date_str(value)))
+
+
 	@property
 	def ReadFromScrapy(self):
 		return self.xcfg["read_from_scrapy"]
@@ -583,6 +612,7 @@ if __name__ == "__main__":
 	parser.add_argument('-s', '--show_result', required=False, action='store_true', help='Show the tracking result of specific targets.')
 	parser.add_argument('-m', '--monitor_mode', required=False, action='store_true', help='Monitor mode. Execute periodically')
 	parser.add_argument('--monitor_time_interval', required=False, help='Time interval of monitor mode')
+	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	args = parser.parse_args()
 
 	cfg = {}
@@ -590,6 +620,9 @@ if __name__ == "__main__":
 	# import pdb; pdb.set_trace()
 	with TakeProfitTracker(cfg) as obj:
 		# print("Check Scrapy: %s" % ("True" if obj.CanTrack else "False"))
+		if args.print_filepath:
+			obj.print_filepath()
+			sys.exit(0)
 		if args.read_from_scrapy:
 			obj.ReadFromScrapy = True
 		if args.force_update_record:
