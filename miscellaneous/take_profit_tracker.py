@@ -287,7 +287,27 @@ class TakeProfitTracker(object):
 				if line_data is not None:
 					data_type = self.DEFAULT_RECORD_FIELD_TYPE[index]
 					line_data_list[index] = data_type(line_data)
-			record_data_dict[line_data_list[0]] = dict(zip(title_list[1:], line_data_list[1:])) 
+			new_entry = dict(zip(title_list[1:], line_data_list[1:]))
+			if line_data_list[0] in record_data_dict:
+# Duplicate entry, need to merge the data
+				# import pdb; pdb.set_trace()
+				old_entry = record_data_dict[line_data_list[0]]
+				if new_entry["停利價格"] is not None or new_entry["啟動停利"] is not None:
+					raise ValueError("Incorrect value in new entry: %s" % new_entry)
+				if old_entry["停利價格"] is not None or old_entry["啟動停利"] is not None:
+					raise ValueError("Incorrect value in old entry: %s" % old_entry)
+				max_profit_list = []
+				if old_entry["最大獲利"] is not None:
+					max_profit_list.append(old_entry["最大獲利"])
+				if new_entry["最大獲利"] is not None:
+					max_profit_list.append(new_entry["最大獲利"])
+				if len(max_profit_list) != 0:
+					old_entry["最大獲利"] = sum(max_profit_list)
+				old_entry["股數"] = old_entry["股數"] + new_entry["股數"]
+				old_entry["平圴成本"] = self.__float((old_entry["股數"] * old_entry["平圴成本"] + new_entry["股數"] * new_entry["平圴成本"]) / (old_entry["股數"] + new_entry["股數"]))
+			else:
+				record_data_dict[line_data_list[0]] = new_entry
+		# import pdb; pdb.set_trace()
 		return record_data_dict
 
 
@@ -460,20 +480,6 @@ class TakeProfitTracker(object):
 				if self.__is_trailing_stop_triggered(value["啟動停利"]) and value["成交"] < value["停利價格"]:
 					# print("停利: %s" % key)
 					take_profit_list.append(key)
-				# if value["啟動停利"] is None: 
-				# 	value["啟動停利"] = "O" if should_trigger else "X"
-				# else:
-				# 	if not self.__is_trailing_stop_triggered(value["啟動停利"]) and should_trigger:
-				# 		value["啟動停利"] = "O"
-				# if value["最大獲利"] is None or profit > value["最大獲利"]:
-				# 	value["最大獲利"] = profit
-				# 	tmp = profit * self.xcfg["trailing_stop_ratio"] / value["股數"] + value["平圴成本"]
-				# 	value["停利價格"] = self.__float(tmp)
-				# 	need_update_record = True
-				# else:
-				# 	if self.__is_trailing_stop_triggered(value["啟動停利"]) and value["成交"] < value["停利價格"]:
-				# 		# print("停利: %s" % key)
-				# 		take_profit_list.append(key)
 			else:
 				value["獲利%"] = 0.00
 				if value["最大獲利"] is None:
@@ -520,7 +526,7 @@ class TakeProfitTracker(object):
 				diff_value_percentage = self.__float(diff_value / value['停利價格'] * 100.0)
 			data_list.extend([diff_value, diff_value_percentage,])
 			# print("  ".join(map(str, data_list)))
-			str_tmp = "  ".join(map(lambda x: "%-8s" % str(x), data_list))
+			str_tmp = "  ".join(map(lambda x: "%8s" % str(x), data_list))
 			marker = "* " if self.__is_trailing_stop_triggered(value['啟動停利']) else "  "
 			print(marker + str_tmp)
 
