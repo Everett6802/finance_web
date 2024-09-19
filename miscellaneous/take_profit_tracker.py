@@ -5,6 +5,7 @@ import os
 import sys
 import re
 import xlrd
+import json
 # import xlsxwriter
 import argparse
 import errno
@@ -23,6 +24,8 @@ class TakeProfitTracker(object):
 	DEFAULT_SOURCE_FULL_FILENAME = "%s.xlsx" % DEFAULT_SOURCE_FILENAME
 	DEFAULT_RECORD_FILENAME = "take_profile_tracker_record"
 	DEFAULT_RECORD_FULL_FILENAME = "%s.txt" % DEFAULT_RECORD_FILENAME
+	DEFAULT_CUSTOMIZED_CONFIG_FILENAME = "take_profile_tracker_customized_config"
+	DEFAULT_CUSTOMIZED_CONFIG_FULL_FILENAME = "%s.json" % DEFAULT_CUSTOMIZED_CONFIG_FILENAME
 	DEFAULT_STOCK_SYMBOL_LOOKUP_FILENAME = "股號查詢"
 	DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME = "%s.xlsx" % DEFAULT_STOCK_SYMBOL_LOOKUP_FILENAME
 	DEFAULT_TRAILING_STOP_RATIO = 0.7
@@ -49,6 +52,7 @@ class TakeProfitTracker(object):
 			"data_folderpath": None,
 			"source_filename": self.DEFAULT_SOURCE_FULL_FILENAME,
 			"record_filename": self.DEFAULT_RECORD_FULL_FILENAME,
+			"customized_config_filename": self.DEFAULT_CUSTOMIZED_CONFIG_FULL_FILENAME,
 			"stock_symbol_lookup_filename": self.DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME,
 			"trailing_stop_ratio": self.DEFAULT_TRAILING_STOP_RATIO,
 			"trigger_trailing_stop_profit_ratio": self.DEFAULT_TRIGGER_TRAILING_STOP_PROFIT_RATIO,
@@ -64,6 +68,8 @@ class TakeProfitTracker(object):
 		self.xcfg["source_filepath"] = os.path.join(self.xcfg["data_folderpath"], self.xcfg["source_filename"])
 		self.xcfg["record_filename"] = self.DEFAULT_RECORD_FULL_FILENAME if self.xcfg["record_filename"] is None else self.xcfg["record_filename"]
 		self.xcfg["record_filepath"] = os.path.join(self.xcfg["data_folderpath"], self.xcfg["record_filename"])
+		self.xcfg["customized_config_filename"] = self.DEFAULT_CUSTOMIZED_CONFIG_FULL_FILENAME if self.xcfg["customized_config_filename"] is None else self.xcfg["customized_config_filename"]
+		self.xcfg["customized_config_filepath"] = os.path.join(self.xcfg["data_folderpath"], self.xcfg["customized_config_filename"])
 		self.xcfg["stock_symbol_lookup_filename"] = self.DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME if self.xcfg["stock_symbol_lookup_filename"] is None else self.xcfg["stock_symbol_lookup_filename"]
 		self.xcfg["stock_symbol_lookup_filepath"] = os.path.join(self.xcfg["data_folderpath"], self.xcfg["stock_symbol_lookup_filename"])
 
@@ -77,6 +83,7 @@ class TakeProfitTracker(object):
 		self.requests_module = None
 		self.beautifulsoup_class = None
 		self.stock_data_dict = None
+		self.customized_config_dict = None
 		self.first_track = True
 
 		self.filepath_dict = OrderedDict()
@@ -337,6 +344,14 @@ class TakeProfitTracker(object):
 					fp.write("%s\n" % skipped_line)
 
 
+	def __read_customized_config(self):
+		self.customized_config_dict = {}
+		if self.__check_file_exist(self.xcfg["customized_config_filepath"]):
+			with open(self.xcfg["customized_config_filepath"], "r") as f:
+				self.customized_config_dict = json.load(f)
+		return self.customized_config_dict
+
+
 	def __read_stock_symbol_mapping_table(self):
 # 商品,商品,股本
 		if self.can_lookup_stock_symbol: return
@@ -407,7 +422,7 @@ class TakeProfitTracker(object):
 		return stock_data_dict
 
 
-	def __update_data(self):
+	def __read_data(self):
 		record_data_dict = self.__read_record()
 		if self.xcfg["read_from_scrapy"]:
 			try:
@@ -425,17 +440,21 @@ class TakeProfitTracker(object):
 		self.stock_data_dict = None
 
 
-	def __calculate_trailing_stop_price(self, stock_value):
-		tmp = stock_value["最大獲利"] * self.xcfg["trailing_stop_ratio"] / stock_value["股數"] + stock_value["平圴成本"]
+	def __calculate_trailing_stop_price(self, stock_id, stock_value):
+		trailing_stop_ratio = self.xcfg["trailing_stop_ratio"]
+		if (stock_id in self.customized_config_dict) and ("trailing_stop_ratio" in self.customized_config_dict[stock_id]):
+			trailing_stop_ratio = self.customized_config_dict[stock_id]["trailing_stop_ratio"]
+		tmp = stock_value["最大獲利"] * trailing_stop_ratio / stock_value["股數"] + stock_value["平圴成本"]
 		return self.__float(tmp)
 
 
 	def track(self):
-		# import pdb; pdb.set_trace()	
+		# import pdb; pdb.set_trace()
 # update() doesn't return any value (returns None).
 		# stock_data_dict = [(key, value, record_data_dict[key], value.update(record_data_dict[key])) for key, value in stock_data_dict.items()]
 		# stock_data_dict.update(record_data_dict)
-		if self.stock_data_dict is None: self.__update_data()
+		if self.customized_config_dict is None: self.__read_customized_config()
+		if self.stock_data_dict is None: self.__read_data()
 		need_update_record = False
 		# import pdb; pdb.set_trace()
 		take_profit_list = []
@@ -447,7 +466,10 @@ class TakeProfitTracker(object):
 				# import pdb; pdb.set_trace()
 				profit = int((value["成交"] - value["平圴成本"]) * value["股數"])
 				profit_ratio = profit / (value["平圴成本"] * value["股數"])
-				should_trigger = profit_ratio > self.xcfg["trigger_trailing_stop_profit_ratio"]
+				trigger_trailing_stop_profit_ratio = self.xcfg["trigger_trailing_stop_profit_ratio"]
+				if (key in self.customized_config_dict) and ("trigger_trailing_stop_profit_ratio" in self.customized_config_dict[key]):
+					trigger_trailing_stop_profit_ratio = self.customized_config_dict[key]["trigger_trailing_stop_profit_ratio"]
+				should_trigger = profit_ratio > trigger_trailing_stop_profit_ratio
 				value["獲利%"] = self.__float(profit_ratio * 100)
 
 				data_changed = False
@@ -463,7 +485,7 @@ class TakeProfitTracker(object):
 						raise ValueError("啟動停利 is NOT None")
 
 					value["啟動停利"] = "O" if should_trigger else "X"
-					value["停利價格"] = self.__calculate_trailing_stop_price(value)
+					value["停利價格"] = self.__calculate_trailing_stop_price(key, value)
 					data_changed = True
 				else:
 					if value["最大獲利"] is None:
@@ -471,7 +493,7 @@ class TakeProfitTracker(object):
 					else:
 						if profit > value["最大獲利"]:
 							value["最大獲利"] = profit
-							value["停利價格"] = self.__calculate_trailing_stop_price(value)
+							value["停利價格"] = self.__calculate_trailing_stop_price(key, value)
 							data_changed = True
 						if not self.__is_trailing_stop_triggered(value["啟動停利"]) and should_trigger:
 							value["啟動停利"] = "O"
@@ -507,7 +529,7 @@ class TakeProfitTracker(object):
 
 
 	def __show_result(self):
-		if self.stock_data_dict is None: self.__update_data()
+		if self.stock_data_dict is None: self.__read_data()
 # ['商品', '漲跌', '漲幅%', "股數", '獲利%', "平圴成本", "最大獲利", "停利價格", '成交', '價差', '價差%']
 		# print("  ".join(self.DEFAULT_SHOW_TRACK_FIELD_NAME))
 		print("  ".join(map(lambda x: "%4s" % x, self.DEFAULT_SHOW_TRACK_FIELD_NAME)))
