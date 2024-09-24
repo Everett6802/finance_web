@@ -226,20 +226,32 @@ class StockChipAnalysis(object):
 			key_str = worksheet.cell_value(row_index, 0)
 			# print "key_str: %s" % key_str
 			if sheet_metadata["key_mode"] == 0:
-				mobj = re.match("([\d]{4})\s(.+)", key_str)
+				'''
+				How to fix "SyntaxWarning: invalid escape sequence" in Python?
+
+				\ is the escape character in Python string literals.
+				If you want to put a literal \ in a string you may use \\:
+				>>> print("foo \\ bar")
+				foo \ bar
+
+				Or you may use a "raw string":
+				>>> print(r"foo \ bar")
+				foo \ bar
+				'''
+				mobj = re.match(r"([\d]{4})\s(.+)", key_str)
 				if mobj is None:
 					raise ValueError("%s: Incorrect format0: %s" % (sheet_name, key_str))
 				stock_number = mobj.group(1)
 				product_name = mobj.group(2)
 			elif sheet_metadata["key_mode"] == 1:
 				# mobj = re.match("([\d]{4})\.TW", key_str)
-				mobj = re.match("([\d]{4})", str(int(key_str)))
+				mobj = re.match(r"([\d]{4})", str(int(key_str)))
 				if mobj is None:
 					raise ValueError("%s: Incorrect format1: %s" % (sheet_name, key_str))
 				stock_number = mobj.group(1)
 				product_name = worksheet.cell_value(row_index, 1)
 			elif sheet_metadata["key_mode"] == 2:
-				mobj = re.match("([\d]{4})\s{2}(.+)", key_str)
+				mobj = re.match(r"([\d]{4})\s{2}(.+)", key_str)
 				if mobj is None:
 					ignore_data = True
 				else:
@@ -247,7 +259,7 @@ class StockChipAnalysis(object):
 					product_name = mobj.group(2)
 			elif sheet_metadata["key_mode"] == 3:
 				# import pdb; pdb.set_trace()
-				mobj = re.match("(.+)\(([\d]{4})\)", key_str)
+				mobj = re.match(r"(.+)\(([\d]{4})\)", key_str)
 				if mobj is None:
 					# raise ValueError("%s: Incorrect format3: %s" % (sheet_name, key_str))
 					ignore_data = True
@@ -259,7 +271,7 @@ class StockChipAnalysis(object):
 				if len(key_str) == 0:
 					break
 				# mobj = re.match("(0[\d]{3}[\dBLKRS]{0,3}) (.+)", key_str)
-				mobj = re.match("(0[\d]{3}[\dBLKRS]{0,3})", key_str)
+				mobj = re.match(r"(0[\d]{3}[\dBLKRS]{0,3})", key_str)
 				if mobj is None:
 					raise ValueError("%s: Incorrect format4: %s" % (sheet_name, key_str))
 				stock_number = mobj.group(1)
@@ -501,7 +513,7 @@ class StockChipAnalysis(object):
 
 
 	def __read_cb_publish(self):
-		pattern = "([\d]+)年"
+		pattern = r"([\d]+)年"
 		cb_data = {}
 		with open(self.xcfg["cb_publish_filepath"], newline='') as f:
 			rows = csv.reader(f)

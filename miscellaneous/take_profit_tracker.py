@@ -255,7 +255,7 @@ class TakeProfitTracker(object):
 		# print(title_list)
 		# import pdb; pdb.set_trace()
 		need_lookup_stock_symbol = False
-		if re.match("[\d]{4,}", self.Worksheet.cell_value(1, 0)) is None:
+		if re.match(r"[\d]{4,}", self.Worksheet.cell_value(1, 0)) is None:
 			if not self.can_lookup_stock_symbol:
 				raise RuntimeError("No stock symbol lookup table !!!")
 			else:
@@ -559,6 +559,25 @@ class TakeProfitTracker(object):
 			print("%s: %s   %s" % (key, value, self.__get_file_modification_date_str(value)))
 
 
+	def output_record_file_template(self):
+# 商品,平圴成本,股數,最大獲利,停利價格,啟動停利
+		TEMPLATE_DATA = {
+			"商品": ["2330", "2317",],
+			"平圴成本": [1000.00, 150.00,],
+			"股數": [100, 1000,],
+		}
+		line_list = []
+		name_list = self.DEFAULT_RECORD_FIELD_NAME
+		line_list.append(",".join(name_list))
+		for index in range(2):
+			data_list = [TEMPLATE_DATA[name_list[0]][index], TEMPLATE_DATA[name_list[1]][index], TEMPLATE_DATA[name_list[2]][index]]
+			line_list.append(",".join(map(str, data_list)))
+		template_record_filepath = self.xcfg['record_filepath'] + ".tmpl"
+		with open(template_record_filepath, 'w') as fp:
+			for line in line_list:
+				fp.write("%s\n" % line)
+
+
 	@property
 	def ReadFromScrapy(self):
 		return self.xcfg["read_from_scrapy"]
@@ -641,6 +660,7 @@ if __name__ == "__main__":
 	parser.add_argument('-m', '--monitor_mode', required=False, action='store_true', help='Monitor mode. Execute periodically')
 	parser.add_argument('--monitor_time_interval', required=False, help='Time interval of monitor mode')
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
+	parser.add_argument('--output_record_file_template', required=False, action='store_true', help='Output a record file as a template and exit.')
 	args = parser.parse_args()
 
 	cfg = {}
@@ -650,6 +670,9 @@ if __name__ == "__main__":
 		# print("Check Scrapy: %s" % ("True" if obj.CanTrack else "False"))
 		if args.print_filepath:
 			obj.print_filepath()
+			sys.exit(0)
+		if args.output_record_file_template:
+			obj.output_record_file_template()
 			sys.exit(0)
 		if args.read_from_scrapy:
 			obj.ReadFromScrapy = True
