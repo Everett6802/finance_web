@@ -578,6 +578,24 @@ class TakeProfitTracker(object):
 				fp.write("%s\n" % line)
 
 
+	def output_customized_config_file_template(self):
+		TEMPLATE_DATA = {
+			"2330":{
+				"trailing_stop_ratio": 0.35,
+				"trigger_trailing_stop_profit_ratio": 0.2
+			},
+			"2317":{
+				"trigger_trailing_stop_profit_ratio": 0.1
+			},
+			"2454":{
+				"trailing_stop_ratio": 0.25,
+			}
+		}
+		template_customized_config_filepath = self.xcfg['customized_config_filepath'] + ".tmpl"
+		with open(template_customized_config_filepath, 'w') as f:
+			json.dump(TEMPLATE_DATA, f, indent=4)
+
+
 	@property
 	def ReadFromScrapy(self):
 		return self.xcfg["read_from_scrapy"]
@@ -661,6 +679,7 @@ if __name__ == "__main__":
 	parser.add_argument('--monitor_time_interval', required=False, help='Time interval of monitor mode')
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	parser.add_argument('--output_record_file_template', required=False, action='store_true', help='Output a record file as a template and exit.')
+	parser.add_argument('--output_customized_config_file_template', required=False, action='store_true', help='Output a customized config file as a template and exit.')
 	args = parser.parse_args()
 
 	cfg = {}
@@ -673,6 +692,9 @@ if __name__ == "__main__":
 			sys.exit(0)
 		if args.output_record_file_template:
 			obj.output_record_file_template()
+			sys.exit(0)
+		if args.output_customized_config_file_template:
+			obj.output_customized_config_file_template()
 			sys.exit(0)
 		if args.read_from_scrapy:
 			obj.ReadFromScrapy = True
