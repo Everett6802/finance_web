@@ -305,9 +305,12 @@ class StockChipAnalysis(object):
 
 
 	@classmethod
-	def __get_file_modification_date(cls, filepath):
+	def __get_file_modification_date(cls, filepath, raise_exception=True):
 		if not cls.__check_file_exist(filepath):
-			raise ValueError("The file[%s] does NOT exist" % filepath)
+			if raise_exception:
+				raise ValueError("The file[%s] does NOT exist" % filepath)
+			else:
+				return None
 		# print("filepath: %s" % filepath)
 		# create_time = os.path.getctime(filepath)
 		# print(create_time)
@@ -351,20 +354,27 @@ class StockChipAnalysis(object):
 			"cb_folderpath": None,
 			"cb_publish_filename": None,
 			"check_sharpe_ratio": False,
+			"show_scrapy_progress": False,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
 		self.xcfg["source_folderpath"] = self.DEFAULT_SOURCE_FOLDERPATH if self.xcfg["source_folderpath"] is None else self.xcfg["source_folderpath"]
 		self.xcfg["source_filename"] = self.DEFAULT_SOURCE_FULL_FILENAME if self.xcfg["source_filename"] is None else self.xcfg["source_filename"]
 		self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
-		file_modification_date = self.__get_file_modification_date(self.xcfg["source_filepath"])
-		self.xcfg["source_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
+		file_modification_date = self.__get_file_modification_date(self.xcfg["source_filepath"], raise_exception=False)
+		if file_modification_date is not None:
+			self.xcfg["source_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
+		else:
+			self.xcfg["source_file_modification_date_str"] = None
 		self.xcfg["cb_folderpath"] = self.DEFAULT_CB_FOLDERPATH if self.xcfg["cb_folderpath"] is None else self.xcfg["cb_folderpath"]
 		self.xcfg["cb_data_folderpath"] = os.path.join(self.xcfg["cb_folderpath"], self.DEFAULT_CB_DATA_FOLDERNAME) if self.xcfg["cb_data_folderpath"] is None else self.xcfg["cb_data_folderpath"]
 		# print ("__init__: %s" % self.xcfg["source_filepath"])
 		self.xcfg["tracked_stock_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["tracked_stock_list_filename"])
-		file_modification_date = self.__get_file_modification_date(self.xcfg["tracked_stock_list_filepath"])
-		self.xcfg["tracked_stock_list_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
+		file_modification_date = self.__get_file_modification_date(self.xcfg["tracked_stock_list_filepath"], raise_exception=False)
+		if file_modification_date is not None:
+			self.xcfg["tracked_stock_list_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
+		else:
+			self.xcfg["tracked_stock_list_file_modification_date_str"] = None
 		if self.xcfg["tracked_stock_list"] is not None:
 			if type(self.xcfg["tracked_stock_list"]) is str:
 				tracked_stock_list = []
@@ -376,10 +386,13 @@ class StockChipAnalysis(object):
 		self.xcfg["cb_folderpath"] = self.DEFAULT_CB_FOLDERPATH if self.xcfg["cb_folderpath"] is None else self.xcfg["cb_folderpath"]
 		self.xcfg["cb_publish_filename"] = self.DEFAULT_CB_PUBLISH_FULL_FILENAME if self.xcfg["cb_publish_filename"] is None else self.xcfg["cb_publish_filename"]
 		self.xcfg["cb_publish_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_publish_filename"])
-		self.cb_publish = None if not self.__check_file_exist(self.xcfg["cb_publish_filepath"]) else self.__read_cb_publish()
-		if self.cb_publish is not None:
-			file_modification_date = self.__get_file_modification_date(self.xcfg["cb_publish_filepath"])
+		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_publish_filepath"], raise_exception=False)
+		if file_modification_date is not None:			
 			self.xcfg["cb_publish_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
+			self.cb_publish = self.__read_cb_publish()
+		else:
+			self.xcfg["cb_publish_file_modification_date_str"] = None
+			self.cb_publish = None
 
 		self.filepath_dict = OrderedDict()
 		self.filepath_dict["source"] = self.xcfg["source_filepath"]
@@ -390,9 +403,7 @@ class StockChipAnalysis(object):
 		self.workbook = None
 		self.output_result_file = None
 		self.stdout_tmp = None
-
 		# self.sorted_ssb_dict = {}
-
 		self.__print_file_modification_date()
 
 
@@ -598,9 +609,11 @@ class StockChipAnalysis(object):
 
 	def __print_file_modification_date(self):
 		print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["source_filepath"]), self.xcfg["source_file_modification_date_str"]))
-		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["tracked_stock_list_filepath"]), self.xcfg["tracked_stock_list_file_modification_date_str"]))
-		if self.cb_publish is not None:
+		if self.xcfg["source_file_modification_date_str"] is not None:
+			print("%s  修改時間: %s" % (os.path.basename(self.xcfg["source_filepath"]), self.xcfg["source_file_modification_date_str"]))
+		if self.xcfg["tracked_stock_list_file_modification_date_str"] is not None:
+			print("%s  修改時間: %s" % (os.path.basename(self.xcfg["tracked_stock_list_filepath"]), self.xcfg["tracked_stock_list_file_modification_date_str"]))
+		if self.xcfg["cb_publish_file_modification_date_str"] is not None:
 			print("%s  修改時間: %s" % (os.path.basename(self.xcfg["cb_publish_filepath"]), self.xcfg["cb_publish_file_modification_date_str"]))
 		print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
 

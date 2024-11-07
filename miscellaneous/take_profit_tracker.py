@@ -26,6 +26,8 @@ class TakeProfitTracker(object):
 	DEFAULT_RECORD_FULL_FILENAME = "%s.txt" % DEFAULT_RECORD_FILENAME
 	DEFAULT_CUSTOMIZED_CONFIG_FILENAME = "take_profile_tracker_customized_config"
 	DEFAULT_CUSTOMIZED_CONFIG_FULL_FILENAME = "%s.json" % DEFAULT_CUSTOMIZED_CONFIG_FILENAME
+	DEFAULT_HTML_RESULT_FILENAME = "take_profile_tracker_result"
+	DEFAULT_HTML_RESULT_FULL_FILENAME = "%s.html" % DEFAULT_HTML_RESULT_FILENAME
 	DEFAULT_STOCK_SYMBOL_LOOKUP_FILENAME = "股號查詢"
 	DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME = "%s.xlsx" % DEFAULT_STOCK_SYMBOL_LOOKUP_FILENAME
 	DEFAULT_TRAILING_STOP_RATIO = 0.7
@@ -53,6 +55,7 @@ class TakeProfitTracker(object):
 			"source_filename": self.DEFAULT_SOURCE_FULL_FILENAME,
 			"record_filename": self.DEFAULT_RECORD_FULL_FILENAME,
 			"customized_config_filename": self.DEFAULT_CUSTOMIZED_CONFIG_FULL_FILENAME,
+			"html_result_filename": self.DEFAULT_HTML_RESULT_FULL_FILENAME,
 			"stock_symbol_lookup_filename": self.DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME,
 			"trailing_stop_ratio": self.DEFAULT_TRAILING_STOP_RATIO,
 			"trigger_trailing_stop_profit_ratio": self.DEFAULT_TRIGGER_TRAILING_STOP_PROFIT_RATIO,
@@ -61,6 +64,8 @@ class TakeProfitTracker(object):
 			"monitor_mode": False,
 			"monitor_time_interval": self.DEFAULT_MONITOR_TIME_INTERVAL,
 			"show_result": False,
+			"output_html_result": False,
+			"show_scrapy_progress": False,
 		}
 		self.xcfg.update(cfg)
 		self.xcfg["data_folderpath"] = self.DEFAULT_DATA_FOLDERPATH if self.xcfg["data_folderpath"] is None else self.xcfg["data_folderpath"]
@@ -70,6 +75,8 @@ class TakeProfitTracker(object):
 		self.xcfg["record_filepath"] = os.path.join(self.xcfg["data_folderpath"], self.xcfg["record_filename"])
 		self.xcfg["customized_config_filename"] = self.DEFAULT_CUSTOMIZED_CONFIG_FULL_FILENAME if self.xcfg["customized_config_filename"] is None else self.xcfg["customized_config_filename"]
 		self.xcfg["customized_config_filepath"] = os.path.join(self.xcfg["data_folderpath"], self.xcfg["customized_config_filename"])
+		self.xcfg["html_result_filename"] = self.DEFAULT_HTML_RESULT_FULL_FILENAME if self.xcfg["html_result_filename"] is None else self.xcfg["html_result_filename"]
+		self.xcfg["html_result_filepath"] = os.path.join(self.xcfg["data_folderpath"], self.xcfg["html_result_filename"])
 		self.xcfg["stock_symbol_lookup_filename"] = self.DEFAULT_STOCK_SYMBOL_LOOKUP_FULL_FILENAME if self.xcfg["stock_symbol_lookup_filename"] is None else self.xcfg["stock_symbol_lookup_filename"]
 		self.xcfg["stock_symbol_lookup_filepath"] = os.path.join(self.xcfg["data_folderpath"], self.xcfg["stock_symbol_lookup_filename"])
 
@@ -197,6 +204,7 @@ class TakeProfitTracker(object):
 
 	@classmethod
 	def __get_file_modification_date_str(cls, filepath):
+		import pdb; pdb.set_trace()
 		file_modification_date = cls.__get_file_modification_date(filepath)
 		return file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
 
@@ -417,8 +425,17 @@ class TakeProfitTracker(object):
 	def __read_scrapy(self, stock_id_list):
 		stock_data_dict = {}
 		# import pdb; pdb.set_trace()
-		for stock_id in stock_id_list:
+		stock_id_list_len = len(stock_id_list)
+		for index, stock_id in enumerate(stock_id_list):
+			if self.xcfg["show_scrapy_progress"]:
+				start_datetime = self.__get_cur_time()
 			stock_data_dict[stock_id] = self.__scrape_stock_price(stock_id)
+			if self.xcfg["show_scrapy_progress"]:
+				end_datetime = self.__get_cur_time()
+				diff_in_sec = (end_datetime - start_datetime).total_seconds()
+				progress_percent = (index + 1) * 100.0 / stock_id_list_len
+				# print("Scrape %s Done...... %.0f, Time elaped: %.2f(s)" % (stock_id, progress_percent, diff_in_sec))
+				print("Scrape {0} Done...... {1:.2f}%, Time elaped: {2:.2f}(s)".format(stock_id, progress_percent, diff_in_sec))
 		return stock_data_dict
 
 
@@ -516,6 +533,11 @@ class TakeProfitTracker(object):
 		if self.xcfg["force_update_record"]: need_update_record = True
 		if need_update_record:
 			self.__write_record(self.stock_data_dict)
+		# print(stock_data_dict)
+		cur_time_string = obj.CurTimeString
+		print("Data Time: %s" % cur_time_string)
+		if self.xcfg["show_result"]:
+			self.__show_result()
 		if len(take_profit_list) != 0 or len(loss_list) != 0:
 			print("\n************************************************")
 			if len(take_profit_list) != 0:
@@ -523,9 +545,8 @@ class TakeProfitTracker(object):
 			if len(loss_list) != 0:
 				print("虧損: %s" % " ".join(loss_list))
 			print("************************************************\n")
-		# print(stock_data_dict)
-		if self.xcfg["show_result"]:
-			self.__show_result()
+		if self.xcfg["output_html_result"]:
+			self.__output_html_result(cur_time_string, take_profit_list, loss_list)
 
 
 	def __show_result(self):
@@ -553,10 +574,58 @@ class TakeProfitTracker(object):
 			print(marker + str_tmp)
 
 
+	def __output_html_result(self, data_time, take_profit_list,loss_list):
+		with open(self.xcfg['html_result_filepath'], 'w') as fp:
+			def add_table_row(fp, line_list):
+				fp.write('<tr><td>')
+				# print('    </td><td>     '.join(line_list))
+				fp.write('</td><td>'.join(line_list))
+				fp.write('</td></tr>')
+			# fp.write('<table>')
+			fp.write("<p>%s</p>" % data_time)
+			fp.write(r'<table style="width:50%;border-collapse:collapse;"')
+			title_list = ["  ",]
+			title_list.extend(self.DEFAULT_SHOW_TRACK_FIELD_NAME)
+			add_table_row(fp, title_list)
+			for key, value in self.stock_data_dict.items():
+				# value.update(record_data_dict[key])
+				marker = "* " if self.__is_trailing_stop_triggered(value['啟動停利']) else "  "
+				data_list = [marker, key,]
+				# import pdb; pdb.set_trace()
+				for field_name in self.DEFAULT_SHOW_TRACK_FIELD_NAME[1:9]:
+					data_list.append(value[field_name])
+				# import pdb; pdb.set_trace()
+				diff_value = 0.00
+				diff_value_percentage = 0.00
+				if value["成交"] - value["平圴成本"] > 0:
+					diff_value = self.__float(value['成交'] - value['停利價格'])
+					diff_value_percentage = self.__float(diff_value / value['停利價格'] * 100.0)
+				data_list.extend([diff_value, diff_value_percentage,])
+				data_str_list = list(map(lambda x : str(x), data_list))
+				add_table_row(fp, data_str_list)
+			fp.write('</table>')
+			fp.write("<hr>")
+
+			if len(take_profit_list) != 0 or len(loss_list) != 0:
+				fp.write("<div>")
+				fp.write("<p>************************************************</p>")
+				if len(take_profit_list) != 0:
+					take_profit_string = "停利: %s" % " ".join(take_profit_list)
+					fp.write("<p>%s</p>" % take_profit_string)
+				if len(loss_list) != 0:
+					loss_string = "虧損: %s" % " ".join(loss_list)
+					fp.write("<p>%s</p>" % loss_string)
+				fp.write("<p>************************************************</p>")
+				fp.write("</div>")
+
+
 	def print_filepath(self):
 		print("************** File Path **************")
 		for key, value in self.filepath_dict.items():
-			print("%s: %s   %s" % (key, value, self.__get_file_modification_date_str(value)))
+			if not self.__check_file_exist(value):
+				print("The file[%s] does NOT exist !!!" % value)
+			else:
+				print("%s: %s   %s" % (key, value, self.__get_file_modification_date_str(value)))
 
 
 	def output_record_file_template(self):
@@ -652,6 +721,26 @@ class TakeProfitTracker(object):
 
 
 	@property
+	def OutputHtmlResult(self):
+		return self.xcfg["output_html_result"]
+
+
+	@OutputHtmlResult.setter
+	def OutputHtmlResult(self, output_html_result):
+		self.xcfg["output_html_result"] = output_html_result
+
+
+	@property
+	def ShowScrapyProgress(self):
+		return self.xcfg["show_scrapy_progress"]
+
+
+	@ShowScrapyProgress.setter
+	def ShowScrapyProgress(self, show_scrapy_progress):
+		self.xcfg["show_scrapy_progress"] = show_scrapy_progress
+
+
+	@property
 	def Worksheet(self):
 		return self.__get_worksheet()
 
@@ -675,15 +764,17 @@ if __name__ == "__main__":
 	parser.add_argument('--read_from_scrapy', required=False, action='store_true', help='Read stock data from scrapy. Caution: Only take effect for the "track" argument')
 	parser.add_argument('--force_update_record', required=False, action='store_true', help='Update the record file forcibly. Caution: Only take effect for the "track" argument')
 	parser.add_argument('-s', '--show_result', required=False, action='store_true', help='Show the tracking result of specific targets.')
+	parser.add_argument('--output_html_result', required=False, action='store_true', help='Output the result in a html file')
 	parser.add_argument('-m', '--monitor_mode', required=False, action='store_true', help='Monitor mode. Execute periodically')
 	parser.add_argument('--monitor_time_interval', required=False, help='Time interval of monitor mode')
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	parser.add_argument('--output_record_file_template', required=False, action='store_true', help='Output a record file as a template and exit.')
 	parser.add_argument('--output_customized_config_file_template', required=False, action='store_true', help='Output a customized config file as a template and exit.')
+	parser.add_argument('--show_scrapy_progress', required=False, action='store_true', help='Show Scrapy progress')
+	parser.add_argument('--default', required=False, action='store_true', help='Exploit the default settings: -ts --read_from_scrapy --output_html_result --show_scrapy_progress')
 	args = parser.parse_args()
 
 	cfg = {}
-	
 	# import pdb; pdb.set_trace()
 	with TakeProfitTracker(cfg) as obj:
 		# print("Check Scrapy: %s" % ("True" if obj.CanTrack else "False"))
@@ -702,14 +793,24 @@ if __name__ == "__main__":
 			obj.ForceUpdateRecord = True
 		if args.show_result:
 			obj.ShowResult = True
+		if args.output_html_result:
+			obj.OutputHtmlResult = True
 		if args.monitor_mode:
 			obj.MonitorMode = True
 		if args.monitor_time_interval:
 			obj.MonitorTimeInterval = int(args.monitor_time_interval)
-		if args.track:
+		if args.show_scrapy_progress:
+			obj.ShowScrapyProgress = True
+		track = args.track
+		if args.default:
+			track = True
+			obj.ReadFromScrapy = True
+			obj.ShowResult = True
+			obj.OutputHtmlResult = True
+			obj.ShowScrapyProgress = True
+		if track:
 			while True:
 				if obj.CanTrack:
-					print("Data Time: %s" % obj.CurTimeString)
 					try:
 						obj.track()
 					except ScrapyError:

@@ -178,7 +178,7 @@ class ConvertibleBondAnalysis(object):
 
 	@classmethod
 	def __is_cb(cls, cb_id):
-		return True if (re.match("[\d]{5}", cb_id) is not None) else False
+		return True if (re.match(r"[\d]{5}", cb_id) is not None) else False
 		# try:
 		# 	if re.match("[\d]{5}", cb_id) is not None: 
 		# 		return True
@@ -380,7 +380,6 @@ class ConvertibleBondAnalysis(object):
 				"SCRAPY_FUNCPTR": self.__stock_info_major_inflow_outflow_scrapy_funcptr,
 				"UPDATE_FREQUENCY": "Daily",
 			},
-			# "融資融券": "https://concords.moneydj.com/z/zc/zcx/zcx_%s.djhtm",
 			# "融資融券": "https://concords.moneydj.com/z/zc/zcn/zcn_%s.djhtm",
 			"融資融券": {
 				"URL_FORMAT": "https://concords.moneydj.com/z/zc/zcn/zcn.djhtm?a=%s&b=3",
@@ -470,7 +469,7 @@ class ConvertibleBondAnalysis(object):
 				self.cb_id_list = list(set(self.cb_id_list) - self.cb_ignore_set)
 # Check if the incorrect CB IDs exist
 			# import pdb; pdb.set_trace()
-			cb_id_list = list(filter(lambda x: re.match("[\d]{4,5}", x) is not None, self.cb_id_list))  # Fals to filter the ID whose lenght is more than 5
+			cb_id_list = list(filter(lambda x: re.match(r"[\d]{4,5}", x) is not None, self.cb_id_list))  # Fals to filter the ID whose lenght is more than 5
 			cb_id_list = list(filter(lambda x: len(x) in [4,5,], cb_id_list))
 			illegal_cb_id_list = list(set(self.cb_id_list) - set(cb_id_list))
 			# cb_id_list_str = " ".join(self.cb_id_list)
@@ -534,7 +533,7 @@ class ConvertibleBondAnalysis(object):
 		return self.beautifulsoup_class
 
 
-	def __get_web_driver(self, web_driver_filepath="C:\chromedriver.exe"):
+	def __get_web_driver(self, web_driver_filepath=r"C:\chromedriver.exe"):
 		if not self.__check_selenium_module_installed():
 			raise RuntimeError("The selenium module is NOT installed!!!")
 		if self.web_driver is None:
@@ -569,7 +568,7 @@ class ConvertibleBondAnalysis(object):
 
 
 	def __read_cb_summary(self):
-		pattern = "(.+)\(([\d]{5,6})\)"
+		pattern = r"(.+)\(([\d]{5,6})\)"
 		cb_data = {}
 		with open(self.xcfg["cb_summary_filepath"], newline='') as f:
 			rows = csv.reader(f)
@@ -606,7 +605,7 @@ class ConvertibleBondAnalysis(object):
 
 
 	def __read_cb_publish(self):
-		pattern = "([\d]+)年"
+		pattern = r"([\d]+)年"
 		cb_data = {}
 		with open(self.xcfg["cb_publish_filepath"], newline='') as f:
 			rows = csv.reader(f)
@@ -1763,7 +1762,7 @@ class ConvertibleBondAnalysis(object):
 # Check the table time
 			# import pdb; pdb.set_trace()
 			span = driver.find_element("xpath", '//*[@id="body"]/div/main/div[5]/span')
-			mobj = re.search(".+([\d]{5})", span.text)
+			mobj = re.search(r".+([\d]{5})", span.text)
 			if mobj is None:
 				raise RuntimeError("Fail to find the month of the table")
 			table_month = mobj.group(1)
