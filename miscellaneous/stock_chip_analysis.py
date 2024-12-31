@@ -87,10 +87,10 @@ class StockChipAnalysis(object):
 			"key_mode": 0, # 2504 國產
 			"data_start_column_index": 1,
 		},
-		u"六大買超": {
-			"key_mode": 0, # 2504 國產
-			"data_start_column_index": 1,
-		},
+		# u"六大買超": {
+		# 	"key_mode": 0, # 2504 國產
+		# 	"data_start_column_index": 1,
+		# },
 		# u"大戶持股變化": {
 		# 	"key_mode": 0, # 2504 國產
 		# 	"data_start_column_index": 1,
@@ -125,7 +125,7 @@ class StockChipAnalysis(object):
 		# },
 	}
 	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
-	DEFAULT_SHEET_NAME_LIST = [u"台股 ETF", u"美股 ETF", u"個股夏普值", u"外資賺錢", u"券商賺錢", u"成交比重", u"主法量率", u"六大買超", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"大戶籌碼", u"SSB", u"上市融資增加", u"上櫃融資增加",]
+	DEFAULT_SHEET_NAME_LIST = [u"台股 ETF", u"美股 ETF", u"個股夏普值", u"外資賺錢", u"券商賺錢", u"成交比重", u"主法量率", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"六大買超", u"大戶籌碼", u"SSB", u"上市融資增加", u"上櫃融資增加",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
@@ -775,7 +775,7 @@ class StockChipAnalysis(object):
 		# import pdb; pdb.set_trace()
 		# sheet_name_list = ["SSB", "主法量率", "六大買超",]
 		sheet_name_list = copy.deepcopy(self.SEARCH_RULE_DATASHEET_LIST[search_rule_index])
-		sheet_name_list.extend(["六大買超",])  # "SSB", 
+		# sheet_name_list.extend(["六大買超",])  # "SSB", 
 		for index, stock in enumerate(stock_list):
 			# search_rule_item_list = []
 			# for search_rule in search_rule_list[1:]:
