@@ -52,8 +52,38 @@ class ConvertibleBondAnalysis(object):
 	DEFAULT_CB_DATA_FOLDERNAME =  "Data"
 	DEFAULT_CB_SUMMARY_FILENAME = "可轉債總表"	
 	DEFAULT_CB_SUMMARY_FULL_FILENAME = "%s.csv" % DEFAULT_CB_SUMMARY_FILENAME
-	PUBLISH_CB_LIST_URL = "https://www.tpex.org.tw/zh-tw/bond/issue/cbond/listed.html"
-	
+	DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX = "可轉換公司債月分析表"
+
+# # ['可轉債商品', '到期日', '可轉換日', '票面利率', '上次付息日', '轉換價格', '現股收盤價', '可轉債價格', '套利報酬', '年化殖利率', '']
+# 	DEFAULT_CB_SUMMARY_FIELD_TYPE = [str, str, str, float, str, float, float, float, float, float, str,]
+# ['可轉債商品', '可轉債收盤價', '成交量', '標的股收盤價', '轉換價值', '轉換溢價率', '轉換價格生效日', '轉換價格', '每張可轉換股數', '下一賣回日', '下一賣回價', '提前賣回收益率', '到期收益率', '發行日', '到期日', '發行張數', '剩餘張數', '轉換比例', '票面利率', '擔保情形', '']
+	DEFAULT_CB_SUMMARY_FIELD_TYPE = [str, float, int, float, float, float, str, float, int, str, float, float, float, str, str, int, int, float, float, str, str,]
+	DEFAULT_CB_SUMMARY_FIELD_TYPE_LEN = len(DEFAULT_CB_SUMMARY_FIELD_TYPE)
+	DEFAULT_CB_PUBLISH_FILENAME = "可轉債發行"
+	DEFAULT_CB_PUBLISH_FULL_FILENAME = "%s.csv" % DEFAULT_CB_PUBLISH_FILENAME
+# ['債券簡稱', '發行人', '發行日期', '到期日期', '年期', '發行總面額', '發行資料']
+	DEFAULT_CB_PUBLISH_FIELD_TYPE = [str, str, str, str, int, int, str,]
+	DEFAULT_CB_PUBLISH_FIELD_TYPE_LEN = len(DEFAULT_CB_PUBLISH_FIELD_TYPE)
+	DEFAULT_CB_QUOTATION_FILENAME = "可轉債報價"
+	DEFAULT_CB_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_QUOTATION_FILENAME
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日', '一週%', '一月%', '一季%', '一年%']
+	DEFAULT_CB_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, str, str, str, str, str,]
+	DEFAULT_CB_QUOTATION_FIELD_TYPE_LEN = len(DEFAULT_CB_QUOTATION_FIELD_TYPE)
+	DEFAULT_CB_STOCK_QUOTATION_FILENAME = "可轉債個股報價"
+	DEFAULT_CB_STOCK_QUOTATION_FULL_FILENAME = "%s.xlsx" % DEFAULT_CB_STOCK_QUOTATION_FILENAME
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '融資餘額', '融券餘額', '股本', '一週%', '一月%', '一季%', '一年%']
+	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE = [str, float, float, int, float, float, int, int, float, str, str, str, str,]
+	DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE_LEN = len(DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE)
+# CB交易成本(元)
+	DEFAULT_CB_TRANSACTION_COST = 250
+
+	CB_PUBLISH_DETAIL_URL_FORMAT = "https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=%s&bond_kind=5&bond_subn=%24M00000001&bond_yrn=5&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=%s&monyr_reg=%s&pg=&step=0&tg="
+# # Don't consider the CB temporarily
+# 	CB_TRADING_SUSPENSION_SET = {"68691",}  # set()
+# 	CB_STOCK_TRADING_SUSPENSION_SET = set(map(lambda x: x[:4], CB_TRADING_SUSPENSION_SET))
+
+	STATEMENT_RELEASE_DATE_LIST = [(3,31,),(5,15,),(8,14,),(11,14),]
+
 
 	@classmethod
 	def __int(cls, value):
@@ -147,6 +177,22 @@ class ConvertibleBondAnalysis(object):
 
 
 	@classmethod
+	def __is_cb(cls, cb_id):
+		return True if (re.match(r"[\d]{5}", cb_id) is not None) else False
+		# try:
+		# 	if re.match("[\d]{5}", cb_id) is not None: 
+		# 		return True
+		# except Exception as e:
+		# 	print("Error in %s, due to: %s" % (cb_id, str(e)))
+		# return False
+
+
+	@classmethod
+	def __is_not_cb(cls, cb_id):
+		return (not cls.__is_cb(cb_id))
+
+
+	@classmethod
 	def __get_conversion_ratio(cls, conversion_price):
 		return 100.0 / float(conversion_price)
 
@@ -221,6 +267,14 @@ class ConvertibleBondAnalysis(object):
 		return modification_date
 
 
+	# @classmethod
+	# def __get_web_driver(cls, web_driver_filepath="C:\chromedriver.exe"):
+	# 	module = __import__("selenium.webdriver")
+	# 	web_driver_class = getattr(module, "webdriver")
+	# 	web_driver_obj = web_driver_class.Chrome(web_driver_filepath)
+	# 	return web_driver_obj
+
+
 	def __init__(self, cfg):
 		self.xcfg = {
 			"cb_folderpath": None,
@@ -241,6 +295,60 @@ class ConvertibleBondAnalysis(object):
 		self.xcfg.update(cfg)
 		self.xcfg["cb_folderpath"] = self.DEFAULT_CB_FOLDERPATH if self.xcfg["cb_folderpath"] is None else self.xcfg["cb_folderpath"]
 		self.xcfg["cb_data_folderpath"] = os.path.join(self.xcfg["cb_folderpath"], self.DEFAULT_CB_DATA_FOLDERNAME) if self.xcfg["cb_data_folderpath"] is None else self.xcfg["cb_data_folderpath"]
+		self.xcfg["cb_summary_filename"] = self.DEFAULT_CB_SUMMARY_FULL_FILENAME if self.xcfg["cb_summary_filename"] is None else self.xcfg["cb_summary_filename"]
+		self.xcfg["cb_summary_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_summary_filename"])
+		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_summary_filepath"])
+		self.xcfg["cb_summary_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
+		self.xcfg["cb_publish_filename"] = self.DEFAULT_CB_PUBLISH_FULL_FILENAME if self.xcfg["cb_publish_filename"] is None else self.xcfg["cb_publish_filename"]
+		self.xcfg["cb_publish_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_publish_filename"])
+		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_publish_filepath"])
+		self.xcfg["cb_publish_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
+		self.xcfg["cb_quotation_filename"] = self.DEFAULT_CB_QUOTATION_FULL_FILENAME if self.xcfg["cb_quotation_filename"] is None else self.xcfg["cb_quotation_filename"]
+		self.xcfg["cb_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_quotation_filename"])
+		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_quotation_filepath"])
+		self.xcfg["cb_quotation_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
+		self.xcfg["cb_stock_quotation_filename"] = self.DEFAULT_CB_STOCK_QUOTATION_FULL_FILENAME if self.xcfg["cb_stock_quotation_filename"] is None else self.xcfg["cb_stock_quotation_filename"]
+		self.xcfg["cb_stock_quotation_filepath"] = os.path.join(self.xcfg["cb_folderpath"], self.xcfg["cb_stock_quotation_filename"])
+		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_stock_quotation_filepath"])
+		self.xcfg["cb_stock_quotation_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
+		self.xcfg["cb_list_filename"] = self.DEFAULT_TRACKED_CB_LIST_FILENAME if self.xcfg["cb_list_filename"] is None else self.xcfg["cb_list_filename"]
+		self.xcfg["cb_list_filepath"] = os.path.join(self.DEFAULT_CONFIG_FOLDERPATH, self.xcfg["cb_list_filename"])
+		file_modification_date = self.__get_file_modification_date(self.xcfg["cb_list_filepath"])
+		self.xcfg["cb_list_file_modification_date_str"] = file_modification_date.strftime("%Y/%m/%d %H:%M:%S")
+# Check file exist
+		file_not_exist_list = []
+		if not self. __check_file_exist(self.xcfg["cb_summary_filepath"]):
+			file_not_exist_list.append(self.xcfg["cb_summary_filepath"])
+		# else:
+		# 	print("Read CB Sumary from: %s" % self.xcfg["cb_summary_filepath"])
+		if not self. __check_file_exist(self.xcfg["cb_publish_filepath"]):
+			file_not_exist_list.append(self.xcfg["cb_publish_filepath"])
+		# else:
+		# 	print("Read CB Publish from: %s" % self.xcfg["cb_publish_filepath"])
+		if not self. __check_file_exist(self.xcfg["cb_quotation_filepath"]):
+			file_not_exist_list.append(self.xcfg["cb_quotation_filepath"])
+		# else:
+		# 	print("Read CB Quotation from: %s" % self.xcfg["cb_quotation_filepath"])
+		if not self. __check_file_exist(self.xcfg["cb_stock_quotation_filepath"]):
+			file_not_exist_list.append(self.xcfg["cb_stock_quotation_filepath"])
+		# else:
+		# 	print("Read CB Stcok Quotation from: %s" % self.xcfg["cb_stock_quotation_filepath"])
+		# import pdb; pdb.set_trace()
+		if len(file_not_exist_list) > 0:
+			raise RuntimeError("The file[%s] does NOT exist" % ", ".join(file_not_exist_list))
+
+		if not os.path.exists(self.xcfg["cb_data_folderpath"]):
+			print("The CB data folder[%s] does NOT exist" % self.xcfg["cb_data_folderpath"])
+			os.mkdir(self.xcfg["cb_data_folderpath"])
+
+		self.cb_summary = self.__read_cb_summary()
+		self.cb_publish = self.__read_cb_publish()
+		self.cb_workbook = None
+		self.cb_worksheet = None
+		self.cb_stock_workbook = None
+		self.cb_stock_worksheet = None
+		self.cb_id_list = None  # list(self.cb_summary.keys())
+		self.cb_stock_id_list = None
 
 		self.can_scrape = self.__can_scrape()
 		self.requests_module = None
@@ -338,15 +446,58 @@ class ConvertibleBondAnalysis(object):
 			"Quarterly": self.__calculate_stock_info_quarterly_update_time,
 			"Yearly": self.__calculate_stock_info_yearly_update_time,
 		}
+		self.filepath_dict = OrderedDict()
+		self.filepath_dict["cb_summary_filepath"] = self.xcfg["cb_summary_filepath"]
+		self.filepath_dict["cb_publish_filepath"] = self.xcfg["cb_publish_filepath"]
+		self.filepath_dict["cb_quotation_filepath"] = self.xcfg["cb_quotation_filepath"]
+		self.filepath_dict["cb_stock_quotation_filepath"] = self.xcfg["cb_stock_quotation_filepath"]
+		self.filepath_dict["cb_list_filepath"] = self.xcfg["cb_list_filepath"]
+		self.filepath_dict["cb_data_filepath"] = self.xcfg["cb_data_folderpath"]
+# Update the CB ID list
+		if not self.xcfg['cb_all']:
+			# import pdb; pdb.set_trace()
+			if self.xcfg["cb_list"] is not None:
+				if type(self.xcfg["cb_list"]) is str:
+					cb_list = []
+					for cb in self.xcfg["cb_list"].split(","):
+						cb_list.append(cb)
+					self.xcfg["cb_list"] = cb_list
+			else:	
+				self.__get_cb_list_from_file()
+			self.cb_id_list = self.xcfg["cb_list"]
+			if len(self.cb_ignore_set) != 0:
+				self.cb_id_list = list(set(self.cb_id_list) - self.cb_ignore_set)
+# Check if the incorrect CB IDs exist
+			# import pdb; pdb.set_trace()
+			cb_id_list = list(filter(lambda x: re.match(r"[\d]{4,5}", x) is not None, self.cb_id_list))  # Fals to filter the ID whose lenght is more than 5
+			cb_id_list = list(filter(lambda x: len(x) in [4,5,], cb_id_list))
+			illegal_cb_id_list = list(set(self.cb_id_list) - set(cb_id_list))
+			# cb_id_list_str = " ".join(self.cb_id_list)
+			# matches = re.findall(r"\b\d{4,5}\b", cb_id_list_str)
+			# illegal_cb_id_list = [match for match in matches]
+			assert len(illegal_cb_id_list) == 0, "Illegal CB ID list: %s" % illegal_cb_id_list
+			self.cb_stock_id_list = list(set(list(map(lambda x: x[:4], self.cb_id_list))))
+# Check if the stock id exists in the list
+			cb_stock_id_list_tmp = list(filter(lambda x: len(x) == 4, cb_id_list))
+			if len(cb_stock_id_list_tmp) != 0:
+				cb_id_list_tmp = []
+				for cb_id in self.cb_id_list:
+					if len(cb_id) == 4:
+						cb_id_list_tmp.extend(list(filter(lambda x: x[:4] == cb_id, self.cb_publish.keys())))
+					else:
+						cb_id_list_tmp.extend(cb_id)
+				self.cb_id_list = cb_id_list_tmp
+
+		self.__print_file_modification_date()
 
 
 	def __enter__(self):
-# # Open the workbook of cb quotation
-# 		self.cb_workbook = xlrd.open_workbook(self.xcfg["cb_quotation_filepath"])
-# 		self.cb_worksheet = self.cb_workbook.sheet_by_index(0)
-# # Open the workbook of cb stock quotation
-# 		self.cb_stock_workbook = xlrd.open_workbook(self.xcfg["cb_stock_quotation_filepath"])
-# 		self.cb_stock_worksheet = self.cb_stock_workbook.sheet_by_index(0)
+# Open the workbook of cb quotation
+		self.cb_workbook = xlrd.open_workbook(self.xcfg["cb_quotation_filepath"])
+		self.cb_worksheet = self.cb_workbook.sheet_by_index(0)
+# Open the workbook of cb stock quotation
+		self.cb_stock_workbook = xlrd.open_workbook(self.xcfg["cb_stock_quotation_filepath"])
+		self.cb_stock_worksheet = self.cb_stock_workbook.sheet_by_index(0)
 		return self
 
 
@@ -354,14 +505,14 @@ class ConvertibleBondAnalysis(object):
 		if self.web_driver is not None:
 			self.web_driver.close()
 			self.web_driver = None
-		# if self.cb_workbook is not None:
-		# 	self.cb_workbook.release_resources()
-		# 	del self.cb_workbook
-		# 	self.cb_workbook = None
-		# if self.cb_stock_workbook is not None:
-		# 	self.cb_stock_workbook.release_resources()
-		# 	del self.cb_stock_workbook
-		# 	self.cb_stock_workbook = None
+		if self.cb_workbook is not None:
+			self.cb_workbook.release_resources()
+			del self.cb_workbook
+			self.cb_workbook = None
+		if self.cb_stock_workbook is not None:
+			self.cb_stock_workbook.release_resources()
+			del self.cb_stock_workbook
+			self.cb_stock_workbook = None
 		return False
 
 
@@ -453,9 +604,280 @@ class ConvertibleBondAnalysis(object):
 		return cb_data
 
 
+	def __read_cb_publish(self):
+		pattern = r"([\d]+)年"
+		cb_data = {}
+		with open(self.xcfg["cb_publish_filepath"], newline='') as f:
+			rows = csv.reader(f)
+			regex = re.compile(pattern)
+			title_list = None
+			title_tenor_index = None
+			title_par_value_index = None
+
+			for index, row in enumerate(rows):
+				if index in [0, 1, 3,]: pass
+				elif index == 2:
+					title_list = row
+					title_list = title_list[1:]  # ignore 債券代號
+					title_publish_date_index = title_list.index("發行日期")
+					title_tenor_index = title_list.index("年期")
+					title_par_value_index = title_list.index("發行總面額")
+# ['債券簡稱', '發行人', '發行日期', '到期日期', '年期', '發行總面額', '發行資料']
+					title_list.append("可轉換日")
+# ['債券簡稱', '發行人', '發行日期', '到期日期', '年期', '發行總面額', '發行資料', '可轉換日']
+					# print(title_list)
+				else:
+					assert title_list is not None, "title_list should NOT be None"
+					data_list = []
+					data_key = row[0]
+					convertible_date = None
+					for data_index, data_value in enumerate(row[1:]):  # ignore 債券代號
+						if data_index >= self.DEFAULT_CB_PUBLISH_FIELD_TYPE_LEN: break
+						try:
+							if data_index == title_publish_date_index:
+								# import pdb; pdb.set_trace()
+								publish_date = self.__strptime(data_value)
+								convertible_date = publish_date + relativedelta(months=3) + relativedelta(days=1) 
+							elif data_index == title_tenor_index:
+								mobj = re.match(regex, data_value)
+								# import pdb; pdb.set_trace()
+								if mobj is None: 
+									raise ValueError("Incorrect format in 年期 field: %s" % data_value)
+								data_value = mobj.group(1)
+							elif data_index == title_par_value_index:
+								data_value = data_value.replace(",","")
+							data_type = self.DEFAULT_CB_PUBLISH_FIELD_TYPE[data_index]
+							data_value = data_type(data_value)
+							data_list.append(data_value)
+						except ValueError as e:
+							print("Exception occurs in %s, due to: %s" % (data_key, str(e)))
+							raise e
+					data_list.append(convertible_date.strftime("%m/%d/%Y"))
+					data_dict = dict(zip(title_list, data_list))
+					cb_data[data_key] = data_dict
+		# import pdb; pdb.set_trace()
+		return cb_data
+
+
+	def __read_worksheet(self, worksheet, check_data_filter_funcptr):
+		worksheet_data = {}
+		# import pdb; pdb.set_trace()
+		title_list = []
+# title
+		for column_index in range(1, worksheet.ncols):
+			title_value = worksheet.cell_value(0, column_index)
+			title_list.append(title_value)
+		# print(title_list)
+		# import pdb; pdb.set_trace()
+# data
+		for row_index in range(1, worksheet.nrows):
+			data_key = worksheet.cell_value(row_index, 0)
+			data_list = []
+			for column_index in range(1, worksheet.ncols):
+				data_value = worksheet.cell_value(row_index, column_index)
+				data_list.append(data_value)
+			# print("%s: %s" % (data_key, data_list))
+			try:
+				check_data_filter_funcptr(data_list)
+			except Exception as e:
+				print("Exception occurs in %s: %s" % (data_key, data_list))
+				raise e
+			data_dict = dict(zip(title_list, data_list))
+			worksheet_data[data_key] = data_dict
+		return worksheet_data
+
+
+	def __check_cb_quotation_data(self, data_list):
+		data_index = 0
+		for data_value in data_list:
+			if data_index >= self.DEFAULT_CB_QUOTATION_FIELD_TYPE_LEN: break
+			try:
+				data_type = self.DEFAULT_CB_QUOTATION_FIELD_TYPE[data_index]
+				data_value = data_type(data_value)
+				data_list[data_index] = data_value
+			except ValueError:
+				data_list[data_index] = None
+			except Exception as e:
+				# import pdb; pdb.set_trace()
+				traceback.print_exc()
+				raise e
+			data_index += 1
+
+
+	def __read_cb_quotation(self, sort_by_field="總量"):
+		# import pdb; pdb.set_trace()
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '到期日']
+		cb_data_dict = self.__read_worksheet(self.cb_worksheet, self.__check_cb_quotation_data)
+		if sort_by_field is not None:
+			cb_data_dict = OrderedDict(sorted(cb_data_dict.items(), key=lambda x: x[1][sort_by_field], reverse=True))
+		if self.cb_id_list is None:
+			assert self.xcfg['cb_all'], "Incorrect setting: CB ID list"
+			self.cb_id_list = list(cb_data_dict.keys())
+# Filter the target which is not a CB
+			not_cb_id_list = list(filter(self.__is_not_cb, self.cb_id_list))
+			if len(not_cb_id_list) != 0:
+				for not_cb_id in not_cb_id_list:
+					cb_data_dict.pop(not_cb_id)
+# # Can't do this since the data becomes disorder again
+# 				self.cb_id_list = list(set(cb_id_list) - set(not_cb_id_list))
+				self.cb_id_list = list(cb_data_dict.keys())
+			# self.cb_id_list = list(filter(self.__is_cb, cb_id_list))
+# Filter the target which should be ignored
+			if len(self.cb_ignore_set) != 0:
+				cb_ignore_list = list(self.cb_ignore_set)
+				for cb_ignore in cb_ignore_list:
+					cb_data_dict.pop(cb_ignore)
+# # Can't do this since the data becomes disorder again
+# 				self.cb_id_list = list(set(self.cb_id_list) - self.cb_ignore_set)
+				self.cb_id_list = list(cb_data_dict.keys())
+		# import pdb; pdb.set_trace()
+		return cb_data_dict
+
+
+	def __check_cb_stock_quotation_data(self, data_list):
+# Handle the special conditions first
+# Do do in this way, the contenet of data_list should be updated
+		# data_list = list(map(lambda x: (None if x=='--' else x), data_list))
+		for index, data in enumerate(data_list):
+			if data == '--': data_list[index] = None
+		for data_index, data_value in enumerate(data_list):
+			if data_index >= self.DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE_LEN: break
+			if data_value is None: continue
+			try:
+				data_type = self.DEFAULT_CB_STOCK_QUOTATION_FIELD_TYPE[data_index]
+				data_value = data_type(data_value)
+				data_list[data_index] = data_value
+			except ValueError as e:
+				# print(data_list)
+				# import pdb; pdb.set_trace()
+				if re.match("市價", str(data_value)) is not None:
+					if data_index == 4:  # 買進一 -> # 漲停
+						assert data_list[1] is not None, "成交價should NOT be None"
+						data_list[data_index] = data_list[1]  # 買進一 設為 成交價
+					elif data_index == 5:  # 賣出一 -> # 跌停
+						assert data_list[1] is not None, "成交價should NOT be None"
+						data_list[data_index] = data_list[1]  # 賣出一 設為 成交價
+				# if data_index == 4:  # 買進一
+				# 	# print(data_list)
+				# 	# import pdb; pdb.set_trace()
+				# 	if re.match("市價", str(data_value)) is not None:  # 漲停
+				# 		data_list[4] = data_list[1]  # 買進一 設為 成交價
+				# 		data_list[5] = None
+				# 		break
+				# 	elif re.match("--", str(data_value)) is not None and isinstance(data_list[5], float):  # 跌停
+				# 		data_list[4] = None
+				# 		break
+				# 	else:
+				# 		if re.match("市價", str(data_list[5])) is None:  # 不是跌停
+				# 			# import pdb; pdb.set_trace()
+				# 			traceback.print_exc()
+				# 			raise e
+				# 		else: 
+				# 			data_list[4] = None
+				# 	# if re.match("--", data_value) is not None:  # 跌停
+				# 	# 	if int(data_list[5] * 100) != int(data_list[1] * 100):  # 不是跌停
+				# 	# 		traceback.print_exc()
+				# 	# 		raise e
+				# 	# 	data_list[4] = None
+				# elif data_index == 5:  # 賣出一
+				# 	# print(data_list)
+				# 	# import pdb; pdb.set_trace()
+				# 	if re.match("市價", data_value) is not None:  # 跌停
+				# 		data_list[5] = data_list[1]  # 賣出一 設為 成交價
+				# 		assert data_list[4] == None, "買進一 should be None"
+				# 	elif re.match("--", str(data_value)) is not None and isinstance(data_list[4], float):  # 漲停
+				# 		data_list[5] = None
+				# 		break
+				# 	else:
+				# 		traceback.print_exc()
+				# 		raise e
+				# 	# if re.match("--", data_value) is not None:  # 漲停
+				# 	# 	if int(data_list[4] * 100) != int(data_list[1] * 100):  # 不是漲停
+				# 	# 		traceback.print_exc()
+				# 	# 		raise e
+				# 	# 	data_list[5] = None
+				# else:
+				# 	data_list[data_index] = None
+			except Exception as e:
+				# import pdb; pdb.set_trace()
+				traceback.print_exc()
+				raise e
+
+
+	def __read_cb_stock_quotation(self):
+# ['商品', '成交', '漲幅%', '總量', '買進一', '賣出一', '融資餘額', '融券餘額']
+		# import pdb; pdb.set_trace()
+		cb_stock_data_dict = self.__read_worksheet(self.cb_stock_worksheet, self.__check_cb_stock_quotation_data)
+		if self.cb_stock_id_list is None:
+			assert self.xcfg['cb_all'], "Incorrect setting: CB stock ID list"
+			self.cb_stock_id_list = list(cb_stock_data_dict.keys())
+		return cb_stock_data_dict
+
+
+	def __find_cb_from_stock(self, stock_id_list):
+		if isinstance(stock_id_list, str):
+			stock_id_list = [stock_id_list,]
+		cb_id_list =  list(filter(lambda x: x[:4] in stock_id_list, stoself.cb_publish.keys()))
+		return cb_db_list
+
+
+	def __collect_cb_full_data(self, cb_id, cb_quotation, cb_stock_quotation, use_percentage=True):
+		# import pdb; pdb.set_trace()
+		cb_stock_id = cb_id[:4]
+		error_str_list = []
+		if cb_id not in self.cb_summary:
+			error_str_list.append("CB summary")
+		if cb_id not in self.cb_publish:
+			error_str_list.append("CB publish")
+		if cb_id not in cb_quotation:
+			error_str_list.append("CB quotation")
+		if cb_stock_id not in cb_stock_quotation:
+			error_str_list.append("CB stock quotation")
+		if len(error_str_list) != 0:
+			raise ValueError("%s missing data: %s" % (cb_id, ", ".join(error_str_list)))
+
+		cb_summary_data = self.cb_summary[cb_id]
+		cb_publish_data = self.cb_publish[cb_id]
+		cb_quotation_data = cb_quotation[cb_id]
+		cb_stock_quotation_data = cb_stock_quotation[cb_stock_id]
+
+		cb_data_dict = {
+			"商品": cb_quotation_data["商品"],
+			"發行日期": cb_publish_data["發行日期"],
+			"可轉換日": cb_publish_data["可轉換日"],
+			"到期日期": cb_publish_data["到期日期"],
+			"轉換價格": cb_summary_data["轉換價格"],
+			# "天數": issuing_date_days,
+			"溢價率": None,  # conversion_premium_rate,
+			"成交": cb_quotation_data["成交"],
+			"總量": cb_quotation_data["總量"],
+			"發行張數": cb_publish_data["發行總面額"] / 100000,
+			"一週%": cb_quotation_data["一週%"],
+			"一月%": cb_quotation_data["一月%"],
+			"一季%": cb_quotation_data["一季%"],
+			"一年%": cb_quotation_data["一年%"],
+			"成交(股)": cb_stock_quotation_data["成交"],
+			"總量(股)": cb_stock_quotation_data["總量"],
+			"股本": cb_stock_quotation_data["股本"],
+			"一週%(股)": cb_stock_quotation_data["一週%"],
+			"一月%(股)": cb_stock_quotation_data["一月%"],
+			"一季%(股)": cb_stock_quotation_data["一季%"],
+			"一年%(股)": cb_stock_quotation_data["一年%"],
+		}
+		if (cb_stock_quotation_data["買進一"] is not None) and (cb_quotation_data["賣出一"] is not None):
+			conversion_premium_rate = self.__get_conversion_premium_rate(cb_summary_data["轉換價格"], cb_quotation_data["賣出一"], cb_stock_quotation_data["買進一"])
+			if use_percentage:
+				conversion_premium_rate *= 100.0
+			cb_data_dict["溢價率"] = conversion_premium_rate
+		return cb_data_dict
+
+
 	def __print_file_modification_date(self):
 		print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["cb_summary_filepath"]), self.xcfg["cb_summary_file_modification_date_str"]))
+		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["cb_publish_filepath"]), self.xcfg["cb_publish_file_modification_date_str"]))
+		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["cb_quotation_filepath"]), self.xcfg["cb_quotation_file_modification_date_str"]))
+		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["cb_stock_quotation_filepath"]), self.xcfg["cb_stock_quotation_file_modification_date_str"]))
 		print("%s  修改時間: %s" % (os.path.basename(self.xcfg["cb_list_filepath"]), self.xcfg["cb_list_file_modification_date_str"]))
 		print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
 
@@ -477,15 +899,62 @@ class ConvertibleBondAnalysis(object):
 		return self.__sort_future_publishing_cb_list(cb_publish_diff_quotation_id_list, shift_day=shift_day) if (len(cb_publish_diff_quotation_id_list) > 0) else None
 
 
-	def scrape_publish_cb(self):
+	def check_cb_quotation_table_field(self, cb_quotation_data):
 		# import pdb; pdb.set_trace()
-		driver = self.__get_web_driver()
-		driver.get(self.PUBLISH_CB_LIST_URL)
-		time.sleep(5)
-		table = driver.find_element("xpath", '//*[@id="tables-content"]/div/div[2]/div[2]/table')
-		trs = table.find_elements("tag name", "tr")
-		for tr in trs:
-			tds = tr.find_elements("tag name", "td")
+		cb_summary_id_set = set(self.cb_summary.keys()) - self.cb_ignore_set
+		cb_publish_id_set = set(self.cb_publish.keys()) - self.cb_ignore_set
+		cb_quotation_id_set = set(self.cb_id_list) - self.cb_ignore_set
+		cb_summary_diff_quotation_id_set = cb_summary_id_set - cb_quotation_id_set
+		stock_changed = False
+		if len(cb_summary_diff_quotation_id_set) > 0:
+			print("The CB IDs are NOT identical[1]: %s" % cb_summary_diff_quotation_id_set)
+			# if not stock_changed: stock_changed = True
+		cb_publish_diff_quotation_id_set = cb_publish_id_set - cb_quotation_id_set
+		if len(cb_publish_diff_quotation_id_set) > 0:
+			# today = datetime.fromordinal(date.today().toordinal())
+			# cb_publish_diff_quotation_id_list = list(cb_publish_diff_quotation_id_set)
+			# # cb_publish_diff_quotation_id_list.sort(key=lambda x: datetime.strptime(self.cb_publish[x]['發行日期'], "%Y/%m/%d"))
+			# cb_publish_diff_quotation_id_list = list(filter(lambda x: self.__strptime(self.cb_publish[x]['發行日期']) >= today, cb_publish_diff_quotation_id_list))  # 已全數轉換為普通股 資料尚未更新
+			# cb_publish_diff_quotation_id_list.sort(key=lambda x: self.__strptime(self.cb_publish[x]['發行日期']))
+			cb_publish_diff_quotation_id_list = self.__sort_future_publishing_cb_list(list(cb_publish_diff_quotation_id_set))
+			new_public_cb_str_list = ["%s[%s]:  %s  %s年  %d張" % (self.cb_publish[cb_publish_id]['債券簡稱'], cb_publish_id, self.cb_publish[cb_publish_id]['發行日期'], self.cb_publish[cb_publish_id]['年期'], self.cb_publish[cb_publish_id]['發行總面額']/100000) for cb_publish_id in cb_publish_diff_quotation_id_list]
+			print("=== 新發行 ===")
+			for new_public_cb_str in new_public_cb_str_list: print(new_public_cb_str)
+			# print("The CB IDs are NOT identical[2]: %s" % cb_publish_diff_quotation_id_set)
+		cb_quotation_diff_summary_id_set = cb_quotation_id_set - cb_summary_id_set
+		if len(cb_quotation_diff_summary_id_set) > 0:  # Possible root cause: The CB stops trading/is NOT updated in the quotation table
+			print("The CB IDs are NOT identical[3]: %s" % cb_quotation_diff_summary_id_set)
+			print("The CBs may stop trading/not be updated in the quotation table ...... Consider to Ignore them ??")
+			if not stock_changed: stock_changed = True
+		cb_quotation_diff_publish_id_set = cb_quotation_id_set - cb_publish_id_set
+		if len(cb_quotation_diff_publish_id_set) > 0:  # Possible root cause: The CB stops trading
+			print("The CB IDs are NOT identical[4]: %s" % cb_quotation_diff_publish_id_set)
+			print("The CBs may stop trading ? ...... Consider to Ignore them ?")
+			if not stock_changed: stock_changed = True
+		if stock_changed:
+			raise ValueError("The CBs are NOT identical")
+
+
+	def check_cb_stock_quotation_table_field(self, cb_quotation_data, cb_stock_quotation_data):
+		# import pdb; pdb.set_trace()
+		new_stock_id_set = set(map(lambda x: x[:4], self.cb_id_list)) - self.cb_stock_ignore_set
+		old_stock_id_set = set(self.cb_stock_id_list) - self.cb_stock_ignore_set
+		deleted_stock_id_set = old_stock_id_set - new_stock_id_set
+		added_stock_id_set = new_stock_id_set - old_stock_id_set
+		stock_changed = False
+		if len(deleted_stock_id_set) > 0:
+			print("The stocks are deleted: %s" % deleted_stock_id_set)
+			if not stock_changed: stock_changed = True
+		if len(added_stock_id_set) > 0:
+			print("The stocks are added: %s" % added_stock_id_set)
+			if not stock_changed: stock_changed = True
+		if stock_changed:
+			raise ValueError("The stocks are NOT identical")
+
+
+	def check_data_source(self, cb_quotation_data, cb_stock_quotation_data):
+		self.check_cb_quotation_table_field(cb_quotation_data)
+		self.check_cb_stock_quotation_table_field(cb_quotation_data, cb_stock_quotation_data)
 
 
 	def calculate_internal_rate_of_return(self, cb_quotation, use_percentage=True):
@@ -678,6 +1147,95 @@ class ConvertibleBondAnalysis(object):
 				volume_top_position_ratio_cb_dict[cb_id] = copy.deepcopy(cb_data_dict)
 				volume_top_position_ratio_cb_dict[cb_id]["排名"] = cb_index
 		return volume_daily2total_ratio_percentage_cb_dict, volume_top_position_ratio_cb_dict
+
+
+	def search_cb_opportunity_dates(self, cb_quotation, cb_stock_quotation, issuing_date_threshold=30, convertible_date_threshold=30, maturity_date_threshold=180, low_conversion_premium_rate_threshold=10, breakeven_threshold=110, use_percentage=True):
+		# premium_dict = self.calculate_premium(cb_quotation, cb_stock_quotation, need_breakeven=True, use_percentage=True)
+		no_filter = (low_conversion_premium_rate_threshold is None) and (breakeven_threshold is None)
+		issuing_date_cb_dict = {}
+		convertible_date_cb_dict = {}
+		maturity_date_cb_dict = {}
+		# import pdb; pdb.set_trace()
+		for cb_id in self.cb_id_list:
+			cb_summary_data = self.cb_summary[cb_id]
+			cb_publish_data = self.cb_publish[cb_id]
+			cb_quotation_data = cb_quotation[cb_id]
+			cb_stock_id = cb_id[:4]
+			cb_stock_quotation_data = cb_stock_quotation[cb_stock_id]
+			cb_data_dict = self.__collect_cb_full_data(cb_id, cb_quotation, cb_stock_quotation, use_percentage)
+
+			if (not no_filter) and (cb_stock_quotation_data["買進一"] is None):
+				# print("Ignore CB Stock[%s]: 沒有 買進一" % cb_stock_id)
+				continue
+			if (not no_filter) and (cb_quotation_data["賣出一"] is None):
+				# print("Ignore CB[%s]: 沒有 賣出一" % cb_id)
+				continue
+			if (not no_filter) and (cb_quotation_data["成交"] is None):
+				# print("Ignore CB[%s]: 沒有 成交" % cb_stock_id)
+				continue
+
+			if low_conversion_premium_rate_threshold is not None and cb_data_dict["溢價率"] > low_conversion_premium_rate_threshold:
+				continue
+			if breakeven_threshold is not None and cb_quotation_data["成交"] > breakeven_threshold:
+				continue
+
+			issuing_date_days = self.__get_days(start_date_str=cb_publish_data["發行日期"])
+			# print("cb_id: %s, issuing_date_days: %d" % (cb_id, issuing_date_days))
+			if issuing_date_days <= issuing_date_threshold:
+				# issuing_date_cb_dict[cb_id] = {
+				# 	"商品": cb_quotation_data["商品"],
+				# 	"日期": cb_publish_data["發行日期"],
+				# 	"天數": issuing_date_days,
+				# 	"溢價率": conversion_premium_rate,
+				# 	"成交": cb_quotation_data["成交"],
+				# 	"總量": cb_quotation_data["總量"],
+				# 	"發行張數": cb_publish_data["發行總面額"] / 100000,
+				# 	"一週%": cb_quotation_data["一週%"],
+				# 	"一月%": cb_quotation_data["一月%"],
+				# 	"一季%": cb_quotation_data["一季%"],
+				# 	"一年%": cb_quotation_data["一年%"],
+				# }
+				issuing_date_cb_dict[cb_id] = copy.deepcopy(cb_data_dict)
+				issuing_date_cb_dict[cb_id]["日期"] = issuing_date_cb_dict[cb_id]["發行日期"]
+				issuing_date_cb_dict[cb_id]["天數"] = issuing_date_days
+			# convertible_date_days = self.__get_days(cb_summary_data["可轉換日"])
+			convertible_date_days = self.__get_days(cb_publish_data["可轉換日"])
+			if abs(convertible_date_days) <= convertible_date_threshold:
+				# convertible_date_cb_dict[cb_id] = {
+				# 	"商品": cb_quotation_data["商品"],
+				# 	"日期": cb_publish_data["可轉換日"],  # cb_summary_data["可轉換日"],
+				# 	"天數": convertible_date_days,
+				# 	"溢價率": conversion_premium_rate,
+				# 	"成交": cb_quotation_data["成交"],
+				# 	"總量": cb_quotation_data["總量"],
+				# 	"發行張數": cb_publish_data["發行總面額"] / 100000,
+				# 	"一週%": cb_quotation_data["一週%"],
+				# 	"一月%": cb_quotation_data["一月%"],
+				# 	"一季%": cb_quotation_data["一季%"],
+				# 	"一年%": cb_quotation_data["一年%"],
+				# }
+				convertible_date_cb_dict[cb_id] = copy.deepcopy(cb_data_dict)
+				convertible_date_cb_dict[cb_id]["日期"] = convertible_date_cb_dict[cb_id]["可轉換日"]
+				convertible_date_cb_dict[cb_id]["天數"] = convertible_date_days
+			maturity_date_days = self.__get_days(cb_publish_data["到期日期"])
+			if 0 <= maturity_date_days <= maturity_date_threshold:
+				# maturity_date_cb_dict[cb_id] = {
+				# 	"商品": cb_quotation_data["商品"],
+				# 	"日期": cb_publish_data["到期日期"],
+				# 	"天數": maturity_date_days,
+				# 	"溢價率": conversion_premium_rate,
+				# 	"成交": cb_quotation_data["成交"],
+				# 	"總量": cb_quotation_data["總量"],
+				# 	"發行張數": cb_publish_data["發行總面額"] / 100000,
+				# 	"一週%": cb_quotation_data["一週%"],
+				# 	"一月%": cb_quotation_data["一月%"],
+				# 	"一季%": cb_quotation_data["一季%"],
+				# 	"一年%": cb_quotation_data["一年%"],
+				# }
+				maturity_date_cb_dict[cb_id] = copy.deepcopy(cb_data_dict)
+				maturity_date_cb_dict[cb_id]["日期"] = maturity_date_cb_dict[cb_id]["到期日期"]
+				maturity_date_cb_dict[cb_id]["天數"] = maturity_date_days
+		return issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict
 
 
 	@retry()
@@ -1368,6 +1926,120 @@ class ConvertibleBondAnalysis(object):
 	def CanScrape(self):
 		return self.can_scrape
 
+
+	def list(self):
+		quotation_data_dict = self.__read_cb_quotation()
+		stock_quotation_data_dict = self.__read_cb_stock_quotation()
+		if self.xcfg['cb_all']:
+			self.check_data_source(quotation_data_dict, stock_quotation_data_dict)
+		print("\n*****************************************************************\n")
+		print("=== 依總量排序 ==================================================")
+		title_list = ["發行日期", "溢價率", "成交", "總量", "發行張數", '一週%', '一月%', '一季%', "成交(股)", "總量(股)", '一週%(股)', '一月%(股)', '一季%(股)',]
+		print("  ===> %s" % ", ".join(title_list))
+		# for index, cb_value in enumerate(quotation_data_dict.items()):
+		# 	cb_key = cb_value[0]
+		for index, cb_id in enumerate(self.cb_id_list):
+			cb_data = self.__collect_cb_full_data(cb_id, quotation_data_dict, stock_quotation_data_dict)
+			# import pdb; pdb.set_trace()
+			# print("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
+			print("%s[%s]:  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_id, cb_data["發行日期"], self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], self.__float(cb_data["成交(股)"]), self.__int(cb_data["總量(股)"]), cb_data["一週%(股)"], cb_data["一月%(股)"], cb_data["一季%(股)"]))
+			if index == 15:
+				break
+		print("=================================================================\n")
+		issuing_date_cb_dict, convertible_date_cb_dict, maturity_date_cb_dict = self.search_cb_opportunity_dates(quotation_data_dict, stock_quotation_data_dict, low_conversion_premium_rate_threshold=None, breakeven_threshold=None)
+		if bool(issuing_date_cb_dict):
+			print("=== 近發行日期 ==================================================")
+			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數", '一週%', '一月%', '一季%', "成交(股)", "總量(股)", '一週%(股)', '一月%(股)', '一季%(股)',]
+			print("  ===> %s" % ", ".join(title_list))
+			for cb_key, cb_data in issuing_date_cb_dict.items():
+				cb_stock_key = cb_key[:4]
+				cb_stock_data = stock_quotation_data_dict[cb_stock_key]
+				# print("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
+				print("%s[%s]:  %s(%d)  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], self.__float(cb_stock_data["成交"]), self.__int(cb_stock_data["總量"]), cb_stock_data["一週%"], cb_stock_data["一月%"], cb_stock_data["一季%"]))
+			print("=================================================================\n")
+		if bool(convertible_date_cb_dict):
+			print("=== 近可轉換日 ==================================================")
+			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行張數", '一週%', '一月%', '一季%', "成交(股)", "總量(股)", '一週%(股)', '一月%(股)', '一季%(股)',]
+			print("  ===> %s" % ", ".join(title_list))
+			for cb_key, cb_data in convertible_date_cb_dict.items():
+				cb_stock_key = cb_key[:4]
+				cb_stock_data = stock_quotation_data_dict[cb_stock_key]
+				# print("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
+				print("%s[%s]:  %s(%d)  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(cb_data["發行張數"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], self.__float(cb_stock_data["成交"]), self.__int(cb_stock_data["總量"]), cb_stock_data["一週%"], cb_stock_data["一月%"], cb_stock_data["一季%"]))
+			print("=================================================================\n")
+		if bool(maturity_date_cb_dict):
+			print("=== 近到期日期 ==================================================")
+			title_list = ["日期", "天數", "溢價率", "成交", "總量", "發行總面額(億)", "股本(億)", '一週%', '一月%', '一季%', "成交(股)", "總量(股)", '一週%(股)', '一月%(股)', '一季%(股)',]
+			print("  ===> %s" % ", ".join(title_list))
+			cb_monthly_convert_data = self.get_cb_monthly_convert_data()
+			for cb_key, cb_data in maturity_date_cb_dict.items():
+				cb_stock_key = cb_key[:4]
+				cb_stock_data = stock_quotation_data_dict[cb_stock_key]
+				mass_convert_cb_data = cb_monthly_convert_data["content"][cb_key]
+				# import pdb; pdb.set_trace()
+				# print("%s[%s]:  %s(%d)  %.2f  %.2f  %d  %d  %.2f  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(mass_convert_cb_data["發行張數"]) * 100000 / 100000000, self.__float(cb_stock_data["股本"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"]))
+				print("%s[%s]:  %s(%d)  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], cb_key, cb_data["日期"], self.__int(cb_data["天數"]), self.__float(cb_data["溢價率"]), self.__float(cb_data["成交"]), self.__int(cb_data["總量"]), self.__int(mass_convert_cb_data["發行張數"]) * 100000 / 100000000, self.__float(cb_stock_data["股本"]), cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], self.__float(cb_stock_data["成交"]), self.__int(cb_stock_data["總量"]), cb_stock_data["一週%"], cb_stock_data["一月%"], cb_stock_data["一季%"]))
+			print("=================================================================\n")
+
+
+	def __check_validation_case(self, cb_id, cur_datetime, quotation_data_dict, stock_quotation_data_dict, tolorence_day=5):
+		cb_data = self.__collect_cb_full_data(cb_id, quotation_data_dict, stock_quotation_data_dict)
+		# import pdb; pdb.set_trace()
+		issuing_date = self.__strptime(cb_data["發行日期"])
+		issuing_date_window_begin1 = issuing_date + relativedelta(months=1) + relativedelta(days=1)
+		issuing_date_window_end1 = issuing_date_window_begin1 + relativedelta(days=tolorence_day)
+		if (cur_datetime >= issuing_date_window_begin1) and (cur_datetime <= issuing_date_window_end1):
+			return "發行日期後一個月"  #, [issuing_date_window_begin1, issuing_date_window_end1,]
+		issuing_date_window_begin2 = issuing_date + relativedelta(months=3) + relativedelta(days=1)
+		issuing_date_window_end2 = issuing_date_window_begin1 + relativedelta(days=tolorence_day)
+		if (cur_datetime >= issuing_date_window_begin2) and (cur_datetime <= issuing_date_window_end2):
+			return "發行日期後三個月"  #, [issuing_date_window_begin2, issuing_date_window_end2,]
+		convertible_date = self.__strptime(cb_data["可轉換日"])
+		convertible_date_window_begin = convertible_date + relativedelta(months=1) + relativedelta(days=1)
+		convertible_date_window_end = convertible_date_window_begin + relativedelta(days=tolorence_day)
+		if (cur_datetime >= convertible_date_window_begin) and (cur_datetime <= convertible_date_window_end):
+			return "可轉換日後一個月"  #, [convertible_date_window_begin, convertible_date_window_end,]
+		maturity_date = self.__strptime(cb_data["到期日期"])
+		maturity_date_window_end = maturity_date - relativedelta(days=1)
+		maturity_date_window_begin = maturity_date_window_end - relativedelta(days=tolorence_day)
+		if (cur_datetime >= maturity_date_window_begin) and (cur_datetime <= maturity_date_window_end):
+			return "到期日期前六個月"  #, [maturity_date_window_begin, maturity_date_window_end,]
+		return None
+
+
+	def validate(self):
+		quotation_data_dict = self.__read_cb_quotation()
+		stock_quotation_data_dict = self.__read_cb_stock_quotation()
+		if self.xcfg['cb_all']:
+			self.check_data_source(quotation_data_dict, stock_quotation_data_dict)
+		cur_datetime = datetime.now()
+		validation_case_dict = OrderedDict()
+		for key in ["發行日期後一個月", "發行日期後三個月", "可轉換日後一個月", "到期日期前六個月",]:
+			validation_case_dict[key] = []
+		validation_case_cb_data_dict = {}
+		print("\n*****************************************************************\n")
+		for cb_id in self.cb_id_list:
+			validation_case = self.__check_validation_case(cb_id, cur_datetime, quotation_data_dict, stock_quotation_data_dict)
+			if validation_case is not None:
+				validation_case_dict[validation_case].append(cb_id)
+				validation_case_cb_data_dict[cb_id] = self.__collect_cb_full_data(cb_id, quotation_data_dict, stock_quotation_data_dict)
+		for validation_case, validation_cb_id_list in validation_case_dict.items():
+			if bool(validation_cb_id_list):
+				print("=== %s ==================================================" % validation_case)
+				if validation_case == "發行日期後一個月":
+					title_list = ["發行日期","一週", "一月", "一週(股)", "一月(股)",]
+				else:
+					title_list = ["發行日期","一週", "一月", "一季", "一週(股)", "一月(股)", "一季(股)",]
+				print("  ===> %s" % ", ".join(title_list))
+				for validation_cb_id in validation_cb_id_list:
+					cb_data = validation_case_cb_data_dict[validation_cb_id]
+					if validation_case == "發行日期後一個月":
+						print("%s[%s]:  %s  %s  %s  %s  %s" % (cb_data["商品"], validation_cb_id, cb_data["發行日期"], cb_data["一週%"], cb_data["一月%"], cb_data["一週%(股)"], cb_data["一月%(股)"]))
+					else:
+						print("%s[%s]:  %s  %s  %s  %s  %s  %s  %s" % (cb_data["商品"], validation_cb_id, cb_data["發行日期"], cb_data["一週%"], cb_data["一月%"], cb_data["一季%"], cb_data["一週%(股)"], cb_data["一月%(股)"], cb_data["一季%(股)"]))
+				print("=========================================================\n")
+
+
 	def search(self):
 		# data_dict_summary = self.__read_cb_summary()
 		# # print(data_dict_summary)
@@ -1842,5 +2514,178 @@ if __name__ == "__main__":
 	if args.force_update:
 		cfg['force_update'] = True
 	with ConvertibleBondAnalysis(cfg) as obj:
-		obj.scrape_publish_cb()
+		# # JSON data with unordered keys
+		# json_data = '{"a": 1, "c": 3, "b": 2}'
+		# # Load JSON data using OrderedDict as the object_pairs_hook
+		# ordered_dict = json.loads(json_data, object_pairs_hook=OrderedDict)
+		# print(ordered_dict)
+		# sys.exit(0)
 
+		# obj.calculate_stock_info_update_time("2024/03/25")
+		# data_dict = obj.scrape_stock_info("2330")
+		if args.check_scrape_stock:
+			obj.scrape_stock(args.scrape_stock, True)
+			sys.exit(0)
+		if args.check_scrape_stock_from_file:
+			obj.scrape_stock_from_file(True)
+			sys.exit(0)
+		if args.check_scrape_stock_from_future_publishing_cb:
+			obj.scrape_stock_from_future_publishing_cb(True)
+			sys.exit(0)
+		if args.scrape_stock:
+			if args.recursive:
+				obj.recursive_scrape_stock(args.scrape_stock)
+			else:
+				obj.scrape_stock(args.scrape_stock)
+			sys.exit(0)
+		if args.scrape_stock_from_file:
+			if args.recursive:
+				obj.recursive_scrape_stock_from_file()
+			else:
+				obj.scrape_stock_from_file()
+			sys.exit(0)
+		if args.scrape_stock_from_future_publishing_cb:
+			if args.recursive:
+				obj.recursive_scrape_stock_from_future_publishing_cb()
+			else:
+				obj.scrape_stock_from_future_publishing_cb()
+			sys.exit(0)
+		if args.print_filepath:
+			obj.print_filepath()
+			sys.exit(0)
+		if args.print_tracked_cb:
+			obj.print_tracked_cb()
+			sys.exit(0)
+		if args.list:
+			obj.list()
+		if args.search:
+			obj.search()
+		# import pdb; pdb.set_trace()
+		if args.track:
+			obj.track()
+		if args.validate:
+			obj.validate()
+		if args.modify_tracked_cb:
+			obj.modify_tracked_cb(args.modify_tracked_cb)
+			obj.print_tracked_cb()
+
+
+# 	from selenium import webdriver
+# 	import time
+# 	# from selenium.webdriver.common.by import By
+
+
+
+# 	driver = webdriver.Chrome("C:\chromedriver.exe")
+# 	driver.get("https://www.tdcc.com.tw/portal/zh/QStatWAR/indm004")
+# 	time.sleep(5)
+# 	btn = driver.find_element("xpath", '//*[@id="form1"]/table/tbody/tr[4]/td/input')
+# 	btn.click()
+# 	time.sleep(5)
+# 	table = driver.find_element("xpath", '//*[@id="body"]/div/main/div[6]/div/table')
+# 	data_dict = {}
+# # thead
+# 	table_head = table.find_element("tag name", "thead")
+# 	trs = table_head.find_elements("tag name", "tr")
+# 	table_title_list = []
+# 	ths = trs[1].find_elements("tag name", "th")
+# 	for th in ths:
+# 		table_title_list.append(th.text)
+# 	ths = trs[0].find_elements("tag name", "th")
+# 	for th in ths[1:]:
+# 		table_title_list.append(th.text.split('\n')[0])
+# 	print(table_title_list)
+# # tbody
+# 	table_body = table.find_element("tag name", "tbody")
+# 	trs = table_body.find_elements("tag name", "tr")
+# 	for tr in trs:
+# 		tds = tr.find_elements("tag name", "td")
+# 		td_text_list = []
+# 		for td in tds:
+# 			td_text_list.append(td.text)
+# 		# print(", ".join(td_text_list))
+# 		data_dict[td_text_list[0]] = dict(zip(table_title_list[1:], td_text_list[1:]))
+# 	time.sleep(5)
+# 	driver.close()
+
+# 	for key, value in data_dict.items():
+# 		value_str_list = list(map(lambda x: "%s(%s)" % (x[0], x[1]), value.items()))
+# 		print("%s: %s" % (key, ", ".join(value_str_list)))
+
+	# import pdb; pdb.set_trace()
+	# import requests
+	# image_url = "https://m.tdcc.com.tw/tcdata/sm/bimon92.txt"
+	# # URL of the image to be downloaded is defined as image_url
+	# r = requests.get(image_url) # create HTTP response object
+	  
+	# # send a HTTP request to the server and save
+	# # the HTTP response in a response object called r
+	# with open("python_logo.png",'wb') as f:
+	  
+	#     # Saving received content as a png file in
+	#     # binary format
+	  
+	#     # write the contents of the response (r.content)
+	#     # to a new file in binary mode.
+	#     f.write(r.content)
+
+	# driver.get("https://www.tpex.org.tw/web/bond/publish/convertible_bond_search/memo.php?l=zh-tw")
+	# # driver.get("https://mops.twse.com.tw/mops/web/t120sg01?TYPEK=&bond_id=45552&bond_kind=5&bond_subn=%24M00000001&bond_yrn=2&come=2&encodeURIComponent=1&firstin=ture&issuer_stock_code=4555&monyr_reg=202302&pg=&step=0&tg=k_code=4555&monyr_reg=202302&pg=&step=0&tg=")
+	# # driver.get("https://www.tdcc.com.tw/portal/zh/QStatWAR/indm004")
+	# driver.get("https://concords.moneydj.com/Z/ZC/ZCX/ZCX_2330.djhtm")
+	# time.sleep(5)
+	# # #找到輸入框
+	# # # element = driver.find_element_by_name("q");
+	# # #form1 > table > tbody > tr:nth-child(4) > td > input[type=submit]
+	# # link = driver.find_element("xpath", '//*[@id="table01"]/center/table[2]/tbody/tr[46]/td/a')
+	# # # btn = driver.find_element("xpath", '/html/body/div[1]/div[1]/div/main/div[4]/form/table/tbody/tr[4]/td/input')
+	# # time.sleep(5)
+	# # btn.click()
+	# table = driver.find_element("xpath", '//*[@id="SysJustIFRAMEDIV"]/table[1]/tbody/tr/td/table/tbody/tr[3]/td[4]/table/tbody/tr/td/table[1]/tbody/tr/td/table[6]')
+	# trs = table.find_elements("tag name", "tr")
+	# # import pdb; pdb.set_trace()
+	# data_dict = {}
+	# mobj = re.search("融資融券", trs[0].find_element("tag name", "td").text)
+	# if mobj is not None:
+	# 	title_tmp_list1 = []
+	# 	td1s = trs[1].find_elements("tag name", "td")
+	# 	for td in td1s[1:3]:
+	# 		title_tmp_list1.append(td.text)
+	# 	title_tmp_list2 = []
+	# 	td2s = trs[2].find_elements("tag name", "td")
+	# 	for td in td2s[1:]:
+	# 		title_tmp_list2.append(td.text)
+	# 	# import pdb; pdb.set_trace()
+	# 	title_list = []
+	# 	title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[0], x), title_tmp_list2[1:7])))
+	# 	title_list.extend(list(map(lambda x: "%s%s" % (title_tmp_list1[1], x), title_tmp_list2[7:])))
+	# 	title_list.append(title_tmp_list2[-1])
+	# 	# import pdb; pdb.set_trace()
+	# 	for tr in trs[3:]:
+	# 		tds = tr.find_elements("tag name", "td")
+	# 		td_text_list = []
+	# 		for td in tds[1:]:
+	# 			td_text_list.append(td.text)
+	# 		# import pdb; pdb.set_trace()
+	# 		data_dict[tds[0].text] = dict(zip(title_list, td_text_list))
+	# # import pdb; pdb.set_trace()
+	# print(data_dict)
+	# 		# print("%s\n" % (", ".join(td_text_list)))
+
+
+	# # #輸入內容
+	# # element.send_keys("hello world");
+	# # #提交表單
+	# # element.submit();
+	# driver.close()
+
+		# # # web_driver = self.__get_web_driver()
+		# # # driver.get(url)
+		# # resp = self.__get_requests_module().get(url)
+		# # beautifulsoup_class = getattr(self.__get_beautifulsoup_module(), "beautifulsoup")
+		# # soup = beautifulsoup_class.BeautifulSoup(resp.text)
+		# resp = self.__get_requests_module().get(url)
+		# # print(resp.text)
+		# # bs4_module = __import__("bs4")
+		# beautifulsoup_class = self.__get_beautifulsoup_class()
+		# soup = beautifulsoup_class(resp.text, "html.parser")
