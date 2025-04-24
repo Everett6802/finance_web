@@ -7,7 +7,7 @@ import re
 import xlrd
 import argparse
 import errno
-# import math
+import math
 import locale
 import datetime
 import statistics
@@ -26,12 +26,81 @@ class StockFluctuationStatistics(object):
 
 	@staticmethod
 	def __os_is_chinese():
-		_, encoding = locale.getdefaultlocale()
+		# _, encoding = locale.getdefaultlocale()
+		# return True if (encoding == "cp950") else False
+		encoding = locale.getencoding()
 		return True if (encoding == "cp950") else False
 
 
-	DEFAULT_SOURCE_FILENAME = "加權指數歷史資料2000-2024"
-	# DEFAULT_SOURCE_FILENAME = "期貨指數歷史資料2000-2024"
+	@staticmethod
+	def get_correlation(list_x, list_y):
+		list_x_len = len(list_x)
+		list_y_len = len(list_y)
+		if list_x_len != list_y_len: raise ValueError("The lengthes of the 2 lists are NOT identical: %d, %d" % (list_x_len, list_y_len))
+		list_x_mean = statistics.mean(list_x)
+		list_y_mean = statistics.mean(list_y)
+		# list_x_std = statistics.stdev(list_x)
+		# list_y_std = statistics.stdev(list_y)
+		sum_xy = 0
+		sum_xx = 0
+		sum_yy = 0
+		# import pdb; pdb.set_trace()
+		for index in range(list_x_len):
+			sum_xy += (list_x[index] - list_x_mean) * (list_y[index] - list_y_mean)
+			sum_xx += pow((list_x[index] - list_x_mean), 2)
+			sum_yy += pow((list_y[index] - list_y_mean), 2)
+		# import pdb; pdb.set_trace()
+		return sum_xy / math.sqrt(sum_xx * sum_yy)
+
+
+	@classmethod
+	def check_file_exist(cls, filepath):
+		check_exist = True
+		try:
+			os.stat(filepath)
+		except OSError as exception:
+			if exception.errno != errno.ENOENT:
+				print("%s: %s" % (errno.errorcode[exception.errno], os.strerror(exception.errno)))
+				raise
+			check_exist = False
+		return check_exist
+
+
+	@classmethod
+	def get_line_list_from_file(cls, filepath, startswith=None):
+		# import pdb; pdb.set_trace()
+		if not cls.check_file_exist(filepath):
+			raise RuntimeError("The file[%s] does NOT exist" % filepath)
+		line_list = []
+		with open(filepath, 'r') as fp:
+			for line in fp:
+				if startswith is None:
+					if line.startswith("#"): continue
+				else:
+					if not line.startswith("#"): continue
+				line = line.strip("\n")
+				if len(line) == 0: continue
+				line_list.append(line)
+		return line_list
+
+
+	@classmethod
+	def parse_statistics_data_from_file(cls, filepath):
+		line_list = cls.get_line_list_from_file(filepath)
+		statistics_data_dict = OrderedDict()
+		for line in line_list:
+			elem_list = line.split()
+			assert len(elem_list) == 2, "The length(1) of elem_list[%s] should be 2" % elem_list
+			[key, value_tmp] = elem_list
+			elem_list = value_tmp.split("[")
+			assert len(elem_list) == 2, "The length(2) of elem_list[%s] should be 2" % elem_list
+			[value, rest] = elem_list
+			statistics_data_dict[key] = float(value)
+		return statistics_data_dict
+
+
+	DEFAULT_SOURCE_FILENAME = "加權指數歷史資料2000-2024.xlsx"
+	DEFAULT_SOURCE_FILENAME2 = "期貨指數歷史資料2000-2024.xlsx"
 	# DEFAULT_SOURCE_FULL_FILENAME = "%s.xlsx" % DEFAULT_SOURCE_FILENAME
 	DEFAULT_TIME_FIELD_NAME = "時間"	
 	DEFAULT_CLOSING_PRICE_FIELD_NAME = "收盤價"	
@@ -41,7 +110,6 @@ class StockFluctuationStatistics(object):
 	DEFAULT_RISE_PERCENTAGE_THRESHOLD = 80.0
 	DEFAULT_FALL_PERCENTAGE_THRESHOLD = 20.0
 	DEFAULT_OUTPUT_RESULT_FILENAME = "stock_fluctuation_statistics.txt"
-	DEFAULT_OUTPUT_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
 
 	@classmethod
 	def __get_google_cloud_root_foldername(cls):
@@ -76,19 +144,35 @@ class StockFluctuationStatistics(object):
 			"rise_percentage_threshold": self.DEFAULT_RISE_PERCENTAGE_THRESHOLD,
 			"fall_percentage_threshold": self.DEFAULT_FALL_PERCENTAGE_THRESHOLD,
 			"output_result_filename": self.DEFAULT_OUTPUT_RESULT_FILENAME,
+			"statistics_dependency_filename1": self.DEFAULT_SOURCE_FILENAME,
+			"statistics_dependency_filename2": self.DEFAULT_SOURCE_FILENAME2,
 		}
 		self.xcfg.update(cfg)
 		# import pdb; pdb.set_trace()
-		DEFAULT_DATA_FOLDERPATH =  "G:\\{root_foldername}\\數據".format(root_foldername=self.__get_google_cloud_root_foldername())
-		self.xcfg["data_folderpath"] = DEFAULT_DATA_FOLDERPATH if self.xcfg["data_folderpath"] is None else self.xcfg["data_folderpath"]
+		self.DEFAULT_DATA_FOLDERPATH =  "G:\\{root_foldername}\\數據".format(root_foldername=self.__get_google_cloud_root_foldername())
+		self.DEFAULT_OUTPUT_FOLDERPATH =  self.DEFAULT_DATA_FOLDERPATH  # "C:\\Users\\%s" % os.getlogin()
+	
+		self.xcfg["data_folderpath"] = self.DEFAULT_DATA_FOLDERPATH if self.xcfg["data_folderpath"] is None else self.xcfg["data_folderpath"]
 		self.xcfg["source_filename"] = self.DEFAULT_SOURCE_FILENAME if self.xcfg["source_filename"] is None else self.xcfg["source_filename"]
-		source_full_filename = "%s.xlsx" % self.xcfg["source_filename"]
-		self.xcfg["source_filepath"] = os.path.join(self.xcfg["data_folderpath"], source_full_filename)
+		# source_full_filename = "%s.xlsx" % self.xcfg["source_filename"]
+		self.xcfg["source_filepath"] = os.path.join(self.xcfg["data_folderpath"], self.xcfg["source_filename"])  # source_full_filename)
 		self.xcfg["trade_date_is_holiday_filename"] = self.DEFAULT_TRADE_DATE_IS_HOLIDAY_FILENAME if self.xcfg["trade_date_is_holiday_filename"] is None else self.xcfg["trade_date_is_holiday_filename"]
-		self.xcfg["trade_date_is_holiday_folderpath"] = os.getcwd() if self.xcfg["trade_date_is_holiday_folderpath"] is None else self.xcfg["trade_date_is_holiday_folderpath"]
+		# self.xcfg["trade_date_is_holiday_folderpath"] = os.getcwd() if self.xcfg["trade_date_is_holiday_folderpath"] is None else self.xcfg["trade_date_is_holiday_folderpath"]
+		self.xcfg["trade_date_is_holiday_folderpath"] = self.DEFAULT_OUTPUT_FOLDERPATH if self.xcfg["trade_date_is_holiday_folderpath"] is None else self.xcfg["trade_date_is_holiday_folderpath"]
 		self.xcfg["trade_date_is_holiday_filepath"] = os.path.join(self.xcfg["trade_date_is_holiday_folderpath"], self.xcfg["trade_date_is_holiday_filename"])
 		# self.xcfg["output_result_filepath"] = os.path.join(os.getcwd(), self.xcfg["output_result_filename"])
 		self.xcfg["output_result_filepath"] = os.path.join(self.DEFAULT_OUTPUT_FOLDERPATH, self.xcfg["output_result_filename"])
+		self.xcfg["statistics_dependency_filename1"] = self.DEFAULT_SOURCE_FILENAME if self.xcfg["statistics_dependency_filename1"] is None else self.xcfg["statistics_dependency_filename1"]
+		self.xcfg["statistics_dependency_filename2"] = self.DEFAULT_SOURCE_FILENAME2 if self.xcfg["statistics_dependency_filename2"] is None else self.xcfg["statistics_dependency_filename2"]
+		self.xcfg["statistics_dependency_filepath1"] = os.path.join(self.xcfg["data_folderpath"], self.xcfg["statistics_dependency_filename1"])
+		self.xcfg["statistics_dependency_filepath2"] = os.path.join(self.xcfg["data_folderpath"], self.xcfg["statistics_dependency_filename2"])
+
+		self.filepath_dict = OrderedDict()
+		self.filepath_dict["source_filepath"] = self.xcfg["source_filepath"]
+		self.filepath_dict["trade_date_is_holiday_filepath"] = self.xcfg["trade_date_is_holiday_filepath"]
+		self.filepath_dict["output_result_filepath"] = self.xcfg["output_result_filepath"]
+		self.filepath_dict["statistics_dependency_filepath1"] = self.xcfg["statistics_dependency_filepath1"]
+		self.filepath_dict["statistics_dependency_filepath2"] = self.xcfg["statistics_dependency_filepath2"]
 
 		self.workbook = None
 		self.trade_date_is_holiday_date_list = None
@@ -122,7 +206,7 @@ class StockFluctuationStatistics(object):
 			if len(elem_list) == 2:
 				[year, month, day] = [self.cur_year, int(elem_list[0]), int(elem_list[1])]
 			elif len(elem_list) == 3:
-				[year, month, day] = list(map(int, elem_list))
+				[month, day, year] = list(map(int, elem_list))
 			else:
 				raise ValueError("Incorrect date string format: %s" % date_str)
 		elif date_str.find("-") != -1:
@@ -139,7 +223,7 @@ class StockFluctuationStatistics(object):
 		try:
 			date_obj = datetime.date(year, month, day)
 		except Exception as e:
-			print("Error occurs due to: %s" % str(e))
+			print("Unsupport date format[%s] due to: %s" % (date_str, str(e)))
 			# import pdb; pdb.set_trace()
 			raise e
 		return date_obj
@@ -306,20 +390,10 @@ class StockFluctuationStatistics(object):
 	def redirect_file2stdout(self):
 # Restore the original STDOUT
 		sys.stdout = self.stdout_tmp
-
-
-	# def find_trade_date(self, silent=True):
-	# 	for trade_opportunity_data in self.__get_trade_opportunity_data_list():
-	# 		trade_opportunity_data["trade_date"] = None
-	# 		check_date = trade_opportunity_data["trade_opportunity_date"]
-	# 		if not self.__check_date_can_trade(check_date):
-	# 			# if not silent: print("The date[%s] is NOT a trade date" % check_date)
-	# 			continue
-	# 		# import pdb; pdb.set_trace()
-	# 		trade_opportunity_data["trade_date"] = self.__get_trade_date(check_date)
-	# 		if not silent: 
-	# 			print("%s -> %s:%s" % (check_date, ("X" if trade_opportunity_data["trade_date"] is None else trade_opportunity_data["trade_date"]), ("Bull" if trade_opportunity_data["rise_or_fall"] == "rise" else "Bear")))
-	# 	return trade_opportunity_data_list
+# Close the file handle
+		if self.output_result_file is not None:
+			self.output_result_file.close()
+			self.output_result_file = None
 
 
 	def get_check_date_trade_info(self, check_date=None):
@@ -380,8 +454,8 @@ class StockFluctuationStatistics(object):
 			print("Total %s history:" % ("rise" if rise_or_fall == "rise" else "fall"))
 			historic_rise_or_fall_value = trade_opportunity_data["historic_value_rise"] if rise_or_fall == "rise" else trade_opportunity_data["historic_value_fall"]
 			print("%s" % ", ".join(map(lambda x : "%.2f" % x, historic_rise_or_fall_value)))
-			print("probability: %.1f" % (len(historic_rise_or_fall_value) * 100.0 / len(historic_value)))
 			print("mean: %.1f  STD: %.1f" % (statistics.mean(historic_rise_or_fall_value), statistics.stdev(historic_rise_or_fall_value)))
+			print("probability: %.1f (%d/%d)" % (len(historic_rise_or_fall_value) * 100.0 / len(historic_value), len(historic_rise_or_fall_value), len(historic_value)))
 
 
 	def check_trade_date(self, check_date=None):
@@ -426,6 +500,17 @@ class StockFluctuationStatistics(object):
 		return self.__get_worksheet()
 
 
+	@property
+	def OutputResultFilepath(self):
+		return self.xcfg["output_result_filepath"]
+
+
+	def print_filepath(self):
+		print("************** File Path **************")
+		for key, value in self.filepath_dict.items():
+			print("%s: %s" % (key, value))
+
+
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Print help', formatter_class=argparse.RawTextHelpFormatter)
 	parser.add_argument('-c', '--check_trade', required=False, action='store_true', help='Check the trade opportunity on a specific date and exit.')
@@ -441,6 +526,9 @@ if __name__ == "__main__":
 	parser.add_argument('--source_filename', required=False, help='Set the source filename')
 	parser.add_argument('-o', '--output_result', required=False, action='store_true', help='Output the result to the file')
 	parser.add_argument('--output_result_filename', required=False, help='The filename of outputting the result')
+	parser.add_argument('-f', '--find_statistics_dependency', required=False, action='store_true', help='Find the 2 data dependency')
+	parser.add_argument('--statistics_dependency_filename_list', required=False, help='The 2 filenames of finding the data dependency. The filenames are split by comma')
+	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	args = parser.parse_args()
 
 	cfg = {}
@@ -448,23 +536,73 @@ if __name__ == "__main__":
 		cfg['trade_date_string'] = args.trade_date
 	if args.source_filename:
 		cfg['source_filename'] = args.source_filename
+	if args.output_result_filename:
+		cfg['output_result_filename'] = args.output_result_filename
 
-	with StockFluctuationStatistics(cfg) as obj:
-		if args.check_trade:
-			obj.check_trade()
-			sys.exit(0)
-		if args.list_trade_opportunity:
-			if args.output_result:
-				obj.list_trade_opportunity_to_file()
-			else:
-				obj.list_trade_opportunity()
-			sys.exit(0)
-		if args.show_statistics:
-			if args.output_result:
-				obj.show_statistics_to_file()
-			else:
-				obj.show_statistics()
-			sys.exit(0)
+	if args.find_statistics_dependency:
+		statistics_data_dict1 = None
+		statistics_data_dict2 = None
+		statistics_dependency_filename1 = None
+		statistics_dependency_filename2 = None
+		if args.statistics_dependency_filename_list is not None:
+			elem_list = args.statistics_dependency_filename_list.split(",")
+			if len(elem_list) != 2:
+				raise ValueError("The length of statistics_dependency_filename_list should be 2")
+			[statistics_dependency_filename1, statistics_dependency_filename2] = elem_list
+# statistics_dependency_filename1
+		cfg1 = {
+			"source_filename": statistics_dependency_filename1 if (statistics_dependency_filename1 is not None) else None,
+			'output_result_filename': "1.tmp",
+		}
+		with StockFluctuationStatistics(cfg1) as obj1:
+			obj1.show_statistics_to_file()
+			statistics_data_dict1 = obj1.parse_statistics_data_from_file(obj1.OutputResultFilepath)
+			os.remove(obj1.OutputResultFilepath)
+# statistics_dependency_filename2
+		cfg2 = {
+			"source_filename": statistics_dependency_filename2 if (statistics_dependency_filename2 is not None) else None,
+			'output_result_filename': "2.tmp",
+		}
+		with StockFluctuationStatistics(cfg2) as obj2:
+			obj2.show_statistics_to_file()
+			statistics_data_dict2 = obj2.parse_statistics_data_from_file(obj2.OutputResultFilepath)
+			os.remove(obj2.OutputResultFilepath)
+		assert statistics_data_dict1 is not None, "statistics_data_dict1 should not be None"
+		assert statistics_data_dict2 is not None, "statistics_data_dict2 should not be None"
+		if statistics_data_dict1.keys() != statistics_data_dict2.keys():
+			raise ValueError("The dates of the 2 data are NOT identical")
+		'''
+In Python 3, dict.values() returns a dict_values object, which is a view object providing a dynamic representation 
+of the dictionary's values. This differs from Python 2, where it returned a list. The dict_values object offers several 
+advantages and characteristics such as the followings:
+ 1. Dynamic View: It reflects real-time changes to the dictionary without creating a separate copy of the values.
+ 2. Memory Efficiency: As a view, it doesn't create a new list of values, saving memory.
+ 3. No Indexing or Slicing: Unlike lists, dict_values objects don't support indexing or slicing operations.
+
+ If you need list-like functionality, you can convert a dict_values object to a list
+		'''
+		correlation_value = StockFluctuationStatistics.get_correlation(list(statistics_data_dict1.values()), list(statistics_data_dict2.values()))
+		print("Correlation: %.2f" % correlation_value)
+	else:
+		with StockFluctuationStatistics(cfg) as obj:
+			if args.check_trade:
+				obj.check_trade()
+				sys.exit(0)
+			if args.list_trade_opportunity:
+				if args.output_result:
+					obj.list_trade_opportunity_to_file()
+				else:
+					obj.list_trade_opportunity()
+				sys.exit(0)
+			if args.show_statistics:
+				if args.output_result:
+					obj.show_statistics_to_file()
+				else:
+					obj.show_statistics()
+				sys.exit(0)
+			if args.print_filepath:
+				obj.print_filepath()
+				sys.exit(0)
 		# obj.analyze_historical_fluctuation()
 		# obj.find_trade_date(silent=False)
 		# print(obj.check_trade_date(datetime.date(2025,3,17)))

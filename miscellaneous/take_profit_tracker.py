@@ -113,9 +113,9 @@ class TakeProfitTracker(object):
 
 
 	@classmethod
-	def __get_line_list_from_file(self, filepath, startswith=None):
+	def __get_line_list_from_file(cls, filepath, startswith=None):
 		# import pdb; pdb.set_trace()
-		if not self.__check_file_exist(filepath):
+		if not cls.__check_file_exist(filepath):
 			raise RuntimeError("The file[%s] does NOT exist" % filepath)
 		line_list = []
 		with open(filepath, 'r') as fp:
