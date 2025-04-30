@@ -225,19 +225,17 @@ class StockChipAnalysis(object):
 			product_name = None
 			key_str = worksheet.cell_value(row_index, 0)
 			# print "key_str: %s" % key_str
+# '''
+# 				How to fix "SyntaxWarning: invalid escape sequence" in Python?
+# 				The escape character (\) in Python string literals.
+# 				If you want to put a literal \ in a string you may use \\:
+# 				>>> print("foo \\ bar")
+# 				foo \ bar
+# 				Or you may use a "raw string":
+# 				>>> print(r"foo \ bar")
+# 				foo \ bar
+# '''
 			if sheet_metadata["key_mode"] == 0:
-				'''
-				How to fix "SyntaxWarning: invalid escape sequence" in Python?
-
-				\ is the escape character in Python string literals.
-				If you want to put a literal \ in a string you may use \\:
-				>>> print("foo \\ bar")
-				foo \ bar
-
-				Or you may use a "raw string":
-				>>> print(r"foo \ bar")
-				foo \ bar
-				'''
 				mobj = re.match(r"([\d]{4})\s(.+)", key_str)
 				if mobj is None:
 					raise ValueError("%s: Incorrect format0: %s" % (sheet_name, key_str))

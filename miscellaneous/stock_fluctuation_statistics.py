@@ -28,10 +28,10 @@ class StockFluctuationStatistics(object):
 	def __os_is_chinese():
 		locale_module_member_list = dir(locale)
 		encoding = None
-		if 'getdefaultlocale' in locale_module_member_list:
-			_, encoding = locale.getdefaultlocale()
-		elif 'getencoding' in locale_module_member_list:
+		if 'getencoding' in locale_module_member_list:
 			encoding = locale.getencoding()
+		elif 'getdefaultlocale' in locale_module_member_list:
+			_, encoding = locale.getdefaultlocale()
 		if encoding is None:
 			raise RuntimeError("Fails to find the OS encoding")
 		return True if (encoding == "cp950") else False
