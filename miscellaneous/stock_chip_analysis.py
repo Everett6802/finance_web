@@ -16,13 +16,15 @@ import copy
 import csv
 import json
 from datetime import datetime
+import getpass
 # from pymongo import MongoClient
 from collections import OrderedDict
 
 
 class StockChipAnalysis(object):
 
-	DEFAULT_SOURCE_FOLDERPATH =  "C:\\Users\\%s\\Downloads" % os.getlogin()
+	# DEFAULT_SOURCE_FOLDERPATH =  "C:\\Users\\%s\\Downloads" % os.getlogin()
+	DEFAULT_SOURCE_FOLDERPATH =  "C:\\Users\\%s\\Downloads" % getpass.getuser()
 	DEFAULT_SOURCE_FILENAME = "stock_chip_analysis"
 	DEFAULT_SOURCE_FULL_FILENAME = "%s.xlsm" % DEFAULT_SOURCE_FILENAME
 	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
@@ -48,6 +50,10 @@ class StockChipAnalysis(object):
 		# 	"data_start_column_index": 1,
 		# },
 		u"個股夏普值": {
+			"key_mode": 0, # 2489 瑞軒
+			"data_start_column_index": 1,
+		},
+		u"月平均報酬": {
 			"key_mode": 0, # 2489 瑞軒
 			"data_start_column_index": 1,
 		},
@@ -125,12 +131,13 @@ class StockChipAnalysis(object):
 		# },
 	}
 	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
-	DEFAULT_SHEET_NAME_LIST = [u"台股 ETF", u"美股 ETF", u"個股夏普值", u"外資賺錢", u"券商賺錢", u"成交比重", u"主法量率", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"六大買超", u"大戶籌碼", u"SSB", u"上市融資增加", u"上櫃融資增加",]
+	DEFAULT_SHEET_NAME_LIST = [u"台股 ETF", u"美股 ETF", u"個股夏普值", u"月平均報酬", u"外資賺錢", u"券商賺錢", u"成交比重", u"主法量率", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"六大買超", u"大戶籌碼", u"SSB", u"上市融資增加", u"上櫃融資增加",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"外資買超天數累計", u"投信買超天數累計",],
 	]
+	MONTHLY_AVERAGE_RETURN_SHEETNAME = "月平均報酬"
 	DEFAULT_MIN_CONSECUTIVE_OVER_BUY_DAYS = 3
 	DEFAULT_MAX_CONSECUTIVE_OVER_BUY_DAYS = 15
 	CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST = [u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
@@ -397,7 +404,7 @@ class StockChipAnalysis(object):
 		self.filepath_dict["tracked_stock_list"] = self.xcfg["tracked_stock_list_filepath"]
 		self.filepath_dict["output_result"] = self.xcfg["output_result_filepath"]
 		self.filepath_dict["cb_publish"] = self.xcfg["cb_publish_filepath"]
-
+		self.mouthly_average_return_sorted_data = None
 		self.workbook = None
 		self.output_result_file = None
 		self.stdout_tmp = None
@@ -603,6 +610,14 @@ class StockChipAnalysis(object):
 	# 		self.sorted_ssb_dict[field_name] = self.__get_sorted_stock_list(field_name, ssb_stock_chip_data_dict, reverse=reverse)
 	# 	# import pdb; pdb.set_trace()
 	# 	return self.sorted_ssb_dict[field_name]
+
+
+	def __get_monthly_average_return_sorted_data(self):
+		if self.mouthly_average_return_sorted_data is None:
+			mouthly_average_return_sheet_data = self.__read_sheet_data(self.MONTHLY_AVERAGE_RETURN_SHEETNAME)
+			mouthly_average_return_data = [(key, float(value['D'])) for key, value in mouthly_average_return_sheet_data['value'].items()]
+			self.mouthly_average_return_sorted_data = list(OrderedDict(sorted(mouthly_average_return_data, key=lambda x: x[1], reverse=True)).keys())
+		return self.mouthly_average_return_sorted_data
 
 
 	def __print_file_modification_date(self):
@@ -880,6 +895,18 @@ class StockChipAnalysis(object):
 				# 	print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
 				item_type_list = map(lambda x, y: (x[0], x[1], y), item_list, stock_chip_data_dict[sheet_name]["type"])
 				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌", "漲跌幅", "成交量", "總量",], item_type_list)
+				if sheet_name == self.MONTHLY_AVERAGE_RETURN_SHEETNAME:
+					# import pdb; pdb.set_trace()
+					monthly_average_return_sorted_data = self.__get_monthly_average_return_sorted_data()
+					try:
+						monthly_average_return_rank = monthly_average_return_sorted_data.index(tracked_stock)
+						item_type_list = list(item_type_list)
+						rank_str = "%d/%d" % (monthly_average_return_rank + 1, len(monthly_average_return_sorted_data))
+						item_type_list.insert(0, ("排名", rank_str, str))
+					except ValueError as e:
+						# print("%s:%s Error: %s in %s" % (tracked_stock, sheet_name, str(e), str(list(item_type_list))))
+						# import pdb; pdb.set_trace()
+						raise e
 				try:
 					# import pdb; pdb.set_trace()
 					print("  " + sheet_name + ": " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
