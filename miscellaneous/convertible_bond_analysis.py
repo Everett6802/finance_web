@@ -23,6 +23,7 @@ import collections
 import time
 import json
 import copy
+import getpass
 from collections import OrderedDict
 
 
@@ -45,7 +46,8 @@ def retry(max_retry=3, sleep_time=10):
 
 class ConvertibleBondAnalysis(object):
 
-	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
+	# DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
+	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % getpass.getuser()
 	DEFAULT_TRACKED_CB_LIST_FILENAME = "convertible_bond_list.txt"
 
 	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"

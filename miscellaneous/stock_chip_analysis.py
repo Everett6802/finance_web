@@ -23,15 +23,22 @@ from collections import OrderedDict
 
 class StockChipAnalysis(object):
 
+	DEFAULT_HOST_ROOT_FOLDERPATH =  "C:\\Users\\%s\\project_data\\finance_web" % getpass.getuser()
 	# DEFAULT_SOURCE_FOLDERPATH =  "C:\\Users\\%s\\Downloads" % os.getlogin()
-	DEFAULT_SOURCE_FOLDERPATH =  "C:\\Users\\%s\\Downloads" % getpass.getuser()
+	DEFAULT_HOST_SOURCE_FOLDERPATH =  DEFAULT_HOST_ROOT_FOLDERPATH  # "C:\\Users\\%s\\Downloads" % getpass.getuser()
+	DEFAULT_SOURCE_FOLDERPATH =  os.getenv("DATA_PATH", DEFAULT_HOST_SOURCE_FOLDERPATH)
 	DEFAULT_SOURCE_FILENAME = "stock_chip_analysis"
 	DEFAULT_SOURCE_FULL_FILENAME = "%s.xlsm" % DEFAULT_SOURCE_FILENAME
-	DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
+	# DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
+	DEFAULT_HOST_CONFIG_FOLDERPATH =  DEFAULT_HOST_ROOT_FOLDERPATH  # "C:\\Users\\%s" % getpass.getuser()
+	DEFAULT_CONFIG_FOLDERPATH =  os.getenv("DATA_PATH", DEFAULT_HOST_CONFIG_FOLDERPATH)
 	DEFAULT_TRACKED_STOCK_LIST_FILENAME = "chip_analysis_stock_list.txt"
+#####################################################
+# CB related path settings are temporarily deprecated
 	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"
 	DEFAULT_CB_DATA_FOLDERNAME =  "Data"
 	DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX = "可轉換公司債月分析表"
+#####################################################
 	# DEFAULT_REPORT_FILENAME = "chip_analysis_report.xlsx"
 	DEFAULT_OUTPUT_RESULT_FILENAME = "output_result.txt"
 	SHEET_METADATA_DICT = {
@@ -852,11 +859,12 @@ class StockChipAnalysis(object):
 
 
 	def track_targets(self, stock_chip_data_dict=None):
+		# import pdb; pdb.set_trace()
 		if self.xcfg["tracked_stock_list"] is None:
 			self.__get_tracked_stock_list_from_file()
 		if stock_chip_data_dict is None:
 			stock_chip_data_dict = self.get_stock_chip_data()
-		mass_convert_cb_dict = self.search_cb_mass_convert()
+		mass_convert_cb_dict = None  # self.search_cb_mass_convert()
 		if mass_convert_cb_dict is None:
 			print("\nNo Latest CB Mass Convert Data......\n")
 
@@ -958,7 +966,8 @@ class StockChipAnalysis(object):
 		self.xcfg["tracked_stock_list"] = []
 		with open(self.xcfg['tracked_stock_list_filepath'], 'r') as fp:
 			for line in fp:
-				self.xcfg["tracked_stock_list"].append(line.strip("\n"))
+				self.xcfg["tracked_stock_list"].extend(line.strip("\n").split(","))
+				# self.xcfg["tracked_stock_list"].append(line.strip("\n"))
 			if self.xcfg["sort_tracked_stock_list_output"]:
 				self.xcfg["tracked_stock_list"].sort()
 
