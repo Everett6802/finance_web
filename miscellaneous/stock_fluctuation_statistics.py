@@ -146,6 +146,7 @@ class StockFluctuationStatistics(object):
 			"trade_date_is_holiday_filename": self.DEFAULT_TRADE_DATE_IS_HOLIDAY_FILENAME,
 			"trade_date_is_holiday_folderpath": None,
 			"trade_date_string": None,
+			"statistics_date_range_string": None,
 			"rise_percentage_threshold": self.DEFAULT_RISE_PERCENTAGE_THRESHOLD,
 			"fall_percentage_threshold": self.DEFAULT_FALL_PERCENTAGE_THRESHOLD,
 			"output_result_filename": self.DEFAULT_OUTPUT_RESULT_FILENAME,
@@ -203,7 +204,7 @@ class StockFluctuationStatistics(object):
 		return False
 
 
-	def __date_str2obj(self, date_str):
+	def __date_str2list(self, date_str, skip_year=False):
 		# import pdb; pdb.set_trace()
 		# print(date_str)
 		if date_str.find("/") != -1:
@@ -224,6 +225,11 @@ class StockFluctuationStatistics(object):
 				raise ValueError("Incorrect date string format: %s" % date_str)
 		else:
 			raise ValueError("Incorrect date string format: %s" % date_str)
+		return [month, day] if skip_year else [year, month, day]
+
+
+	def __date_str2obj(self, date_str):
+		[year, month, day] = self.__date_str2list(date_str)
 		date_obj = None
 		try:
 			date_obj = datetime.date(year, month, day)
@@ -294,15 +300,32 @@ class StockFluctuationStatistics(object):
 		return self.trade_date_is_holiday_date_list
 
 
-	def __calculate_historical_fluctuation(self):
+	def __calculate_historical_fluctuation(self, time_range_start=None, time_range_end=None):
 		worksheet_data = self.__read_worksheet()
+		# import pdb; pdb.set_trace()
 		time_index = worksheet_data["title"].index(self.DEFAULT_TIME_FIELD_NAME)
 		closing_price_index = worksheet_data["title"].index(self.DEFAULT_CLOSING_PRICE_FIELD_NAME)
 		data_len = len(worksheet_data["data"])
 		fluctuation_data = {}
+		need_check_time_range = (time_range_start is not None) or (time_range_end is not None)
+		if need_check_time_range:
+			time_range_start_list = None
+			time_range_end_list = None
+			if time_range_start is not None:
+				time_range_start_list = self.__date_str2list(time_range_start, True)
+			else:
+				time_range_start_list = self.__date_str2list("01/01/1900", True)
+			if time_range_end is not None:
+				time_range_end_list = self.__date_str2list(time_range_end, True)
+			else:
+				time_range_end_list = self.__date_str2list("12/31/2100", True)
 		# import pdb; pdb.set_trace()
 		for index in range(1, data_len):
 			data_time = worksheet_data["data"][index][time_index]
+			if need_check_time_range:
+				data_time_list = self.__date_str2list(data_time, True)
+				if (data_time_list < time_range_start_list) or (data_time_list > time_range_end_list):
+					continue
 			data_fluctuation = worksheet_data["data"][index][closing_price_index] - worksheet_data["data"][index - 1][closing_price_index]
 			date_time_date = data_time[:data_time.rindex("/")]
 			if date_time_date not in fluctuation_data:
@@ -377,7 +400,7 @@ class StockFluctuationStatistics(object):
 				# import pdb; pdb.set_trace()
 				trade_opportunity_data["trade_date"] = self.__get_trade_date(check_date)
 				if not silent: 
-					print("%s -> %s:%s" % (check_date, ("X" if trade_opportunity_data["trade_date"] is None else trade_opportunity_data["trade_date"]), ("Bull" if trade_opportunity_data["rise_or_fall"] == "rise" else "Bear")))
+					print("%s -> %s : %s" % (check_date, ("X" if trade_opportunity_data["trade_date"] is None else trade_opportunity_data["trade_date"]), ("Bull" if trade_opportunity_data["rise_or_fall"] == "rise" else "Bear")))
 		return self.trade_opportunity_data_list
 
 
@@ -486,13 +509,27 @@ class StockFluctuationStatistics(object):
 
 
 	def show_statistics(self):
-		fluctuation_data = self.__calculate_historical_fluctuation()
+		# import pdb; pdb.set_trace()
+		date_range_start = date_range_end = None
+		if self.xcfg["statistics_date_range_string"] is not None:
+			date_range_list = self.xcfg["statistics_date_range_string"].split(":")
+			if len(date_range_list) == 1:
+				date_range_start = date_range_end = date_range_list[0]
+			else: 
+				[date_range_start, date_range_end] = date_range_list
+			date_range_start = None if len(date_range_start) == 0 else date_range_start
+			date_range_end = None if len(date_range_end) == 0 else date_range_end
+		# import pdb; pdb.set_trace()
+		fluctuation_data = self.__calculate_historical_fluctuation(date_range_start, date_range_end)
 		for key, value in fluctuation_data.items():
 			data_len = len(value)
+			data_mean = statistics.mean(value)
+			data_std = statistics.stdev(value)
+			data_sharp_ratio = data_mean / data_std if data_std != 0 else 0
 			value_rise = list(filter(lambda x: x > 0, value))
 			data_rise_len = len(value_rise)
 			data_rise_percentage = round(float(data_rise_len) * 100.0 / data_len, 1)
-			print("%s  %.1f[%d/%d]" % (key, data_rise_percentage, data_rise_len, data_len))
+			print("%s  %.1f[%d/%d] -> %.2f %.2f %.2f" % (key, data_rise_percentage, data_rise_len, data_len, data_mean, data_std, data_sharp_ratio))
 
 
 	@write_to_file
@@ -527,7 +564,21 @@ if __name__ == "__main__":
   Format: m(m)/d(d)   Ex: 3/11   Note: use current year if the year is NOT set''')
 	# parser.add_argument('--tracked_stock_list', required=False, help='The list of specific stock targets to be trackeded.')
 	parser.add_argument('-l', '--list_trade_opportunity', required=False, action='store_true', help='List trade opportunities and exit.')
-	parser.add_argument('-s', '--show_statistics', required=False, action='store_true', help='Show all the statistics data and exit.')
+	parser.add_argument('-s', '--show_statistics', required=False, action='store_true', help='Show the all statistics data and exit.')
+	parser.add_argument('--statistics_date', required=False, 
+		 help='''The specific date of the statistics data.
+  Format: mm-dd   Ex: 03-11
+  Format: m(m)/d(d)   Ex: 3/11
+  Date
+	Format: mm-dd   Ex: 09-04''')
+	parser.add_argument('--statistics_date_range', required=False, 
+		 help='''The date range of the statistics data.
+  Format: mm-dd   Ex: 03-11
+  Format: m(m)/d(d)   Ex: 3/11
+  Date range
+    Format: mm1-dd1:mm2-dd2   From mm1-dd1 to mm2-dd2   Ex: 09-04:10-15
+	Format: mm-dd:   From mm-dd to 12-31   Ex: 09-04:
+	Format: :mm-dd   From 01-01 to mm-dd   Ex: :09-04''')
 	parser.add_argument('--source_filename', required=False, help='Set the source filename')
 	parser.add_argument('-o', '--output_result', required=False, action='store_true', help='Output the result to the file')
 	parser.add_argument('--output_result_filename', required=False, help='The filename of outputting the result')
@@ -539,6 +590,10 @@ if __name__ == "__main__":
 	cfg = {}
 	if args.trade_date:
 		cfg['trade_date_string'] = args.trade_date
+	if args.statistics_date:
+		cfg['statistics_date_range_string'] = args.statistics_date
+	if args.statistics_date_range:
+		cfg['statistics_date_range_string'] = args.statistics_date_range
 	if args.source_filename:
 		cfg['source_filename'] = args.source_filename
 	if args.output_result_filename:
