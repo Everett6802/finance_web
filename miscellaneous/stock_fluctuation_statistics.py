@@ -9,7 +9,7 @@ import argparse
 import errno
 import math
 import locale
-import datetime
+from datetime import datetime, date, timedelta
 import statistics
 from collections import OrderedDict
 
@@ -110,7 +110,7 @@ class StockFluctuationStatistics(object):
 	DEFAULT_TIME_FIELD_NAME = "時間"	
 	DEFAULT_CLOSING_PRICE_FIELD_NAME = "收盤價"	
 	DEFAULT_DATE_BASE_NUMBER = 36526
-	DEFAULT_DATE_BASE = datetime.date(2000, 1, 1)
+	DEFAULT_DATE_BASE = date(2000, 1, 1)
 	DEFAULT_TRADE_DATE_IS_HOLIDAY_FILENAME = "trade_date_is_holiday"
 	DEFAULT_RISE_PERCENTAGE_THRESHOLD = 80.0
 	DEFAULT_FALL_PERCENTAGE_THRESHOLD = 20.0
@@ -137,6 +137,81 @@ class StockFluctuationStatistics(object):
 	@classmethod
 	def __is_leap_year(cls, year):
 		return True if (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0) else False
+
+
+	@classmethod
+	def __get_week_number_of_weekday(cls, dt: date, expected_weekday: int) -> int:
+		"""
+		計算 dt 是當月第幾個週幾。 假設 dt 是週三，如果不是週三則回傳 None。
+		Args:
+			dt (date): 任意日期
+			expected_weekday (int): 星期幾 (0=星期一, 1=星期二, 2=星期三, ..., 6=星期日)
+		Returns:
+			int | None: 第幾個週幾 (1, 2, 3, ...) 或 None
+		"""
+		if dt.weekday() != expected_weekday:
+			return None
+		# 當月第一天
+		first_day = dt.replace(day=1)
+		# 計算當月第一個週幾
+		days_until_first_wed = (expected_weekday - first_day.weekday()) % 7
+		first_day_weekday = first_day + timedelta(days=days_until_first_wed)
+		# 計算差距天數，再除以 7 得出週數
+		delta_days = (dt - first_day_weekday).days
+		week_number = delta_days // 7 + 1
+		return week_number
+
+
+	@classmethod
+	def __get_nth_weekday_of_month(cls, year, month, n, expected_weekday=2):
+		"""
+		取得某年某月的第 n 個週幾的日期。
+		Args:
+			year (int): 年份
+			month (int): 月份
+			n (int): 第幾個週幾 (1, 2, 3, ...)
+		Returns:
+			date | None: 該日期或 None
+		"""
+		first_day = date(year, month, 1)
+		# first_day_weekday = first_day.weekday()
+		days_until_expected_weekday = (expected_weekday - first_day.weekday()) % 7
+		first_expected_weekday = first_day + timedelta(days=days_until_expected_weekday)
+		nth_expected_weekday = first_expected_weekday + timedelta(weeks=n-1)
+		if nth_expected_weekday.month != month:
+			return None
+		return nth_expected_weekday
+
+
+	@classmethod
+	def __get_weekly_option_duration(cls, year, month, n: int, expected_weekday=2, return_time_str=False):
+		duration_end_dt = cls.__get_nth_weekday_of_month(year, month, n, expected_weekday)
+		if duration_end_dt is None:
+			return None, None
+		duration_start_dt = duration_end_dt - timedelta(days=7)
+		if return_time_str:
+			duration_start_dt = duration_start_dt.strftime("%m-%d")
+			duration_end_dt = duration_end_dt.strftime("%m-%d")
+		return duration_start_dt, duration_end_dt
+
+
+	@classmethod
+	def __get_nearest_weekday_by_date(cls, dt: date, expected_weekday=2):
+		days_until_expected_weekday = (expected_weekday - dt.weekday()) % 7
+		if days_until_expected_weekday == 0:
+			days_until_expected_weekday = 7
+		nearest_weekday_dt = dt + timedelta(days=days_until_expected_weekday)
+		return nearest_weekday_dt
+
+
+	@classmethod
+	def __get_weekly_option_duration_by_date(cls, dt: date, expected_weekday=2, return_time_str=False):
+		duration_end_dt = cls.__get_nearest_weekday_by_date(dt, expected_weekday)
+		duration_start_dt = duration_end_dt - timedelta(days=7)
+		if return_time_str:
+			duration_start_dt = duration_start_dt.strftime("%m-%d")
+			duration_end_dt = duration_end_dt.strftime("%m-%d")
+		return duration_start_dt, duration_end_dt
 
 
 	def __init__(self, cfg):
@@ -182,7 +257,7 @@ class StockFluctuationStatistics(object):
 
 		self.workbook = None
 		self.trade_date_is_holiday_date_list = None
-		self.cur_year = datetime.datetime.now().year
+		self.cur_year = datetime.now().year
 		self.is_leap_year = self.__is_leap_year(self.cur_year)
 		self.trade_opportunity_data_list = None
 		self.output_result_file = None
@@ -232,7 +307,7 @@ class StockFluctuationStatistics(object):
 		[year, month, day] = self.__date_str2list(date_str)
 		date_obj = None
 		try:
-			date_obj = datetime.date(year, month, day)
+			date_obj = date(year, month, day)
 		except Exception as e:
 			print("Unsupport date format[%s] due to: %s" % (date_str, str(e)))
 			# import pdb; pdb.set_trace()
@@ -270,8 +345,8 @@ class StockFluctuationStatistics(object):
 				entry_value = self.Worksheet.cell_value(row_index, column_index)
 				if column_index == 0:
 					day_diff = int(entry_value) - self.DEFAULT_DATE_BASE_NUMBER
-					entry_date = self.DEFAULT_DATE_BASE + datetime.timedelta(days=day_diff)
-					if entry_date < datetime.date(2010, 1, 1):
+					entry_date = self.DEFAULT_DATE_BASE + timedelta(days=day_diff)
+					if entry_date < date(2010, 1, 1):
 						can_add = False
 						break
 					entry_value = entry_date.strftime("%m/%d/%Y")
@@ -290,17 +365,17 @@ class StockFluctuationStatistics(object):
 			if not self.__check_file_exist(self.xcfg["trade_date_is_holiday_filepath"]):
 				raise RuntimeError("The file of date list[%s] does NOT exist" % self.xcfg["trade_date_is_holiday_filepath"])
 			self.trade_date_is_holiday_date_list = []
-			# cur_date = datetime.datetime.now()
+			# cur_date = datetime.now()
 			# cur_year = cur_date.year
 			# import pdb; pdb.set_trace()
 			with open(self.xcfg["trade_date_is_holiday_filepath"], "r") as fp:
 				for line in fp:
-					holiday_date = datetime.datetime.strptime(line.strip("\n"), "%m/%d")
-					self.trade_date_is_holiday_date_list.append(datetime.date(self.cur_year, holiday_date.month, holiday_date.day))
+					holiday_date = datetime.strptime(line.strip("\n"), "%m/%d")
+					self.trade_date_is_holiday_date_list.append(date(self.cur_year, holiday_date.month, holiday_date.day))
 		return self.trade_date_is_holiday_date_list
 
 
-	def __calculate_historical_fluctuation(self, time_range_start=None, time_range_end=None):
+	def __calculate_historical_fluctuation(self, time_range_start=None, time_range_end=None, rotate=False):
 		worksheet_data = self.__read_worksheet()
 		# import pdb; pdb.set_trace()
 		time_index = worksheet_data["title"].index(self.DEFAULT_TIME_FIELD_NAME)
@@ -308,9 +383,10 @@ class StockFluctuationStatistics(object):
 		data_len = len(worksheet_data["data"])
 		fluctuation_data = {}
 		need_check_time_range = (time_range_start is not None) or (time_range_end is not None)
+		time_range_start_list = None
+		time_range_end_list = None
+		rotate = False
 		if need_check_time_range:
-			time_range_start_list = None
-			time_range_end_list = None
 			if time_range_start is not None:
 				time_range_start_list = self.__date_str2list(time_range_start, True)
 			else:
@@ -319,20 +395,40 @@ class StockFluctuationStatistics(object):
 				time_range_end_list = self.__date_str2list(time_range_end, True)
 			else:
 				time_range_end_list = self.__date_str2list("12/31/2100", True)
+			rotate = True if (time_range_end_list < time_range_start_list) else False
 		# import pdb; pdb.set_trace()
 		for index in range(1, data_len):
 			data_time = worksheet_data["data"][index][time_index]
 			if need_check_time_range:
 				data_time_list = self.__date_str2list(data_time, True)
-				if (data_time_list < time_range_start_list) or (data_time_list > time_range_end_list):
+				time_in_range = False
+				if rotate:
+					time_in_range = False if ((data_time_list > time_range_end_list) and (data_time_list < time_range_start_list)) else True
+				else:
+					time_in_range = True if ((data_time_list >= time_range_start_list) and (data_time_list <= time_range_end_list)) else False
+				if not time_in_range:
 					continue
 			data_fluctuation = worksheet_data["data"][index][closing_price_index] - worksheet_data["data"][index - 1][closing_price_index]
 			date_time_date = data_time[:data_time.rindex("/")]
 			if date_time_date not in fluctuation_data:
 				fluctuation_data[date_time_date] = []
 			fluctuation_data[date_time_date].append(data_fluctuation)
-		# import pdb; pdb.set_trace()
-		fluctuation_data = OrderedDict(list(sorted(fluctuation_data.items(), key=lambda x: x[0])))
+		if rotate:
+			# import pdb; pdb.set_trace()
+# pivot roughly in the middle of the range (month, day)
+			time_pivot_tmp = ((time_range_end_list[0] + time_range_start_list[0]) / 2, (time_range_end_list[1] + time_range_start_list[1]) / 2)
+			time_pivot = list(map(int, time_pivot_tmp))
+			# time_pivot = [time_pivot_month, time_pivot_day]
+			# items = list(fluctuation_data.items())
+			fluctuation_data_part1 = [data for data in fluctuation_data.items() if self.__date_str2list(data[0], True) >= time_pivot]
+			fluctuation_data_part2 = [data for data in fluctuation_data.items() if self.__date_str2list(data[0], True) < time_pivot]
+			fluctuation_data_part1.sort(key=lambda x: x[0])
+			fluctuation_data_part2.sort(key=lambda x: x[0])
+			# import pdb; pdb.set_trace()
+			# combine part1 then part2 into a single OrderedDict
+			fluctuation_data = OrderedDict(fluctuation_data_part1 + fluctuation_data_part2)
+		else:
+			fluctuation_data = OrderedDict(list(sorted(fluctuation_data.items(), key=lambda x: x[0])))
 		return fluctuation_data
 
 
@@ -346,7 +442,7 @@ class StockFluctuationStatistics(object):
 	def __get_trade_date(self, check_start_date):
 		count = 1
 		while True:
-			trade_date = check_start_date - datetime.timedelta(days=count)
+			trade_date = check_start_date - timedelta(days=count)
 			if self.__check_date_can_trade(trade_date):
 				return trade_date
 			if count >= 365:
@@ -425,7 +521,7 @@ class StockFluctuationStatistics(object):
 
 
 	def get_check_date_trade_info(self, check_date=None):
-		if check_date is None: check_date = datetime.datetime.now().date()
+		if check_date is None: check_date = datetime.now().date()
 		# trade_opportunity_data_list = self.find_trade_date()
 		# import pdb; pdb.set_trace()
 		trade_date_list = [trade_opportunity_data["trade_date"] for trade_opportunity_data in self.__get_trade_opportunity_data_list()]
@@ -441,7 +537,7 @@ class StockFluctuationStatistics(object):
 
 
 	def get_latest_date_trade_info(self, check_date=None):
-		if check_date is None: check_date = datetime.datetime.now().date()
+		if check_date is None: check_date = datetime.now().date()
 		# import pdb; pdb.set_trace()
 		trade_date_list = [trade_opportunity_data["trade_date"] for trade_opportunity_data in self.__get_trade_opportunity_data_list()]
 		trade_date_list_len = len(trade_date_list)
@@ -461,7 +557,7 @@ class StockFluctuationStatistics(object):
 
 
 	def parse_check_date_trade_info(self, check_date=None):
-		if check_date is None: check_date = datetime.datetime.now().date()
+		if check_date is None: check_date = datetime.now().date()
 		# trade_opportunity_data = self.get_check_date_trade_info(check_date)
 		trade_opportunity_data = self.get_latest_date_trade_info(check_date)
 		# import pdb; pdb.set_trace()
@@ -512,13 +608,22 @@ class StockFluctuationStatistics(object):
 		# import pdb; pdb.set_trace()
 		date_range_start = date_range_end = None
 		if self.xcfg["statistics_date_range_string"] is not None:
-			date_range_list = self.xcfg["statistics_date_range_string"].split(":")
-			if len(date_range_list) == 1:
-				date_range_start = date_range_end = date_range_list[0]
-			else: 
-				[date_range_start, date_range_end] = date_range_list
-			date_range_start = None if len(date_range_start) == 0 else date_range_start
-			date_range_end = None if len(date_range_end) == 0 else date_range_end
+			obj = re.match(r'([\d]{2})([\d]{2})([WwFf])([12345])', self.xcfg["statistics_date_range_string"])
+			if obj is not None:  # Weekly option
+				[year_str, month_str, weekday_str, week_number_str] = obj.groups()
+				year = 2000 + int(year_str)
+				month = int(month_str)
+				week_number = int(week_number_str)
+				weekday = 2 if weekday_str in ['W', 'w'] else 4
+				date_range_start, date_range_end = self.__get_weekly_option_duration(year, month, week_number, weekday, return_time_str=True)
+			else:
+				date_range_list = self.xcfg["statistics_date_range_string"].split(":")
+				if len(date_range_list) == 1:
+					date_range_start = date_range_end = date_range_list[0]
+				else: 
+					[date_range_start, date_range_end] = date_range_list
+				date_range_start = None if len(date_range_start) == 0 else date_range_start
+				date_range_end = None if len(date_range_end) == 0 else date_range_end
 		# import pdb; pdb.set_trace()
 		fluctuation_data = self.__calculate_historical_fluctuation(date_range_start, date_range_end)
 		for key, value in fluctuation_data.items():
@@ -566,19 +671,19 @@ if __name__ == "__main__":
 	parser.add_argument('-l', '--list_trade_opportunity', required=False, action='store_true', help='List trade opportunities and exit.')
 	parser.add_argument('-s', '--show_statistics', required=False, action='store_true', help='Show the all statistics data and exit.')
 	parser.add_argument('--statistics_date', required=False, 
-		 help='''The specific date of the statistics data.
-  Format: mm-dd   Ex: 03-11
-  Format: m(m)/d(d)   Ex: 3/11
+		 help='''The statistics data of the specific date.
   Date
 	Format: mm-dd   Ex: 09-04''')
 	parser.add_argument('--statistics_date_range', required=False, 
-		 help='''The date range of the statistics data.
-  Format: mm-dd   Ex: 03-11
-  Format: m(m)/d(d)   Ex: 3/11
+		 help='''The statistics data of the date range.
   Date range
     Format: mm1-dd1:mm2-dd2   From mm1-dd1 to mm2-dd2   Ex: 09-04:10-15
 	Format: mm-dd:   From mm-dd to 12-31   Ex: 09-04:
 	Format: :mm-dd   From 01-01 to mm-dd   Ex: :09-04''')
+	parser.add_argument('--statistics_weekly_option', required=False, 
+		 help='''The statistics data of the date range for the specific weekly option .
+  Date range for the specific weekly option
+    Format: YYMM(W/F)WW   Y: Year, MM: Month, W: Wed, F: Fri, WW: nth Week   Ex: 2512W1, 2512F3''')
 	parser.add_argument('--source_filename', required=False, help='Set the source filename')
 	parser.add_argument('-o', '--output_result', required=False, action='store_true', help='Output the result to the file')
 	parser.add_argument('--output_result_filename', required=False, help='The filename of outputting the result')
@@ -594,6 +699,8 @@ if __name__ == "__main__":
 		cfg['statistics_date_range_string'] = args.statistics_date
 	if args.statistics_date_range:
 		cfg['statistics_date_range_string'] = args.statistics_date_range
+	if args.statistics_weekly_option:
+		cfg['statistics_date_range_string'] = args.statistics_weekly_option
 	if args.source_filename:
 		cfg['source_filename'] = args.source_filename
 	if args.output_result_filename:
@@ -654,7 +761,7 @@ advantages and characteristics such as the followings:
 				else:
 					obj.list_trade_opportunity()
 				sys.exit(0)
-			if args.show_statistics:
+			if args.show_statistics or args.statistics_date_range or args.statistics_weekly_option:
 				if args.output_result:
 					obj.show_statistics_to_file()
 				else:
@@ -665,14 +772,14 @@ advantages and characteristics such as the followings:
 				sys.exit(0)
 		# obj.analyze_historical_fluctuation()
 		# obj.find_trade_date(silent=False)
-		# print(obj.check_trade_date(datetime.date(2025,3,17)))
-		# obj.parse_check_date_trade_info(datetime.date(2025,3,17))
-		# test_datetime = datetime.datetime.now() - datetime.timedelta(days = 3)
+		# print(obj.check_trade_date(date(2025,3,17)))
+		# obj.parse_check_date_trade_info(date(2025,3,17))
+		# test_datetime = datetime.now() - timedelta(days = 3)
 		# print(test_datetime.date(), obj.check_date_can_trade(test_datetime.date()))
 	# print(os.getcwd())
 	# entry_date = "3/3"
-	# entry_value = datetime.datetime.strptime(entry_date, "%m/%d")
-	# my_date = datetime.date(2025, entry_value.month, entry_value.day)
+	# entry_value = datetime.strptime(entry_date, "%m/%d")
+	# my_date = date(2025, entry_value.month, entry_value.day)
 	# print(my_date)
 	# print(my_date.weekday())
-	# print(my_date.date() == datetime.datetime.now().date())
+	# print(my_date.date() == datetime.now().date())
