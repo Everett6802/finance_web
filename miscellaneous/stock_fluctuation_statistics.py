@@ -10,6 +10,7 @@ import errno
 import math
 import locale
 from datetime import datetime, date, timedelta
+import getpass
 import statistics
 from collections import OrderedDict
 
@@ -104,6 +105,8 @@ class StockFluctuationStatistics(object):
 		return statistics_data_dict
 
 
+	DEFAULT_HOST_DATA_FOLDERPATH =  "C:\\Users\\%s\\project_data\\finance_web" % getpass.getuser()
+	DEFAULT_DATA_FOLDERPATH =  os.getenv("DATA_PATH", DEFAULT_HOST_DATA_FOLDERPATH)
 	DEFAULT_SOURCE_FILENAME = "加權指數歷史資料2000-2024.xlsx"
 	DEFAULT_SOURCE_FILENAME2 = "期貨指數歷史資料2000-2024.xlsx"
 	# DEFAULT_SOURCE_FULL_FILENAME = "%s.xlsx" % DEFAULT_SOURCE_FILENAME
@@ -112,6 +115,7 @@ class StockFluctuationStatistics(object):
 	DEFAULT_DATE_BASE_NUMBER = 36526
 	DEFAULT_DATE_BASE = date(2000, 1, 1)
 	DEFAULT_TRADE_DATE_IS_HOLIDAY_FILENAME = "trade_date_is_holiday"
+	DEFAULT_STATISTICS_ANALYSIS_METHOD = 0
 	DEFAULT_RISE_PERCENTAGE_THRESHOLD = 80.0
 	DEFAULT_FALL_PERCENTAGE_THRESHOLD = 20.0
 	DEFAULT_OUTPUT_RESULT_FILENAME = "stock_fluctuation_statistics.txt"
@@ -184,11 +188,11 @@ class StockFluctuationStatistics(object):
 
 
 	@classmethod
-	def __get_weekly_option_duration(cls, year, month, n: int, expected_weekday=2, return_time_str=False):
+	def __get_weekly_option_duration(cls, year, month, n: int, expected_weekday=2, day_duration=7, return_time_str=False):
 		duration_end_dt = cls.__get_nth_weekday_of_month(year, month, n, expected_weekday)
 		if duration_end_dt is None:
 			return None, None
-		duration_start_dt = duration_end_dt - timedelta(days=7)
+		duration_start_dt = duration_end_dt - timedelta(days=day_duration)
 		if return_time_str:
 			duration_start_dt = duration_start_dt.strftime("%m-%d")
 			duration_end_dt = duration_end_dt.strftime("%m-%d")
@@ -205,9 +209,9 @@ class StockFluctuationStatistics(object):
 
 
 	@classmethod
-	def __get_weekly_option_duration_by_date(cls, dt: date, expected_weekday=2, return_time_str=False):
+	def __get_weekly_option_duration_by_date(cls, dt: date, expected_weekday=2, day_duration=7, return_time_str=False):
 		duration_end_dt = cls.__get_nearest_weekday_by_date(dt, expected_weekday)
-		duration_start_dt = duration_end_dt - timedelta(days=7)
+		duration_start_dt = duration_end_dt - timedelta(days=day_duration)
 		if return_time_str:
 			duration_start_dt = duration_start_dt.strftime("%m-%d")
 			duration_end_dt = duration_end_dt.strftime("%m-%d")
@@ -221,7 +225,9 @@ class StockFluctuationStatistics(object):
 			"trade_date_is_holiday_filename": self.DEFAULT_TRADE_DATE_IS_HOLIDAY_FILENAME,
 			"trade_date_is_holiday_folderpath": None,
 			"trade_date_string": None,
+			"statistics_date_range_string_index": None,
 			"statistics_date_range_string": None,
+			"statistics_analysis_method": self.DEFAULT_STATISTICS_ANALYSIS_METHOD,
 			"rise_percentage_threshold": self.DEFAULT_RISE_PERCENTAGE_THRESHOLD,
 			"fall_percentage_threshold": self.DEFAULT_FALL_PERCENTAGE_THRESHOLD,
 			"output_result_filename": self.DEFAULT_OUTPUT_RESULT_FILENAME,
@@ -230,7 +236,7 @@ class StockFluctuationStatistics(object):
 		}
 		self.xcfg.update(cfg)
 		# import pdb; pdb.set_trace()
-		self.DEFAULT_DATA_FOLDERPATH =  "G:\\{root_foldername}\\數據".format(root_foldername=self.__get_google_cloud_root_foldername())
+		# self.DEFAULT_DATA_FOLDERPATH =  "G:\\{root_foldername}\\數據".format(root_foldername=self.__get_google_cloud_root_foldername())
 		self.DEFAULT_OUTPUT_FOLDERPATH =  self.DEFAULT_DATA_FOLDERPATH  # "C:\\Users\\%s" % os.getlogin()
 	
 		self.xcfg["data_folderpath"] = self.DEFAULT_DATA_FOLDERPATH if self.xcfg["data_folderpath"] is None else self.xcfg["data_folderpath"]
@@ -604,37 +610,119 @@ class StockFluctuationStatistics(object):
 		self.list_trade_opportunity()
 
 
-	def show_statistics(self):
+	def __extract_statistics(self):
 		# import pdb; pdb.set_trace()
 		date_range_start = date_range_end = None
-		if self.xcfg["statistics_date_range_string"] is not None:
-			obj = re.match(r'([\d]{2})([\d]{2})([WwFf])([12345])', self.xcfg["statistics_date_range_string"])
-			if obj is not None:  # Weekly option
+		if self.xcfg["statistics_date_range_string_index"] is not None:
+			assert self.xcfg["statistics_date_range_string"] is not None, " statistics_date_range_string should be NOT None"
+			if self.xcfg["statistics_date_range_string_index"] == 0:
+				date_range_start = date_range_end = self.xcfg["statistics_date_range_string"]
+			elif self.xcfg["statistics_date_range_string_index"] == 1:
+				date_range_list = self.xcfg["statistics_date_range_string"].split(":")
+				if len(date_range_list) != 2:
+					raise ValueError("Incorrect date range format: %s" % self.xcfg["statistics_date_range_string"])
+				[date_range_start, date_range_end] = date_range_list
+			elif self.xcfg["statistics_date_range_string_index"] == 2:
+				# date_range_start = date_range_end = self.xcfg["statistics_date_range_string"]
+				obj = re.match(r'([\d]{2})([\d]{2})([WwFf])([12345])', self.xcfg["statistics_date_range_string"])
+				if obj is None:  # Weekly option
+					raise ValueError("Incorrect weekly option format: %s" % self.xcfg["statistics_date_range_string"])
 				[year_str, month_str, weekday_str, week_number_str] = obj.groups()
 				year = 2000 + int(year_str)
 				month = int(month_str)
 				week_number = int(week_number_str)
 				weekday = 2 if weekday_str in ['W', 'w'] else 4
 				date_range_start, date_range_end = self.__get_weekly_option_duration(year, month, week_number, weekday, return_time_str=True)
+				if date_range_start is None or date_range_end is None:
+					raise ValueError("The %dth week in %d-%d does NOT exist" % (week_number, year, month))
+			elif self.xcfg["statistics_date_range_string_index"] == 3:
+				obj = re.match(r'([\d]{2})([\d]{2})([\d]{2})@([WwFf])', self.xcfg["statistics_date_range_string"])
+				if obj is None:  # Weekly option by date
+					raise ValueError("Incorrect weekly option format: %s" % self.xcfg["statistics_date_range_string"])
+				[year_str, month_str, day_str, weekday_str] = obj.groups()
+				year = 2000 + int(year_str)
+				month = int(month_str)
+				day = int(day_str)
+				expected_weekday = 2 if weekday_str in ['W', 'w'] else 4
+				date_range_start, date_range_end = self.__get_weekly_option_duration_by_date(date(year, month, day), expected_weekday, return_time_str=True)
 			else:
-				date_range_list = self.xcfg["statistics_date_range_string"].split(":")
-				if len(date_range_list) == 1:
-					date_range_start = date_range_end = date_range_list[0]
-				else: 
-					[date_range_start, date_range_end] = date_range_list
-				date_range_start = None if len(date_range_start) == 0 else date_range_start
-				date_range_end = None if len(date_range_end) == 0 else date_range_end
+				raise ValueError("Unsupport statistics_date_range_string_index: %d" % self.xcfg["statistics_date_range_string_index"])
+			# obj = re.match(r'([\d]{2})([\d]{2})([WwFf])([12345])', self.xcfg["statistics_date_range_string"])
+			# if obj is not None:  # Weekly option
+			# 	[year_str, month_str, weekday_str, week_number_str] = obj.groups()
+			# 	year = 2000 + int(year_str)
+			# 	month = int(month_str)
+			# 	week_number = int(week_number_str)
+			# 	weekday = 2 if weekday_str in ['W', 'w'] else 4
+			# 	date_range_start, date_range_end = self.__get_weekly_option_duration(year, month, week_number, weekday, return_time_str=True)
+			# 	if date_range_start is None or date_range_end is None:
+			# 		raise ValueError("The %dth week in %d-%d does NOT exist" % (week_number, year, month))
+			# else:
+			# 	obj = re.match(r'([\d]{2})([\d]{2})([\d]{2})@([WwFf])', self.xcfg["statistics_date_range_string"])
+			# 	if obj is not None:  # Weekly option by date
+			# 		[year_str, month_str, day_str, weekday_str] = obj.groups()
+			# 		year = 2000 + int(year_str)
+			# 		month = int(month_str)
+			# 		day = int(day_str)
+			# 		expected_weekday = 2 if weekday_str in ['W', 'w'] else 4
+			# 		date_range_start, date_range_end = self.__get_weekly_option_duration_by_date(date(year, month, day), expected_weekday, return_time_str=True)
+			# 	else:
+			# 		date_range_list = self.xcfg["statistics_date_range_string"].split(":")
+			# 		if len(date_range_list) == 1:
+			# 			date_range_start = date_range_end = date_range_list[0]
+			# 		else: 
+			# 			[date_range_start, date_range_end] = date_range_list
+			# 		date_range_start = None if len(date_range_start) == 0 else date_range_start
+			# 		date_range_end = None if len(date_range_end) == 0 else date_range_end
 		# import pdb; pdb.set_trace()
 		fluctuation_data = self.__calculate_historical_fluctuation(date_range_start, date_range_end)
-		for key, value in fluctuation_data.items():
-			data_len = len(value)
-			data_mean = statistics.mean(value)
-			data_std = statistics.stdev(value)
-			data_sharp_ratio = data_mean / data_std if data_std != 0 else 0
-			value_rise = list(filter(lambda x: x > 0, value))
-			data_rise_len = len(value_rise)
-			data_rise_percentage = round(float(data_rise_len) * 100.0 / data_len, 1)
-			print("%s  %.1f[%d/%d] -> %.2f %.2f %.2f" % (key, data_rise_percentage, data_rise_len, data_len, data_mean, data_std, data_sharp_ratio))
+		return fluctuation_data
+
+
+	def __analyze_statistics(self, value_list):
+		data_len = len(value_list)
+		data_mean = statistics.mean(value_list)
+		data_std = statistics.stdev(value_list)
+		data_sharp_ratio = data_mean / data_std if data_std != 0 else 0
+		value_rise = list(filter(lambda x: x > 0, value_list))
+		data_rise_len = len(value_rise)
+		data_rise_percentage = round(float(data_rise_len) * 100.0 / data_len, 1)
+		return {
+			"data_len": data_len,
+			"data_mean": data_mean,
+			"data_std": data_std,
+			"data_sharp_ratio": data_sharp_ratio,
+			"data_rise_len": data_rise_len,
+			"data_rise_percentage": data_rise_percentage
+		}
+
+
+	def show_statistics(self):
+		fluctuation_data = self.__extract_statistics()
+		if self.xcfg["statistics_analysis_method"] == 0:
+			print("************** Statistics Data (by day) **************")
+			for key, value in fluctuation_data.items():
+				stats = self.__analyze_statistics(value)
+				print("%s  %.1f[%d/%d] -> %.2f %.2f %.2f" % (key, stats["data_rise_percentage"], stats["data_rise_len"], stats["data_len"], stats["data_mean"], stats["data_std"], stats["data_sharp_ratio"]))
+				# data_len = len(value)
+				# data_mean = statistics.mean(value)
+				# data_std = statistics.stdev(value)
+				# data_sharp_ratio = data_mean / data_std if data_std != 0 else 0
+				# value_rise = list(filter(lambda x: x > 0, value))
+				# data_rise_len = len(value_rise)
+				# data_rise_percentage = round(float(data_rise_len) * 100.0 / data_len, 1)
+				# print("%s  %.1f[%d/%d] -> %.2f %.2f %.2f" % (key, data_rise_percentage, data_rise_len, data_len, data_mean, data_std, data_sharp_ratio))
+		elif self.xcfg["statistics_analysis_method"] == 1:	
+			print("************** Statistics Data (by whole data) **************")
+			total_value = []
+			for key, value in fluctuation_data.items():
+				total_value.extend(value)
+			stats = self.__analyze_statistics(total_value)
+			time_start = list(fluctuation_data.keys())[0]
+			time_end = list(fluctuation_data.keys())[-1]
+			print("%s:%s  %.1f[%d/%d] -> %.2f %.2f %.2f" % (time_start, time_end, stats["data_rise_percentage"], stats["data_rise_len"], stats["data_len"], stats["data_mean"], stats["data_std"], stats["data_sharp_ratio"]))
+		else:
+			raise ValueError("Unsupport statistics analysis method: %d" % self.xcfg["statistics_analysis_method"])
 
 
 	@write_to_file
@@ -666,24 +754,38 @@ if __name__ == "__main__":
   Format: YYYY-mm-dd   Ex: 2025-03-11
   Format: m(m)/d(d)/YYYY   Ex: 3/11/2025
   Format: mm-dd   Ex: 03-11   Note: use current year if the year is NOT set
-  Format: m(m)/d(d)   Ex: 3/11   Note: use current year if the year is NOT set''')
+  Format: m(m)/d(d)   Ex: 3/11   Note: use current year if the year is NOT set
+  * Caution: Only take effect when --check_trade is set.''')
 	# parser.add_argument('--tracked_stock_list', required=False, help='The list of specific stock targets to be trackeded.')
 	parser.add_argument('-l', '--list_trade_opportunity', required=False, action='store_true', help='List trade opportunities and exit.')
-	parser.add_argument('-s', '--show_statistics', required=False, action='store_true', help='Show the all statistics data and exit.')
+	parser.add_argument('-s', '--show_statistics', required=False, action='store_true', help='Show the statistics data and exit.')
 	parser.add_argument('--statistics_date', required=False, 
-		 help='''The statistics data of the specific date.
+		 help='''The statistics data on the specific date.
   Date
-	Format: mm-dd   Ex: 09-04''')
+	Format: mm-dd   Ex: 09-04
+	* Caution: Only take effect when --show_statistics is set.''')
 	parser.add_argument('--statistics_date_range', required=False, 
-		 help='''The statistics data of the date range.
+		 help='''The statistics data during the date range.
   Date range
     Format: mm1-dd1:mm2-dd2   From mm1-dd1 to mm2-dd2   Ex: 09-04:10-15
 	Format: mm-dd:   From mm-dd to 12-31   Ex: 09-04:
-	Format: :mm-dd   From 01-01 to mm-dd   Ex: :09-04''')
+	Format: :mm-dd   From 01-01 to mm-dd   Ex: :09-04
+	* Caution: Only take effect when --show_statistics is set.''')
 	parser.add_argument('--statistics_weekly_option', required=False, 
-		 help='''The statistics data of the date range for the specific weekly option .
-  Date range for the specific weekly option
-    Format: YYMM(W/F)WW   Y: Year, MM: Month, W: Wed, F: Fri, WW: nth Week   Ex: 2512W1, 2512F3''')
+		 help='''The statistics data during the date range of the specific weekly option.
+  n-th weekly option
+    Format: YYMM(W/F)WW   YY: Year, MM: Month, W: Wed, F: Fri, WW: nth Week   Ex: 2512W1, 2512F3
+	* Caution: Only take effect when --show_statistics is set.''')
+	parser.add_argument('--statistics_weekly_option_by_date', required=False, 
+		 help='''The statistics data during the date range containing the specific date.
+  Date
+	Format: YYMMDD@(W/F)   YY: Year, MM: Month, DD: day, W: Wed, F: Fri   Ex: 250904@w, 230904@F
+	* Caution: Only take effect when --show_statistics is set.''')
+	parser.add_argument('--statistics_analysis_method', required=False, 
+		 help='''The statistics analysis method.
+  Method Index
+    0: By day (default)
+	1: By whole data''')
 	parser.add_argument('--source_filename', required=False, help='Set the source filename')
 	parser.add_argument('-o', '--output_result', required=False, action='store_true', help='Output the result to the file')
 	parser.add_argument('--output_result_filename', required=False, help='The filename of outputting the result')
@@ -696,11 +798,19 @@ if __name__ == "__main__":
 	if args.trade_date:
 		cfg['trade_date_string'] = args.trade_date
 	if args.statistics_date:
+		cfg['statistics_date_range_string_index'] = 0
 		cfg['statistics_date_range_string'] = args.statistics_date
 	if args.statistics_date_range:
+		cfg['statistics_date_range_string_index'] = 1
 		cfg['statistics_date_range_string'] = args.statistics_date_range
 	if args.statistics_weekly_option:
+		cfg['statistics_date_range_string_index'] = 2
 		cfg['statistics_date_range_string'] = args.statistics_weekly_option
+	if args.statistics_weekly_option_by_date:
+		cfg['statistics_date_range_string_index'] = 3
+		cfg['statistics_date_range_string'] = args.statistics_weekly_option_by_date
+	if args.statistics_analysis_method:
+		cfg['statistics_analysis_method'] = int(args.statistics_analysis_method)
 	if args.source_filename:
 		cfg['source_filename'] = args.source_filename
 	if args.output_result_filename:
@@ -761,7 +871,7 @@ advantages and characteristics such as the followings:
 				else:
 					obj.list_trade_opportunity()
 				sys.exit(0)
-			if args.show_statistics or args.statistics_date_range or args.statistics_weekly_option:
+			if args.show_statistics:  # or args.statistics_date_range or args.statistics_weekly_option or args.statistics_weekly_option_by_date:
 				if args.output_result:
 					obj.show_statistics_to_file()
 				else:

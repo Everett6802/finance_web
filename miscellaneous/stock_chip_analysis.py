@@ -46,14 +46,14 @@ class StockChipAnalysis(object):
 		# 	"key_mode": 0, # 2489 瑞軒
 		# 	"data_start_column_index": 1,
 		# },
-		u"個股夏普值": {
-			"key_mode": 0, # 2489 瑞軒
-			"data_start_column_index": 1,
-		},
-		u"月平均報酬": {
-			"key_mode": 0, # 2489 瑞軒
-			"data_start_column_index": 1,
-		},
+		# u"個股夏普值": {
+		# 	"key_mode": 0, # 2489 瑞軒
+		# 	"data_start_column_index": 1,
+		# },
+		# u"月平均報酬": {
+		# 	"key_mode": 0, # 2489 瑞軒
+		# 	"data_start_column_index": 1,
+		# },
 		u"台股 ETF": {
 			"key_mode": 4, # 00727B
 			"data_start_column_index": 2,
@@ -138,13 +138,13 @@ class StockChipAnalysis(object):
 		# },
 	}
 	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
-	DEFAULT_SHEET_NAME_LIST = [u"個股夏普值", u"月平均報酬", u"台股 ETF", u"美股 ETF", u"券商賺錢", u"成交比重", u"主法量率", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"六大買超", u"大戶籌碼", u"SSB", u"上市融資增加", u"上櫃融資增加", u"外資賺錢",]
+	DEFAULT_SHEET_NAME_LIST = [u"台股 ETF", u"美股 ETF", u"券商賺錢", u"成交比重", u"主法量率", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"個股夏普值", u"月平均報酬", u"六大買超", u"大戶籌碼", u"SSB", u"上市融資增加", u"上櫃融資增加", u"外資賺錢",]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"外資買超天數累計", u"投信買超天數累計",],
 	]
-	MONTHLY_AVERAGE_RETURN_SHEETNAME = "月平均報酬"
+	# MONTHLY_AVERAGE_RETURN_SHEETNAME = "月平均報酬"
 	DEFAULT_MIN_CONSECUTIVE_OVER_BUY_DAYS = 3
 	DEFAULT_MAX_CONSECUTIVE_OVER_BUY_DAYS = 15
 	CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST = [u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",]
@@ -156,8 +156,8 @@ class StockChipAnalysis(object):
 	DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS = 3
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_SHEETNAME = "主法量率"
 	MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_FIELDNAME = "主力法人佔量率"
-	DEFAULT_STOCK_SHARPE_RATIO_RANKING_PERCENTAGE_THRESHOLD = 20
-	STOCK_SHARPE_RATIO_RANKING_SHEETNAME = "個股夏普值"
+	# DEFAULT_STOCK_SHARPE_RATIO_RANKING_PERCENTAGE_THRESHOLD = 20
+	# STOCK_SHARPE_RATIO_RANKING_SHEETNAME = "個股夏普值"
 	LARGE_SHAREHOLD_POSITION_SHEETNAME = "大戶籌碼"
 	LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO = "夏普值"
 	LARGE_SHAREHOLD_POSITION_FIELDNAME_STANDARD_DEVIATION = "標準差"
@@ -359,7 +359,7 @@ class StockChipAnalysis(object):
 			"minimum_volume": self.DEFAULT_MINIMUM_VOLUME,
 			"main_force_instuitional_investors_ratio_threshold": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_THRESHOLD,
 			"main_force_instuitional_investors_ratio_consecutive_days": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS,
-			"stock_sharpe_data_ranking_percentrage_threshold": self.DEFAULT_STOCK_SHARPE_RATIO_RANKING_PERCENTAGE_THRESHOLD,
+			# "stock_sharpe_data_ranking_percentrage_threshold": self.DEFAULT_STOCK_SHARPE_RATIO_RANKING_PERCENTAGE_THRESHOLD,
 			"output_result_filename": self.DEFAULT_OUTPUT_RESULT_FILENAME,
 			"output_result": False,
 			"quiet": False,
@@ -367,6 +367,7 @@ class StockChipAnalysis(object):
 			"cb_publish_filename": None,
 			"check_sharpe_ratio": False,
 			"show_scrapy_progress": False,
+			'exclude_sheet': None,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -415,6 +416,9 @@ class StockChipAnalysis(object):
 		self.workbook = None
 		self.output_result_file = None
 		self.stdout_tmp = None
+		self.sheet_name_list = self.DEFAULT_SHEET_NAME_LIST
+		if self.xcfg['exclude_sheet'] is not None:
+			self.sheet_name_list = [sheet_name for sheet_name in self.sheet_name_list if sheet_name not in self.xcfg['exclude_sheet']]
 		# self.sorted_ssb_dict = {}
 		self.__print_file_modification_date()
 
@@ -511,16 +515,16 @@ class StockChipAnalysis(object):
 								return False
 						return True
 					csv_data_value_dict = dict(filter(lambda x: check_consecutive_days(x), csv_data_value_dict.items()))
-		if self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"] is not None:
-			if sheet_name == self.STOCK_SHARPE_RATIO_RANKING_SHEETNAME:
-				# csv_data_value_ranking_count = len(csv_data_value_dict) * self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"] // 100
-				csv_data_value_ranking_count = self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"]
-# Select only top xxx percent of data
-				csv_data_value_dict = dict(list(sorted(csv_data_value_dict.items(), key=lambda x: x[1]["D"], reverse=True))[0:csv_data_value_ranking_count])
-# Don't do in this way. pop() returns a value and not the key-value pair for a dictionary
-				# csv_data_value_dict = dict(map(lambda x: x[1].pop("趨勢"), csv_data_value_dict.items()))
-				for key, value in csv_data_value_dict.items(): value.pop("趨勢")
-				# import pdb; pdb.set_trace()
+# 		if self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"] is not None:
+# 			if sheet_name == self.STOCK_SHARPE_RATIO_RANKING_SHEETNAME:
+# 				# csv_data_value_ranking_count = len(csv_data_value_dict) * self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"] // 100
+# 				csv_data_value_ranking_count = self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"]
+# # Select only top xxx percent of data
+# 				csv_data_value_dict = dict(list(sorted(csv_data_value_dict.items(), key=lambda x: x[1]["D"], reverse=True))[0:csv_data_value_ranking_count])
+# # Don't do in this way. pop() returns a value and not the key-value pair for a dictionary
+# 				# csv_data_value_dict = dict(map(lambda x: x[1].pop("趨勢"), csv_data_value_dict.items()))
+# 				for key, value in csv_data_value_dict.items(): value.pop("趨勢")
+# 				# import pdb; pdb.set_trace()
 		if self.xcfg["check_sharpe_ratio"]:
 			if sheet_name == self.LARGE_SHAREHOLD_POSITION_SHEETNAME:
 				sharpe_ratio_sorted_list = sorted([x[self.LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO] for x in csv_data_value_dict.values()], reverse=True)
@@ -619,12 +623,12 @@ class StockChipAnalysis(object):
 	# 	return self.sorted_ssb_dict[field_name]
 
 
-	def __get_monthly_average_return_sorted_data(self):
-		if self.mouthly_average_return_sorted_data is None:
-			mouthly_average_return_sheet_data = self.__read_sheet_data(self.MONTHLY_AVERAGE_RETURN_SHEETNAME)
-			mouthly_average_return_data = [(key, float(value['D'])) for key, value in mouthly_average_return_sheet_data['value'].items()]
-			self.mouthly_average_return_sorted_data = list(OrderedDict(sorted(mouthly_average_return_data, key=lambda x: x[1], reverse=True)).keys())
-		return self.mouthly_average_return_sorted_data
+	# def __get_monthly_average_return_sorted_data(self):
+	# 	if self.mouthly_average_return_sorted_data is None:
+	# 		mouthly_average_return_sheet_data = self.__read_sheet_data(self.MONTHLY_AVERAGE_RETURN_SHEETNAME)
+	# 		mouthly_average_return_data = [(key, float(value['D'])) for key, value in mouthly_average_return_sheet_data['value'].items()]
+	# 		self.mouthly_average_return_sorted_data = list(OrderedDict(sorted(mouthly_average_return_data, key=lambda x: x[1], reverse=True)).keys())
+	# 	return self.mouthly_average_return_sorted_data
 
 
 	def __print_file_modification_date(self):
@@ -638,10 +642,10 @@ class StockChipAnalysis(object):
 		print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
 
 
-	def get_stock_chip_data(self, sheet_name_list=None):
+	def __get_stock_chip_data(self, sheet_name_list=None):
 		stock_chip_data_dict = {}
 		if sheet_name_list is None:
-			sheet_name_list = self.DEFAULT_SHEET_NAME_LIST
+			sheet_name_list = self.sheet_name_list
 		for sheet_name in sheet_name_list:
 			stock_chip_data_dict[sheet_name] = self.__read_sheet_data(sheet_name)
 		# import pdb; pdb.set_trace()
@@ -706,7 +710,7 @@ class StockChipAnalysis(object):
 
 	def search_etf_targets(self, stock_chip_data_dict=None, search_rule_index=0):
 		if stock_chip_data_dict is None:
-			stock_chip_data_dict = self.get_stock_chip_data()
+			stock_chip_data_dict = self.__get_stock_chip_data()
 		if search_rule_index < 0 or search_rule_index >= len(self.ETF_SEARCH_RULE_FIELD_LIST):
 			raise ValueError("Unsupport ETF search_rule_index: %d" % search_rule_index)
 		if self.xcfg["output_result"]:
@@ -775,7 +779,7 @@ class StockChipAnalysis(object):
 
 	def search_targets(self, stock_chip_data_dict=None, search_rule_index=0):
 		if stock_chip_data_dict is None:
-			stock_chip_data_dict = self.get_stock_chip_data()
+			stock_chip_data_dict = self.__get_stock_chip_data()
 		if search_rule_index < 0 or search_rule_index >= len(self.SEARCH_RULE_DATASHEET_LIST):
 			raise ValueError("Unsupport search_rule_index: %d" % search_rule_index)
 		search_rule_list = self.SEARCH_RULE_DATASHEET_LIST[search_rule_index]
@@ -863,7 +867,7 @@ class StockChipAnalysis(object):
 		if self.xcfg["tracked_stock_list"] is None:
 			self.__get_tracked_stock_list_from_file()
 		if stock_chip_data_dict is None:
-			stock_chip_data_dict = self.get_stock_chip_data()
+			stock_chip_data_dict = self.__get_stock_chip_data()
 		mass_convert_cb_dict = None  # self.search_cb_mass_convert()
 		if mass_convert_cb_dict is None:
 			print("\nNo Latest CB Mass Convert Data......\n")
@@ -878,7 +882,7 @@ class StockChipAnalysis(object):
 			target_caption = None
 			global_item_list = None
 			need_new_line = False
-			for sheet_name in self.DEFAULT_SHEET_NAME_LIST:
+			for sheet_name in self.sheet_name_list:
 				# print("Sheet name: %s" % sheet_name)
 				sheet_data_dict = stock_chip_data_dict[sheet_name]["value"]
 				if tracked_stock not in sheet_data_dict.keys():
@@ -903,18 +907,18 @@ class StockChipAnalysis(object):
 				# 	print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], x[1]), item_list)))
 				item_type_list = map(lambda x, y: (x[0], x[1], y), item_list, stock_chip_data_dict[sheet_name]["type"])
 				item_type_list = filter(lambda x: x[0] not in ["商品", "成交", "漲幅%", "漲跌", "漲跌幅", "成交量", "總量",], item_type_list)
-				if sheet_name == self.MONTHLY_AVERAGE_RETURN_SHEETNAME:
-					# import pdb; pdb.set_trace()
-					monthly_average_return_sorted_data = self.__get_monthly_average_return_sorted_data()
-					try:
-						monthly_average_return_rank = monthly_average_return_sorted_data.index(tracked_stock)
-						item_type_list = list(item_type_list)
-						rank_str = "%d/%d" % (monthly_average_return_rank + 1, len(monthly_average_return_sorted_data))
-						item_type_list.insert(0, ("排名", rank_str, str))
-					except ValueError as e:
-						# print("%s:%s Error: %s in %s" % (tracked_stock, sheet_name, str(e), str(list(item_type_list))))
-						# import pdb; pdb.set_trace()
-						raise e
+				# if sheet_name == self.MONTHLY_AVERAGE_RETURN_SHEETNAME:
+				# 	# import pdb; pdb.set_trace()
+				# 	monthly_average_return_sorted_data = self.__get_monthly_average_return_sorted_data()
+				# 	try:
+				# 		monthly_average_return_rank = monthly_average_return_sorted_data.index(tracked_stock)
+				# 		item_type_list = list(item_type_list)
+				# 		rank_str = "%d/%d" % (monthly_average_return_rank + 1, len(monthly_average_return_sorted_data))
+				# 		item_type_list.insert(0, ("排名", rank_str, str))
+				# 	except ValueError as e:
+				# 		# print("%s:%s Error: %s in %s" % (tracked_stock, sheet_name, str(e), str(list(item_type_list))))
+				# 		# import pdb; pdb.set_trace()
+				# 		raise e
 				try:
 					# import pdb; pdb.set_trace()
 					print("  " + sheet_name + ": " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
@@ -1056,6 +1060,7 @@ if __name__ == "__main__":
 	parser.add_argument('--modify_tracked_stock', required=False, help='The rule for selecting targets. Default: 0.')
 	parser.add_argument('-o', '--output_result', required=False, action='store_true', help='Output the result to the file instead of STDOUT.')
 	parser.add_argument('--output_result_filename', required=False, action='store_true', help='The filename of outputing the result to the file instead of STDOUT.')
+	parser.add_argument('--exclude_sheet', required=False, help='Exclude the specific page(s) temporarily since there are something wrong with the page(s).')
 	args = parser.parse_args()
 
 	if args.list_search_rule:
@@ -1069,6 +1074,8 @@ if __name__ == "__main__":
 		cfg['output_result'] = True
 	if args.output_result_filename:
 		cfg['output_result_filename'] = args.output_result_filename
+	if args.exclude_sheet:
+		cfg['exclude_sheet'] = args.exclude_sheet.split(",")
 	with StockChipAnalysis(cfg) as obj:
 		if args.print_filepath:
 			obj.print_filepath()
