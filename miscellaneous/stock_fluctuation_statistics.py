@@ -107,7 +107,7 @@ class StockFluctuationStatistics(object):
 
 	DEFAULT_HOST_DATA_FOLDERPATH =  "C:\\Users\\%s\\project_data\\finance_web" % getpass.getuser()
 	DEFAULT_DATA_FOLDERPATH =  os.getenv("DATA_PATH", DEFAULT_HOST_DATA_FOLDERPATH)
-	DEFAULT_SOURCE_FILENAME = "加權指數歷史資料2000-2024.xlsx"
+	DEFAULT_SOURCE_FILENAME = "加權指數歷史資料2000-2025.xlsx"
 	DEFAULT_SOURCE_FILENAME2 = "期貨指數歷史資料2000-2024.xlsx"
 	# DEFAULT_SOURCE_FULL_FILENAME = "%s.xlsx" % DEFAULT_SOURCE_FILENAME
 	DEFAULT_TIME_FIELD_NAME = "時間"	
@@ -647,33 +647,6 @@ class StockFluctuationStatistics(object):
 				date_range_start, date_range_end = self.__get_weekly_option_duration_by_date(date(year, month, day), expected_weekday, return_time_str=True)
 			else:
 				raise ValueError("Unsupport statistics_date_range_string_index: %d" % self.xcfg["statistics_date_range_string_index"])
-			# obj = re.match(r'([\d]{2})([\d]{2})([WwFf])([12345])', self.xcfg["statistics_date_range_string"])
-			# if obj is not None:  # Weekly option
-			# 	[year_str, month_str, weekday_str, week_number_str] = obj.groups()
-			# 	year = 2000 + int(year_str)
-			# 	month = int(month_str)
-			# 	week_number = int(week_number_str)
-			# 	weekday = 2 if weekday_str in ['W', 'w'] else 4
-			# 	date_range_start, date_range_end = self.__get_weekly_option_duration(year, month, week_number, weekday, return_time_str=True)
-			# 	if date_range_start is None or date_range_end is None:
-			# 		raise ValueError("The %dth week in %d-%d does NOT exist" % (week_number, year, month))
-			# else:
-			# 	obj = re.match(r'([\d]{2})([\d]{2})([\d]{2})@([WwFf])', self.xcfg["statistics_date_range_string"])
-			# 	if obj is not None:  # Weekly option by date
-			# 		[year_str, month_str, day_str, weekday_str] = obj.groups()
-			# 		year = 2000 + int(year_str)
-			# 		month = int(month_str)
-			# 		day = int(day_str)
-			# 		expected_weekday = 2 if weekday_str in ['W', 'w'] else 4
-			# 		date_range_start, date_range_end = self.__get_weekly_option_duration_by_date(date(year, month, day), expected_weekday, return_time_str=True)
-			# 	else:
-			# 		date_range_list = self.xcfg["statistics_date_range_string"].split(":")
-			# 		if len(date_range_list) == 1:
-			# 			date_range_start = date_range_end = date_range_list[0]
-			# 		else: 
-			# 			[date_range_start, date_range_end] = date_range_list
-			# 		date_range_start = None if len(date_range_start) == 0 else date_range_start
-			# 		date_range_end = None if len(date_range_end) == 0 else date_range_end
 		# import pdb; pdb.set_trace()
 		fluctuation_data = self.__calculate_historical_fluctuation(date_range_start, date_range_end)
 		return fluctuation_data
@@ -698,20 +671,13 @@ class StockFluctuationStatistics(object):
 
 
 	def show_statistics(self):
+		# import pdb; pdb.set_trace()
 		fluctuation_data = self.__extract_statistics()
 		if self.xcfg["statistics_analysis_method"] == 0:
 			print("************** Statistics Data (by day) **************")
 			for key, value in fluctuation_data.items():
 				stats = self.__analyze_statistics(value)
 				print("%s  %.1f[%d/%d] -> %.2f %.2f %.2f" % (key, stats["data_rise_percentage"], stats["data_rise_len"], stats["data_len"], stats["data_mean"], stats["data_std"], stats["data_sharp_ratio"]))
-				# data_len = len(value)
-				# data_mean = statistics.mean(value)
-				# data_std = statistics.stdev(value)
-				# data_sharp_ratio = data_mean / data_std if data_std != 0 else 0
-				# value_rise = list(filter(lambda x: x > 0, value))
-				# data_rise_len = len(value_rise)
-				# data_rise_percentage = round(float(data_rise_len) * 100.0 / data_len, 1)
-				# print("%s  %.1f[%d/%d] -> %.2f %.2f %.2f" % (key, data_rise_percentage, data_rise_len, data_len, data_mean, data_std, data_sharp_ratio))
 		elif self.xcfg["statistics_analysis_method"] == 1:	
 			print("************** Statistics Data (by whole data) **************")
 			total_value = []
@@ -795,20 +761,25 @@ if __name__ == "__main__":
 	args = parser.parse_args()
 
 	cfg = {}
+	need_show_statistics = False
 	if args.trade_date:
 		cfg['trade_date_string'] = args.trade_date
 	if args.statistics_date:
 		cfg['statistics_date_range_string_index'] = 0
 		cfg['statistics_date_range_string'] = args.statistics_date
+		need_show_statistics = True
 	if args.statistics_date_range:
 		cfg['statistics_date_range_string_index'] = 1
 		cfg['statistics_date_range_string'] = args.statistics_date_range
+		need_show_statistics = True
 	if args.statistics_weekly_option:
 		cfg['statistics_date_range_string_index'] = 2
 		cfg['statistics_date_range_string'] = args.statistics_weekly_option
+		need_show_statistics = True
 	if args.statistics_weekly_option_by_date:
 		cfg['statistics_date_range_string_index'] = 3
 		cfg['statistics_date_range_string'] = args.statistics_weekly_option_by_date
+		need_show_statistics = True
 	if args.statistics_analysis_method:
 		cfg['statistics_analysis_method'] = int(args.statistics_analysis_method)
 	if args.source_filename:
@@ -877,6 +848,9 @@ advantages and characteristics such as the followings:
 				else:
 					obj.show_statistics()
 				sys.exit(0)
+			else:
+				if need_show_statistics:
+					print("*** WARNING ***: The statistics date/range/weekly option is set but -s/--show_statistics is NOT set, so the statistics data is NOT shown.")
 			if args.print_filepath:
 				obj.print_filepath()
 				sys.exit(0)
