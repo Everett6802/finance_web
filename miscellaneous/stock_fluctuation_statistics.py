@@ -713,6 +713,7 @@ class StockFluctuationStatistics(object):
 
 
 if __name__ == "__main__":
+# argparse 預設會把 help 文字裡的換行與多重空白「壓縮」成一行，所以你在字串裡寫的 \n 不一定會照原樣顯示。 => 建立 parser 時加上 formatter_class=argparse.RawTextHelpFormatter
 	parser = argparse.ArgumentParser(description='Print help', formatter_class=argparse.RawTextHelpFormatter)
 	parser.add_argument('-c', '--check_trade', required=False, action='store_true', help='Check the trade opportunity on a specific date and exit.')
 	parser.add_argument('--trade_date', required=False,

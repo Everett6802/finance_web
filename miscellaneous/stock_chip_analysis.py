@@ -1028,7 +1028,8 @@ class StockChipAnalysis(object):
 
 
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser(description='Print help')
+# argparse 預設會把 help 文字裡的換行與多重空白「壓縮」成一行，所以你在字串裡寫的 \n 不一定會照原樣顯示。 => 建立 parser 時加上 formatter_class=argparse.RawTextHelpFormatter
+	parser = argparse.ArgumentParser(description='Print help', formatter_class=argparse.RawTextHelpFormatter)
 	'''
 	參數基本上分兩種，一種是位置參數 (positional argument)，另一種就是選擇性參數 (optional argument)
 	* example2.py
