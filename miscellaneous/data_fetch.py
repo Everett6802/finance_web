@@ -76,6 +76,19 @@ class DataFetch(object):
 		return check_exist
 
 
+	@classmethod
+	def __check_date_in_range(cls, cur_date, date_range_start, date_range_end):
+		if isinstance(cur_date, str):
+			cur_date = cls.__date_str2obj(cur_date)
+		if isinstance(date_range_start, str):
+			date_range_start = cls.__date_str2obj(date_range_start)
+		if isinstance(date_range_end, str):
+			date_range_end = cls.__date_str2obj(date_range_end)
+		if date_range_start <= cur_date <= date_range_end:
+			return True
+		return False
+
+
 	def __init__(self, cfg):
 		self.xcfg = {
 			"source_folderpath": None,
@@ -229,7 +242,7 @@ class DataFetch(object):
 		"""
 		# csv_file = os.path.join(self.xcfg["source_filepath"], f"{stock_symbol}.csv")
 # 檢查是否已存在本地資料
-		# import pdb; pdb.set_trace()
+		import pdb; pdb.set_trace()
 		source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
 		file_exist = self.__check_file_exist(source_filepath)
 		if file_exist:
@@ -239,11 +252,15 @@ class DataFetch(object):
 		fetch_start = fetch_end = None
 		if not self.xcfg["refresh_data"] and file_exist:
 			rows = self.__read_xlsx(source_filepath)
+			first_date_str = rows[0][self.DEFAULT_YAHOO_DATE_TITLE_INDEX]
+			first_date = datetime.strptime(first_date_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
 			last_date_str = rows[-1][self.DEFAULT_YAHOO_DATE_TITLE_INDEX]
 			last_date = datetime.strptime(last_date_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
+# Check if date range is valid
+			date_range_start = datetime.strptime(date_range_start_str, self.DEFAULT_YAHOO_DATE_FORMAT).date() if date_range_start_str is not None else None
+			date_range_end = datetime.strptime(date_range_end_str, self.DEFAULT_YAHOO_DATE_FORMAT).date() if date_range_end_str is not None else None
 			fetch_start = last_date + timedelta(days=1)
-			if date_range_start_str is not None:
-				date_range_start = datetime.strptime(date_range_start_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
+			if date_range_start is not None:
 				if date_range_start > fetch_start:
 					print(f"WARNING: The start date {date_range_start_str} is later than {last_date_str} in local data, so no data will be fetched.")
 					return False
