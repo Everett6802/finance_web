@@ -5,12 +5,13 @@ import os
 import sys
 import re
 import errno
-'''
-Question: How to Solve xlrd.biffh.XLRDError: Excel xlsx file; not supported ?
-Answer : The latest version of xlrd(2.01) only supports .xls files. Installing the older version 1.2.0 to open .xlsx files.
-'''
-import xlrd
-import xlsxwriter
+# # '''
+# # Question: How to Solve xlrd.biffh.XLRDError: Excel xlsx file; not supported ?
+# # Answer : The latest version of xlrd(2.01) only supports .xls files. Installing the older version 1.2.0 to open .xlsx files.
+# # '''
+# import xlrd
+# # import xlsxwriter
+from openpyxl import Workbook, load_workbook
 import argparse
 from datetime import datetime, date, timedelta
 import getpass
@@ -49,6 +50,21 @@ class PerformanceAnalysis(object):
 				raise
 			check_exist = False
 		return check_exist
+
+
+# ========= XLSX 工具 =========
+	@classmethod
+	def __read_xlsx(cls, source_filepath, sheet_name=None):
+		wb = load_workbook(source_filepath)
+		ws = wb.active if sheet_name is None else wb[sheet_name]
+		rows = []
+		header = [c.value for c in ws[1]]
+		rows.append(header)
+		# for row in ws.iter_rows(min_row=2, values_only=True):
+		# 	rows.append(dict(zip(header, row)))
+		for row in ws.iter_rows(min_row=2, values_only=True):
+			rows.append(row)
+		return rows
 
 
 	@classmethod
@@ -212,7 +228,8 @@ class PerformanceAnalysis(object):
 	def __init__(self, cfg):
 		self.xcfg = {
 			"source_folderpath": None,
-			"source_filename": None,
+			# "source_filename": None,
+			"source_filename_string": None,
 			"risk_free_rate": 0.0,
 			"statistics_date_range_string": None,
 			# "date_range_start": None,
@@ -221,15 +238,24 @@ class PerformanceAnalysis(object):
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
 		self.xcfg["source_folderpath"] = self.DEFAULT_DATA_FOLDERPATH if self.xcfg["source_folderpath"] is None else self.xcfg["source_folderpath"]
-		self.xcfg["source_filename"] = self.DEFAULT_SOURCE_FILENAME if self.xcfg["source_filename"] is None else self.xcfg["source_filename"]
-		self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
+		# self.xcfg["source_filename"] = self.DEFAULT_SOURCE_FILENAME if self.xcfg["source_filename"] is None else self.xcfg["source_filename"]
+		# self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
 		# print ("__init__: %s" % self.xcfg["source_filepath"])
 		self.workbook = None
 		self.cur_year = datetime.now().year
 		self.worksheet_data = None
+		self.worksheet_data_full_cols = None
+
+		self.source_filepath_list = []
+		if self.xcfg["source_filename_string"] is not None:
+			source_filepath_list = self.xcfg["source_filename_string"].split(",")
+			for source_filename in source_filepath_list:
+				if not source_filename.endswith(".xlsx"):
+					source_filename = source_filename + ".xlsx"
+				self.source_filepath_list.append(os.path.join(self.xcfg["source_folderpath"], source_filename))
 
 		self.filepath_dict = OrderedDict()
-		self.filepath_dict["source_filepath"] = self.xcfg["source_filepath"]
+		self.filepath_dict["source_folderpath"] = self.xcfg["source_folderpath"]
 
 
 	def __enter__(self):
@@ -244,12 +270,12 @@ class PerformanceAnalysis(object):
 		return False
 
 
-	def __get_workbook(self):
-		if self.workbook is None:
-			# import pdb; pdb.set_trace()
-			self.workbook = xlrd.open_workbook(self.xcfg["source_filepath"])
-			# print ("__get_workbook: %s" % self.xcfg["source_filepath"])
-		return self.workbook
+	# def __get_workbook(self):
+	# 	if self.workbook is None:
+	# 		# import pdb; pdb.set_trace()
+	# 		self.workbook = xlrd.open_workbook(self.xcfg["source_filepath"])
+	# 		# print ("__get_workbook: %s" % self.xcfg["source_filepath"])
+	# 	return self.workbook
 
 
 	def __print_string(self, outpug_str):
@@ -257,25 +283,30 @@ class PerformanceAnalysis(object):
 		print (outpug_str)
 
 
-	def __get_worksheet(self):
-		if self.workbook is None:
-			# import pdb; pdb.set_trace()
-			if not self.__check_file_exist(self.xcfg["source_filepath"]):
-				raise RuntimeError("The worksheet[%s] does NOT exist" % self.xcfg["source_filepath"])
-			self.workbook = xlrd.open_workbook(self.xcfg["source_filepath"])
-			self.worksheet = self.workbook.sheet_by_index(0)
-		return self.worksheet
+	# def __get_worksheet(self):
+	# 	if self.workbook is None:
+	# 		# import pdb; pdb.set_trace()
+	# 		if not self.__check_file_exist(self.xcfg["source_filepath"]):
+	# 			raise RuntimeError("The worksheet[%s] does NOT exist" % self.xcfg["source_filepath"])
+	# 		self.workbook = xlrd.open_workbook(self.xcfg["source_filepath"])
+	# 		self.worksheet = self.workbook.sheet_by_index(0)
+	# 	return self.worksheet
 
 
-	def __read_worksheet(self, expected_title_list=None):
+	def __read_worksheet(self, source_filepath, expected_title_list=None):
 # Check if it's required to transform from stock name to stock symbol
 		worksheet_data = {}
-		# import pdb; pdb.set_trace()			
+		# import pdb; pdb.set_trace()
+		worksheet_rows = self.__read_xlsx(source_filepath)
+		sheet_ncols = len(worksheet_rows[0])
+		sheet_nrows = len(worksheet_rows)
 		data_list = []
 # title
 		title_list = []
-		for column_index in range(0, self.Worksheet.ncols):
-			title_value = self.Worksheet.cell_value(0, column_index)
+		# for column_index in range(0, self.Worksheet.ncols):
+		# 	title_value = self.Worksheet.cell_value(0, column_index)
+		for column_index in range(0, sheet_ncols):
+			title_value = worksheet_rows[0][column_index]
 			title_list.append(title_value)
 		# print(title_list)
 		# import pdb; pdb.set_trace()
@@ -291,16 +322,19 @@ class PerformanceAnalysis(object):
 			new_title_list = [title for index, title in enumerate(title_list) if index in title_index_list]
 			title_list = new_title_list
 		else:
-			title_index_list = list(range(0, self.Worksheet.ncols))
+			# title_index_list = list(range(0, self.Worksheet.ncols))
+			title_index_list = list(range(0, sheet_ncols))
 		# if time_index is not None:
 		# 	raise ValueError("The expected title list must include the time field name: %s" % self.DEFAULT_TIME_FIELD_NAME)
 # data
-		for row_index in range(1, self.Worksheet.nrows):
+		# for row_index in range(1, self.Worksheet.nrows):
+		for row_index in range(1, sheet_nrows):
 			entry_list = []
 			can_add = True
 			# for column_index in range(0, self.Worksheet.ncols):
 			for column_index in title_index_list:
-				entry_value = self.Worksheet.cell_value(row_index, column_index)
+				# entry_value = self.Worksheet.cell_value(row_index, column_index)
+				entry_value = worksheet_rows[row_index][column_index]
 				if column_index == time_index:
 					day_diff = int(entry_value) - self.DEFAULT_DATE_BASE_NUMBER
 					entry_date = self.DEFAULT_DATE_BASE + timedelta(days=day_diff)
@@ -318,26 +352,30 @@ class PerformanceAnalysis(object):
 		return worksheet_data
 
 
-	def __get_worksheet_data(self, expected_title_list=None):
-		need_read = False
-		if self.worksheet_data is None:
-			need_read = True
-		else:
-			if expected_title_list is None:
-				if self.Worksheet.ncols != len(self.worksheet_data["title"]):
-					need_read = True
-			else:
-				expected_title_list_len = len(expected_title_list)
-				if len(self.worksheet_data["title"]) != expected_title_list_len:
-					need_read = True
-				else:
-					for i in range(expected_title_list_len):
-						if expected_title_list[i] != self.worksheet_data["title"][i]:
-							need_read = True
-							break
-		if need_read:
-			self.worksheet_data = self.__read_worksheet(expected_title_list)
-		return self.worksheet_data
+	# def __get_worksheet_data(self, expected_title_list=None):
+	# 	need_read = False
+	# 	if self.worksheet_data is None:
+	# 		need_read = True
+	# 	else:
+	# 		if expected_title_list is None:
+	# 			# if self.Worksheet.ncols != len(self.worksheet_data["title"]):
+	# 			if not self.worksheet_data_full_cols:
+	# 				need_read = True
+	# 		else:
+	# 			expected_title_list_len = len(expected_title_list)
+	# 			if len(self.worksheet_data["title"]) != expected_title_list_len:
+	# 				need_read = True
+	# 			else:
+	# 				for i in range(expected_title_list_len):
+	# 					if expected_title_list[i] != self.worksheet_data["title"][i]:
+	# 						need_read = True
+	# 						break
+	# 	if need_read:
+	# 		self.worksheet_data = self.__read_worksheet(expected_title_list)
+	# 		self.worksheet_data_full_cols = False if expected_title_list is not None else True
+	# 		# self.worksheet_data_nrows = len(self.worksheet_data["data"])
+	# 		# self.worksheet_data_ncols = len(self.worksheet_data["title"])
+	# 	return self.worksheet_data
 
 
 	def __date_str2list(self, date_str, skip_year=False):
@@ -387,10 +425,11 @@ class PerformanceAnalysis(object):
 		return [date_obj.year, date_obj.month, date_obj.day]
 
 
-	def __extract_data(self, date_range_start=None, date_range_end=None):
+	def __extract_data(self, source_filename, date_range_start=None, date_range_end=None):
 		# import pdb; pdb.set_trace()
-		expedcted_title_list = [self.DEFAULT_TIME_FIELD_NAME, self.DEFAULT_CLOSING_PRICE_FIELD_NAME,]
-		worksheet_data = self.__get_worksheet_data(expedcted_title_list)
+		expected_title_list = [self.DEFAULT_TIME_FIELD_NAME, self.DEFAULT_CLOSING_PRICE_FIELD_NAME,]
+		# worksheet_data = self.__get_worksheet_data(expected_title_list)
+		worksheet_data = self.__read_worksheet(source_filename, expected_title_list)
 		time_index = worksheet_data["title"].index(self.DEFAULT_TIME_FIELD_NAME)
 		need_check_time_range = (date_range_start is not None) or (date_range_end is not None)
 		date_range_start_list = None
@@ -416,7 +455,7 @@ class PerformanceAnalysis(object):
 			print("%s: %s" % (key, value))
 
 
-	def analyze_performance(self):
+	def analyze_performance(self, source_filename):
 		# import pdb; pdb.set_trace()
 		date_range_start = None
 		date_range_end = None
@@ -429,7 +468,7 @@ class PerformanceAnalysis(object):
 				date_range_start = None
 			if date_range_end == "":
 				date_range_end = None
-		worksheet_data = self.__extract_data(date_range_start, date_range_end)
+		worksheet_data = self.__extract_data(source_filename, date_range_start, date_range_end)
 		daily_returns = []
 		closing_price_index = worksheet_data["title"].index(self.DEFAULT_CLOSING_PRICE_FIELD_NAME)
 		prev_closing_price = float(worksheet_data["data"][0][closing_price_index])
@@ -454,36 +493,48 @@ class PerformanceAnalysis(object):
 
 	def show_performance(self):
 		PERCENT_KEYS = {"Cumulative Return", "CAGR", "Annualized Volatility", "Max Drawdown",}
-		perf_dict = self.analyze_performance()
-		print("Performance Analysis:")
-		for key, value in perf_dict.items():
-			if isinstance(value, float):
-				if key in PERCENT_KEYS:
-					print("  %s: %.2f%%" % (key, value * 100))
-				else:
-					print("  %s: %.2f" % (key, value))
-			elif isinstance(value, int):
-				print("  %s: %s" % (key, value))
-			elif isinstance(value, dict):
-				if key == "Max Dropdown":
-					print("  %s:" % key)
-					for dd_key, dd_value in value.items():
-						if isinstance(dd_value, float):
-							if dd_key in PERCENT_KEYS:
-								print("    %s: %.2f%%" % (dd_key, dd_value * 100))
-							else:
-								print("    %s: %.2f" % (dd_key, dd_value))
-						else:
-							print("    %s: %s" % (dd_key, dd_value))
-				else:
-					raise ValueError("Unsupport performance data type: %s" % type(value))
+		# import pdb; pdb.set_trace()
+		for source_filepath in self.source_filepath_list:
+			print("========================================")
+			file_exist = True
+			if not self.__check_file_exist(source_filepath):
+				file_exist = False
+				print(f"* The file {source_filepath} does NOT exist...")
 			else:
-				raise ValueError("Unsupport performance data type: %s" % type(value))
+				source_filename = os.path.basename(source_filepath)
+				target_name = source_filename.rstrip(".xlsx")
+				perf_dict = self.analyze_performance(source_filepath)
+				print(f"{target_name} Performance Analysis:")
+			print("========================================")
+			if file_exist:
+				for key, value in perf_dict.items():
+					if isinstance(value, float):
+						if key in PERCENT_KEYS:
+							print("  %s: %.2f%%" % (key, value * 100))
+						else:
+							print("  %s: %.2f" % (key, value))
+					elif isinstance(value, int):
+						print("  %s: %s" % (key, value))
+					elif isinstance(value, dict):
+						if key == "Max Dropdown":
+							print("  %s:" % key)
+							for dd_key, dd_value in value.items():
+								if isinstance(dd_value, float):
+									if dd_key in PERCENT_KEYS:
+										print("    %s: %.2f%%" % (dd_key, dd_value * 100))
+									else:
+										print("    %s: %.2f" % (dd_key, dd_value))
+								else:
+									print("    %s: %s" % (dd_key, dd_value))
+						else:
+							raise ValueError("Unsupport performance data type: %s" % type(value))
+					else:
+						raise ValueError("Unsupport performance data type: %s" % type(value))
 
 
-	@property
-	def Worksheet(self):
-		return self.__get_worksheet()
+	# @property
+	# def Worksheet(self):
+	# 	return self.__get_worksheet()
 
 
 if __name__ == "__main__":
@@ -510,7 +561,7 @@ if __name__ == "__main__":
 	>>> parser.add_argument('--baz', action='store_false')
 	'''
 	parser.add_argument('--source_folderpath', required=False, help='Update database from the XLS files in the designated folder path. Ex: %s' % PerformanceAnalysis.DEFAULT_DATA_FOLDERPATH)
-	parser.add_argument('--source_filename', required=False, help='The filename of chip analysis data source')
+	parser.add_argument('--source_filepath_list', required=False, help='The filename list. Mutiple source filenames are split by comma. The file extension(xlsx) can be ignored. Ex: 00850.TW.xlsx,00881.TW,00692.TW,MSFT.xlsx,GOOG')
 	parser.add_argument('-s', '--show_performance', required=False, action='store_true', help='Show the result of performace analysis for the specific target and exit.')
 	parser.add_argument('--statistics_date_range', required=False, 
 		 help='''The statistics data during the date range.
@@ -524,7 +575,7 @@ if __name__ == "__main__":
 	# import pdb; pdb.set_trace()
 	cfg = {}
 	if args.source_folderpath is not None: cfg['source_folderpath'] = args.source_folderpath
-	if args.source_filename is not None: cfg['source_filename'] = args.source_filename
+	if args.source_filepath_list is not None: cfg['source_filename_string'] = args.source_filepath_list
 	if args.statistics_date_range is not None: cfg['statistics_date_range_string'] = args.statistics_date_range
 	# import pdb; pdb.set_trace()
 	with PerformanceAnalysis(cfg) as obj:

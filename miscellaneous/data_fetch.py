@@ -89,10 +89,70 @@ class DataFetch(object):
 		return False
 
 
+# ========= XLSX 工具 =========
+	@classmethod
+	def __read_xlsx(cls, source_filepath):
+		# wb = self.__get_workbook()
+		wb = load_workbook(source_filepath)
+		ws = wb.active
+		rows = []
+		header = [c.value for c in ws[1]]
+		rows.append(header)
+		# for row in ws.iter_rows(min_row=2, values_only=True):
+		# 	rows.append(dict(zip(header, row)))
+		for row in ws.iter_rows(min_row=2, values_only=True):
+			rows.append(row)
+		return rows
+
+
+	@classmethod
+	def __write_xlsx(cls, source_filepath, rows, refresh_data=False):
+		ws = None
+		start_index = None
+		# import pdb; pdb.set_trace()
+		if not refresh_data and cls.__check_file_exist(source_filepath):
+# If file exists, append new data...
+			wb = load_workbook(source_filepath)
+			ws = wb.active
+# openpyxl 的 row / column 是從 1 開始，不是 0
+# openpyxl 是 Excel 操作庫，不是資料結構庫 它選擇「跟 Excel 一樣」而不是「跟 Python 一樣」
+# Excel 的世界本來就是從 1 開始
+			data_last_date_str = ws.cell(row=ws.max_row, column=cls.DEFAULT_YAHOO_DATE_TITLE_INDEX + 1).value
+			data_last_date = datetime.strptime(data_last_date_str, cls.DEFAULT_YAHOO_DATE_FORMAT).date()
+			for index, row in enumerate(rows[1:]):
+				row_date_str = row[cls.DEFAULT_YAHOO_DATE_TITLE_INDEX]
+				row_date = datetime.strptime(row_date_str, cls.DEFAULT_YAHOO_DATE_FORMAT).date()
+				if row_date > data_last_date:
+# row 0 是 header，所以 index 從 0 開始對應到 rows[1:] 的第一行資料
+					start_index = index + 1 # 因為 rows[1:] 的 index 是從 0 開始，所以要加 1 才是正確的行數
+					break
+			# if start_index is None: # 已存在，不寫入
+			# 	wb.close()
+			# 	return
+		else:
+# If file does NOT exist, create new file...
+			wb = Workbook()
+			ws = wb.active
+			# headers = rows[0].keys()
+			# ws.append(list(headers))
+			ws.append(self.DEFAULT_DATA_TILE_LIST)
+			start_index = 1
+		# import pdb; pdb.set_trace()
+		if start_index != None:
+			for r in rows[start_index:]:
+				ws.append(r)
+			data_len = len(rows[start_index:])
+			print(f"{data_len} is updated in {source_filepath}")
+			wb.save(source_filepath)
+		else:
+			print(f"No data is updated in {source_filepath}")
+		wb.close()
+
+
 	def __init__(self, cfg):
 		self.xcfg = {
 			"source_folderpath": None,
-			"source_filename": None,
+			# "source_filename": None,
 			"stock_symbol_string": None,
 			"data_date_range_string": None,
 			"refresh_data": False,
@@ -176,64 +236,6 @@ class DataFetch(object):
 	def __date_number2list(self, date_number):
 		date_obj = self.__date_number2obj(date_number)
 		return [date_obj.year, date_obj.month, date_obj.day]
-
-
-# ========= XLSX 工具 =========
-	def __read_xlsx(self, source_filepath):
-		# wb = self.__get_workbook()
-		wb = load_workbook(source_filepath)
-		ws = wb.active
-		rows = []
-		header = [c.value for c in ws[1]]
-		rows.append(header)
-		# for row in ws.iter_rows(min_row=2, values_only=True):
-		# 	rows.append(dict(zip(header, row)))
-		for row in ws.iter_rows(min_row=2, values_only=True):
-			rows.append(row)
-		return rows
-
-
-	def __write_xlsx(self, source_filepath, rows):
-		ws = None
-		start_index = None
-		# import pdb; pdb.set_trace()
-		if not self.xcfg["refresh_data"] and self.__check_file_exist(source_filepath):
-# If file exists, append new data...
-			wb = load_workbook(source_filepath)
-			ws = wb.active
-# openpyxl 的 row / column 是從 1 開始，不是 0
-# openpyxl 是 Excel 操作庫，不是資料結構庫 它選擇「跟 Excel 一樣」而不是「跟 Python 一樣」
-# Excel 的世界本來就是從 1 開始
-			data_last_date_str = ws.cell(row=ws.max_row, column=self.DEFAULT_YAHOO_DATE_TITLE_INDEX + 1).value
-			data_last_date = datetime.strptime(data_last_date_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
-			for index, row in enumerate(rows[1:]):
-				row_date_str = row[self.DEFAULT_YAHOO_DATE_TITLE_INDEX]
-				row_date = datetime.strptime(row_date_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
-				if row_date > data_last_date:
-# row 0 是 header，所以 index 從 0 開始對應到 rows[1:] 的第一行資料
-					start_index = index + 1 # 因為 rows[1:] 的 index 是從 0 開始，所以要加 1 才是正確的行數
-					break
-			# if start_index is None: # 已存在，不寫入
-			# 	wb.close()
-			# 	return
-		else:
-# If file does NOT exist, create new file...
-			wb = Workbook()
-			ws = wb.active
-			# headers = rows[0].keys()
-			# ws.append(list(headers))
-			ws.append(self.DEFAULT_DATA_TILE_LIST)
-			start_index = 1
-		# import pdb; pdb.set_trace()
-		if start_index != None:
-			for r in rows[start_index:]:
-				ws.append(r)
-			data_len = len(rows[start_index:])
-			print(f"{data_len} is updated in {source_filepath}")
-			wb.save(source_filepath)
-		else:
-			print(f"No data is updated in {source_filepath}")
-		wb.close()
 
 
 	def __fetch_and_cache(self, stock_symbol, date_range_start_str=None, date_range_end_str=None):

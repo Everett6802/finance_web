@@ -5,12 +5,13 @@ import os
 import sys
 import re
 import errno
-'''
-Question: How to Solve xlrd.biffh.XLRDError: Excel xlsx file; not supported ?
-Answer : The latest version of xlrd(2.01) only supports .xls files. Installing the older version 1.2.0 to open .xlsx files.
-'''
-import xlrd
-import xlsxwriter
+# # '''
+# # Question: How to Solve xlrd.biffh.XLRDError: Excel xlsx file; not supported ?
+# # Answer : The latest version of xlrd(2.01) only supports .xls files. Installing the older version 1.2.0 to open .xlsx files.
+# # '''
+# import xlrd
+# # import xlsxwriter
+from openpyxl import Workbook, load_workbook
 import argparse
 import copy
 import csv
@@ -113,6 +114,7 @@ class StockChipAnalysis(object):
 		u"法人共同買超累計": {
 			"key_mode": 1, # 1476
 			"data_start_column_index": 2,
+			"sheet_columns": 9,
 		},
 		u"外資買超天數累計": {
 			"key_mode": 0, # 2504 國產
@@ -203,25 +205,57 @@ class StockChipAnalysis(object):
 		return check_exist
 
 
+# ========= XLSX 工具 =========
 	@classmethod
-	def __read_from_worksheet(cls, worksheet, sheet_metadata):
+	def __read_xlsx(cls, source_filepath, sheet_name=None):
+		wb = load_workbook(source_filepath)
+		ws = wb.active if sheet_name is None else wb[sheet_name]
+		rows = []
+		header = [c.value for c in ws[1]]
+		rows.append(header)
+		# for row in ws.iter_rows(min_row=2, values_only=True):
+		# 	rows.append(dict(zip(header, row)))
+		for row in ws.iter_rows(min_row=2, values_only=True):
+			rows.append(row)
+		return rows
+
+
+	# @classmethod
+	# def __read_worksheet(cls, worksheet, sheet_metadata):
+	# 	# import pdb; pdb.set_trace()
+	# 	csv_data_dict = {}
+
+	# 	sheet_name = worksheet.name
+	# 	# print(sheet_name)
+	# 	# if sheet_name == "法人共同買超累計":
+	# 	# 	import pdb; pdb.set_trace()
+	# 	start_column_index = sheet_metadata["data_start_column_index"]
+	# 	title_list = ["商品",]
+	# 	type_list = [str,]
+
+	# 	sheet_ncols = sheet_metadata["sheet_columns"] if "sheet_columns" in sheet_metadata else worksheet.ncols
+	# 	sheet_nrows = 9999 if "sheet_columns" in sheet_metadata else worksheet.nrows
+	@classmethod
+	def __read_worksheet(cls, sheet_name, worksheet_rows, sheet_metadata):
 		# import pdb; pdb.set_trace()
 		csv_data_dict = {}
 
-		sheet_name = worksheet.name
-		# print(sheet_name)
-		# if sheet_name == "法人共同買超累計":
-		# 	import pdb; pdb.set_trace()
 		start_column_index = sheet_metadata["data_start_column_index"]
 		title_list = ["商品",]
 		type_list = [str,]
 
-		sheet_ncols = sheet_metadata["sheet_columns"] if "sheet_columns" in sheet_metadata else worksheet.ncols
-		sheet_nrows = 9999 if "sheet_columns" in sheet_metadata else worksheet.nrows
-
+		sheet_ncols = sheet_metadata["sheet_columns"] if "sheet_columns" in sheet_metadata else len(worksheet_rows[0])
+		sheet_nrows = len(worksheet_rows)
+		while True:
+			row_index = sheet_nrows - 1
+			if worksheet_rows[row_index][0] is not None and len(str(worksheet_rows[row_index][0])) > 0:
+				break
+			sheet_nrows -= 1
+		# import pdb; pdb.set_trace()
 		for column_index in range(start_column_index, sheet_ncols):
-			title = worksheet.cell_value(0, column_index)
-			title_list.append(title)
+			# title = worksheet.cell_value(0, column_index)
+			# title_list.append(title)
+			title_list.append(worksheet_rows[0][column_index])
 		type_list.extend([int,] * (sheet_ncols - 1))
 
 		# print("%s %d x %d" % (sheet_name, sheet_nrows, sheet_ncols))
@@ -231,7 +265,8 @@ class StockChipAnalysis(object):
 			ignore_data = False
 			stock_number = None
 			product_name = None
-			key_str = worksheet.cell_value(row_index, 0)
+			# key_str = worksheet.cell_value(row_index, 0)
+			key_str = worksheet_rows[row_index][0]
 			# print "key_str: %s" % key_str
 # '''
 # 				How to fix "SyntaxWarning: invalid escape sequence" in Python?
@@ -255,7 +290,8 @@ class StockChipAnalysis(object):
 				if mobj is None:
 					raise ValueError("%s: Incorrect format1: %s" % (sheet_name, key_str))
 				stock_number = mobj.group(1)
-				product_name = worksheet.cell_value(row_index, 1)
+				# product_name = worksheet.cell_value(row_index, 1)
+				product_name = worksheet_rows[row_index][1]
 			elif sheet_metadata["key_mode"] == 2:
 				mobj = re.match(r"([\d]{4})\s{2}(.+)", key_str)
 				if mobj is None:
@@ -274,6 +310,7 @@ class StockChipAnalysis(object):
 					stock_number = mobj.group(2)
 			elif sheet_metadata["key_mode"] == 4:
 				# import pdb; pdb.set_trace()
+				# print(f"{row_index}: {key_str}")
 				if len(key_str) == 0:
 					break
 				# mobj = re.match("(0[\d]{3}[\dBLKRS]{0,3}) (.+)", key_str)
@@ -281,13 +318,15 @@ class StockChipAnalysis(object):
 				if mobj is None:
 					raise ValueError("%s: Incorrect format4: %s" % (sheet_name, key_str))
 				stock_number = mobj.group(1)
-				product_name = worksheet.cell_value(row_index, 1)  # mobj.group(2)
+				# product_name = worksheet.cell_value(row_index, 1)  # mobj.group(2)
+				product_name = worksheet_rows[row_index][1]  # mobj.group(2)
 			elif sheet_metadata["key_mode"] == 5:
 				mobj = re.match("([A-Z]{2,5})", key_str)
 				if mobj is None:
 					raise ValueError("%s: Incorrect format5: %s" % (sheet_name, key_str))
 				stock_number = mobj.group(1)
-				product_name = worksheet.cell_value(row_index, 1)
+				# product_name = worksheet.cell_value(row_index, 1)
+				product_name = worksheet_rows[row_index][1]
 			else:
 				raise ValueError("Unknown key mode: %d" % sheet_metadata["key_mode"])
 			# if stock_number is None:
@@ -295,13 +334,15 @@ class StockChipAnalysis(object):
 			if not ignore_data:
 				data_list.append(product_name)
 				for column_index in range(start_column_index, sheet_ncols):
-					data = worksheet.cell_value(row_index, column_index)
+					# data = worksheet.cell_value(row_index, column_index)
+					data = worksheet_rows[row_index][column_index]
 					if re.search("[1-9]+", str(data).split(".")[-1]) is not None:
 						type_list[column_index] = float
 					data_list.append(data)
 			# print "%d -- %s" % (row_index, stock_number)
 			value_dict = dict(zip(title_list, data_list))
 			csv_data_value_dict[stock_number] = dict(zip(title_list, data_list))
+		# import pdb; pdb.set_trace()
 		csv_data_dict = {
 			"value": csv_data_value_dict,
 			"type": type_list,
@@ -350,9 +391,6 @@ class StockChipAnalysis(object):
 			"min_consecutive_over_buy_days": self.DEFAULT_MIN_CONSECUTIVE_OVER_BUY_DAYS,
 			"max_consecutive_over_buy_days": self.DEFAULT_MAX_CONSECUTIVE_OVER_BUY_DAYS,
 			"minimum_volume": self.DEFAULT_MINIMUM_VOLUME,
-			# "main_force_instuitional_investors_ratio_threshold": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_THRESHOLD,
-			# "main_force_instuitional_investors_ratio_consecutive_days": self.DEFAULT_MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_CONSECUTIVE_DAYS,
-			# "stock_sharpe_data_ranking_percentrage_threshold": self.DEFAULT_STOCK_SHARPE_RATIO_RANKING_PERCENTAGE_THRESHOLD,
 			"output_result_filename": self.DEFAULT_OUTPUT_RESULT_FILENAME,
 			"output_result": False,
 			"quiet": False,
@@ -445,17 +483,17 @@ class StockChipAnalysis(object):
 	def __read_sheet_data(self, sheet_name):
 		# import pdb; pdb.set_trace()
 		sheet_metadata = self.SHEET_METADATA_DICT[sheet_name]		
-		# print (u"Read sheet: %s" % sheet_name)
-		# assert self.workbook is not None, "self.workbook should NOT be None"
-		worksheet = self.__get_workbook().sheet_by_name(sheet_name)
-		# https://www.itread01.com/content/1549650266.html
-		# print worksheet.name,worksheet.nrows,worksheet.ncols    #Sheet1 6 4
-# The data
-		csv_data_dict = self.__read_from_worksheet(worksheet, sheet_metadata)
+# 		# print (u"Read sheet: %s" % sheet_name)
+# 		# assert self.workbook is not None, "self.workbook should NOT be None"
+# 		worksheet = self.__get_workbook().sheet_by_name(sheet_name)
+# 		# https://www.itread01.com/content/1549650266.html
+# 		# print worksheet.name,worksheet.nrows,worksheet.ncols    #Sheet1 6 4
+# # The data
+# 		csv_data_dict = self.__read_worksheet(worksheet, sheet_metadata)
+		worksheet_rows = self.__read_xlsx(self.xcfg["source_filepath"], sheet_name=sheet_name)
+		csv_data_dict = self.__read_worksheet(sheet_name, worksheet_rows, sheet_metadata)
 		csv_data_value_dict = csv_data_dict["value"]
-# 		if sheet_name == "個股夏普值":
-# 			import pdb; pdb.set_trace()
-# # Filter the data if necessary
+# Filter the data if necessary
 		if (self.xcfg["min_consecutive_over_buy_days"] is not None) or (self.xcfg["max_consecutive_over_buy_days"] is not None):
 			try:
 				sheet_index = self.CONSECUTIVE_OVER_BUY_DAYS_SHEETNAME_LIST.index(sheet_name)
@@ -480,28 +518,6 @@ class StockChipAnalysis(object):
 				csv_data_value_dict = dict(filter(lambda x: int(x[1][field_name]) >= self.xcfg["minimum_volume"], csv_data_value_dict.items()))
 			except ValueError as e: 
 				pass
-# 		if self.xcfg["main_force_instuitional_investors_ratio_threshold"] is not None:
-# 			if sheet_name == self.MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_SHEETNAME:
-# 				csv_data_value_dict = dict(filter(lambda x: float(x[1][self.MAIN_FORCE_INSTUITIONAL_INVESTORS_RATIO_FIELDNAME]) >= self.xcfg["main_force_instuitional_investors_ratio_threshold"], csv_data_value_dict.items()))
-# 				if self.xcfg["main_force_instuitional_investors_ratio_consecutive_days"] is not None:
-# 					def check_consecutive_days(x):
-# 						# import pdb; pdb.set_trace()
-# 						for index in range(1, self.xcfg["main_force_instuitional_investors_ratio_consecutive_days"]):
-# 							field_name = "D-%d" % index
-# 							if x[1][field_name] < self.xcfg["main_force_instuitional_investors_ratio_threshold"]:
-# 								return False
-# 						return True
-# 					csv_data_value_dict = dict(filter(lambda x: check_consecutive_days(x), csv_data_value_dict.items()))
-# # 		if self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"] is not None:
-# # 			if sheet_name == self.STOCK_SHARPE_RATIO_RANKING_SHEETNAME:
-# # 				# csv_data_value_ranking_count = len(csv_data_value_dict) * self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"] // 100
-# # 				csv_data_value_ranking_count = self.xcfg["stock_sharpe_data_ranking_percentrage_threshold"]
-# # # Select only top xxx percent of data
-# # 				csv_data_value_dict = dict(list(sorted(csv_data_value_dict.items(), key=lambda x: x[1]["D"], reverse=True))[0:csv_data_value_ranking_count])
-# # # Don't do in this way. pop() returns a value and not the key-value pair for a dictionary
-# # 				# csv_data_value_dict = dict(map(lambda x: x[1].pop("趨勢"), csv_data_value_dict.items()))
-# # 				for key, value in csv_data_value_dict.items(): value.pop("趨勢")
-# # 				# import pdb; pdb.set_trace()
 		if self.xcfg["check_sharpe_ratio"]:
 			if sheet_name == self.LARGE_SHAREHOLD_POSITION_SHEETNAME:
 				sharpe_ratio_sorted_list = sorted([x[self.LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO] for x in csv_data_value_dict.values()], reverse=True)
@@ -514,51 +530,6 @@ class StockChipAnalysis(object):
 					standard_deviation_index = standard_deviation_sorted_list.index(standard_deviation_value)
 		csv_data_dict["value"] = csv_data_value_dict
 		return csv_data_dict
-
-
-# 	def __read_cb_publish(self):
-# 		pattern = r"([\d]+)年"
-# 		cb_data = {}
-# 		with open(self.xcfg["cb_publish_filepath"], newline='') as f:
-# 			rows = csv.reader(f)
-# 			regex = re.compile(pattern)
-# 			title_list = None
-# 			title_tenor_index = None
-# 			title_par_value_index = None
-# 			for index, row in enumerate(rows):
-# 				if index in [0, 1, 3,]: pass
-# 				elif index == 2:
-# 					title_list = row
-# 					title_list = title_list[1:]  # ignore 債券代號
-# 					title_tenor_index = title_list.index("年期")
-# 					title_par_value_index = title_list.index("發行總面額")
-# # ['債券簡稱', '發行人', '發行日期', '到期日期', '年期', '發行總面額', '發行資料']
-# 					# print(title_list)
-# 				else:
-# 					assert title_list is not None, "title_list should NOT be None"
-# 					data_list = []
-# 					data_key = row[0]
-# 					for data_index, data_value in enumerate(row[1:]):  # ignore 債券代號
-# 						if data_index >= self.DEFAULT_CB_PUBLISH_FIELD_TYPE_LEN: break
-# 						try:
-# 							if data_index == title_tenor_index:
-# 								mobj = re.match(regex, data_value)
-# 								# import pdb; pdb.set_trace()
-# 								if mobj is None: 
-# 									raise ValueError("Incorrect format in 年期 field: %s" % data_value)
-# 								data_value = mobj.group(1)
-# 							elif data_index == title_par_value_index:
-# 								data_value = data_value.replace(",","")
-# 							data_type = self.DEFAULT_CB_PUBLISH_FIELD_TYPE[data_index]
-# 							data_value = data_type(data_value)
-# 							data_list.append(data_value)
-# 						except ValueError as e:
-# 							print ("Exception occurs in %s, due to: %s" % (data_key, str(e)))
-# 							raise e						
-# 					data_dict = dict(zip(title_list, data_list))
-# 					cb_data[data_key] = data_dict
-# 		# import pdb; pdb.set_trace()
-# 		return cb_data
 
 
 	def __get_sorted_stock_list(self, sort_by_field_name, sheet_data_dict, reverse=False):
@@ -587,35 +558,12 @@ class StockChipAnalysis(object):
 		return sum(field_value_list)/len(field_value_list)
 
 
-	# def __get_sorted_ssb(self, field_name, ssb_stock_chip_data_dict):
-	# 	if field_name not in self.SSB_SORT_FIELD_NAME_LIST: # ["夏普", "標準差", "貝它",]:
-	# 		raise ValueError("Incorrect field name: %s" % field_name)
-	# 	reverse = False if field_name in ["標準差",] else True
-	# 	if field_name not in self.sorted_ssb_dict:
-	# 		# import pdb; pdb.set_trace()
-	# 		# self.sorted_ssb_dict[field_name] = OrderedDict(sorted(ssb_stock_chip_data_dict["value"].items(), key=lambda x: x[1][field_name], reverse=reverse))
-	# 		# self.sorted_ssb_dict[field_name] = sorted([ssb_stock_chip_data[field_name] for ssb_stock_chip_data in ssb_stock_chip_data_dict["value"].values()], reverse=reverse)
-	# 		self.sorted_ssb_dict[field_name] = self.__get_sorted_stock_list(field_name, ssb_stock_chip_data_dict, reverse=reverse)
-	# 	# import pdb; pdb.set_trace()
-	# 	return self.sorted_ssb_dict[field_name]
-
-
-	# def __get_monthly_average_return_sorted_data(self):
-	# 	if self.mouthly_average_return_sorted_data is None:
-	# 		mouthly_average_return_sheet_data = self.__read_sheet_data(self.MONTHLY_AVERAGE_RETURN_SHEETNAME)
-	# 		mouthly_average_return_data = [(key, float(value['D'])) for key, value in mouthly_average_return_sheet_data['value'].items()]
-	# 		self.mouthly_average_return_sorted_data = list(OrderedDict(sorted(mouthly_average_return_data, key=lambda x: x[1], reverse=True)).keys())
-	# 	return self.mouthly_average_return_sorted_data
-
-
 	def __print_file_modification_date(self):
 		print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 		if self.xcfg["source_file_modification_date_str"] is not None:
 			print("%s  修改時間: %s" % (os.path.basename(self.xcfg["source_filepath"]), self.xcfg["source_file_modification_date_str"]))
 		if self.xcfg["tracked_stock_list_file_modification_date_str"] is not None:
 			print("%s  修改時間: %s" % (os.path.basename(self.xcfg["tracked_stock_list_filepath"]), self.xcfg["tracked_stock_list_file_modification_date_str"]))
-		# if self.xcfg["cb_publish_file_modification_date_str"] is not None:
-		# 	print("%s  修改時間: %s" % (os.path.basename(self.xcfg["cb_publish_filepath"]), self.xcfg["cb_publish_file_modification_date_str"]))
 		print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
 
 
@@ -627,62 +575,6 @@ class StockChipAnalysis(object):
 			stock_chip_data_dict[sheet_name] = self.__read_sheet_data(sheet_name)
 		# import pdb; pdb.set_trace()
 		return stock_chip_data_dict
-
-
-	# def calculate_cb_monthly_convert_data_table_month(self):
-	# 	today = datetime.today()
-	# 	year = today.year - 1911
-	# 	month = today.month
-	# 	day = today.day
-	# 	if day >= 11:
-	# 		month -= 1
-	# 	else:
-	# 		month -= 2
-	# 	if month <= 0:
-	# 		month += 12
-	# 		year -= 1
-	# 	# filename = "%s%d%02d" % (self.self.DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX, year, month)
-	# 	# # filepath = os.path.join(self.xcfg["cb_data_folderpath"], filename)
-	# 	# # return (not self.__check_file_exist(filepath))
-	# 	table_month = "%d%02d" % (year, month)
-	# 	return table_month
-
-
-	# def get_cb_monthly_convert_data(self, table_month=None):
-	# 	# import pdb; pdb.set_trace()
-	# 	filepath = None
-	# 	scrapy_data_dict = None
-	# 	if table_month is None:
-	# 		table_month = self.calculate_cb_monthly_convert_data_table_month()
-	# 	filename = self.DEFAULT_CB_MONTHLY_CONVERT_DATA_FILENAME_PREFIX + table_month
-	# 	filepath = os.path.join(self.xcfg["cb_data_folderpath"], filename)
-	# 	if not self.__check_file_exist(filepath):
-	# 		raise ValueError("The data of %s is NOT found" % os.path.basename(filepath))
-	# 	with open(filepath, 'r', encoding='utf-8') as f:
-	# 		scrapy_data_dict = json.load(f)
-	# 	return scrapy_data_dict
-			
-
-	# def search_cb_mass_convert(self, table_month=None, mass_convert_threshold=-10.0):
-	# 	# import pdb; pdb.set_trace()
-	# 	mass_convert_cb_dict = None
-	# 	def filter_funcptr(x):
-	# 		# import pdb; pdb.set_trace()
-	# 		# print(x)
-	# 		data_dict = x[1]
-	# 		if int(data_dict["發行張數"]) == 0: return 0
-	# 		# print(float(data_dict["增減數額"]) / float(data_dict["發行張數"]))
-	# 		return float(data_dict["增減數額"]) / float(data_dict["發行張數"]) * 100.0
-	# 	try:
-	# 		cb_monthly_convert_data = self.get_cb_monthly_convert_data(table_month)
-	# 		convert_cb_dict = cb_monthly_convert_data["content"]
-	# 		# convert_cb_dict = dict(filter(lambda x: x[0] in self.cb_id_list, convert_cb_dict.items()))
-	# 		# mass_convert_cb_dict = dict(filter(lambda x: float(x[1]["增減百分比"]) < mass_convert_threshold, convert_cb_dict.items()))
-	# 		mass_convert_cb_dict = dict(filter(lambda x: filter_funcptr(x) < mass_convert_threshold, convert_cb_dict.items()))
-	# 	except ValueError as e:
-	# 		# print("CB Mass Convert: %s" & str(e))
-	# 		return None
-	# 	return mass_convert_cb_dict
 
 
 	def search_etf_targets(self, stock_chip_data_dict=None, search_rule_index=0):
@@ -740,17 +632,6 @@ class StockChipAnalysis(object):
 					print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
 				except ValueError as e:
 					raise e
-			# for index, stock in enumerate(stock_list):
-			# 	stock_name = sheet_data_dict['value'][stock]["商品"]
-			# 	print ("*** %s[%s] ***" % (stock, stock_name))
-			# 	stock_sheet_data_dict = sheet_data_dict['value'][stock]
-			# 	item_list = stock_sheet_data_dict.items()
-			# 	item_type_list = map(lambda x, y: (x[0], x[1], y), item_list, stock_chip_data_dict[sheet_name]["type"])
-			# 	item_type_list = filter(lambda x: x[0] not in ["商品",], item_type_list)
-			# 	try:
-			# 		print("  " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
-			# 	except ValueError as e:
-			# 		raise e
 			print("\n")
 
 
@@ -842,9 +723,10 @@ class StockChipAnalysis(object):
 				try:
 					# import pdb; pdb.set_trace()
 					print("  " + sheet_name + ": " + " ".join(map(lambda x: "%s(%s)" % (x[0], str(x[2](x[1]))), item_type_list)))
-				except ValueError as e:
-					# print("%s:%s Error: %s in %s" % (tracked_stock, sheet_name, str(e), str(list(item_type_list))))
-					# import pdb; pdb.set_trace()
+				# except ValueError as e:
+				except Exception as e:
+					print("%s:%s Error: %s in %s" % (tracked_stock, sheet_name, str(e), str(list(item_type_list))))
+					import pdb; pdb.set_trace()
 					raise e
 			if need_new_line: 
 				print("\n")
