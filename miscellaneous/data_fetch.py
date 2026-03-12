@@ -135,7 +135,7 @@ class DataFetch(object):
 			ws = wb.active
 			# headers = rows[0].keys()
 			# ws.append(list(headers))
-			ws.append(self.DEFAULT_DATA_TILE_LIST)
+			ws.append(cls.DEFAULT_DATA_TILE_LIST)
 			start_index = 1
 		# import pdb; pdb.set_trace()
 		if start_index != None:

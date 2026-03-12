@@ -443,7 +443,7 @@ class PerformanceAnalysis(object):
 				date_range_end_list = self.__date_str2list(date_range_end)
 			else:
 				date_range_end_list = self.__date_str2list("12/31/2100")
-			funcptr = lambda x: date_range_start_list <= self.__date_number2list(x[time_index]) <= date_range_end_list
+			funcptr = lambda x: date_range_start_list <= self.__date_str2list(x[time_index]) <= date_range_end_list
 			data_tmp = filter(funcptr, worksheet_data["data"])
 			worksheet_data["data"] = list(data_tmp)
 		return worksheet_data
@@ -482,13 +482,23 @@ class PerformanceAnalysis(object):
 			prev_closing_price = closing_price
 		drawdowns = self.analyze_drawdowns(daily_returns)
 		dd_summary = self.drawdown_summary(drawdowns)
-		return {
+		statistics_dict = {
 			"Cumulative Return": self.cumulative_return(daily_returns),
 			"CAGR": self.cagr(daily_returns),
 			"Annualized Volatility": self.annualized_volatility(daily_returns),
 			"Sharpe Ratio": self.sharpe_ratio(daily_returns, self.xcfg["risk_free_rate"]),
 			"Max Dropdown": dd_summary,
 		}
+		date_range_dict = None
+		try:
+			time_index = worksheet_data["title"].index(self.DEFAULT_TIME_FIELD_NAME)
+			date_range_dict = {}
+			date_range_dict["Start Date"] = worksheet_data["data"][0][time_index]
+			date_range_dict["End Date"] = worksheet_data["data"][-1][time_index]
+		except ValueError as e:
+			# raise ValueError("Column not found: %s" % self.DEFAULT_TIME_FIELD_NAME)
+			pass
+		return statistics_dict, date_range_dict
 
 
 	def show_performance(self):
@@ -497,14 +507,19 @@ class PerformanceAnalysis(object):
 		for source_filepath in self.source_filepath_list:
 			print("========================================")
 			file_exist = True
+			date_range_exist = False
 			if not self.__check_file_exist(source_filepath):
 				file_exist = False
 				print(f"* The file {source_filepath} does NOT exist...")
 			else:
 				source_filename = os.path.basename(source_filepath)
 				target_name = source_filename.rstrip(".xlsx")
-				perf_dict = self.analyze_performance(source_filepath)
-				print(f"{target_name} Performance Analysis:")
+				perf_dict, date_range_dict = self.analyze_performance(source_filepath)
+				if date_range_dict is not None:
+					date_range = date_range_dict["Start Date"] + " ~ " + date_range_dict["End Date"]
+					print(f"{target_name} Performance Analysis ({date_range}): ")
+				else:	
+					print(f"{target_name} Performance Analysis:")
 			print("========================================")
 			if file_exist:
 				for key, value in perf_dict.items():
