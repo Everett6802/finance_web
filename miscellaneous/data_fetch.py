@@ -52,6 +52,8 @@ class DataFetch(object):
 	DEFAULT_YAHOO_DATE_FORMAT = "%Y-%m-%d"
 	DEFAULT_DATE_BASE_NUMBER = 36526
 	DEFAULT_DATE_BASE = date(2000, 1, 1)
+	DEFAULT_MIN_DATE = date(1900, 1, 1)
+	DEFAULT_MAX_DATE = date(2099, 12, 31)
 
 	@classmethod
 	def __is_string(cls, value):
@@ -244,7 +246,7 @@ class DataFetch(object):
 		"""
 		# csv_file = os.path.join(self.xcfg["source_filepath"], f"{stock_symbol}.csv")
 # 檢查是否已存在本地資料
-		import pdb; pdb.set_trace()
+		# import pdb; pdb.set_trace()
 		source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
 		file_exist = self.__check_file_exist(source_filepath)
 		if file_exist:
@@ -252,38 +254,62 @@ class DataFetch(object):
 				print(f"WARNING: The file {source_filepath} is locked by other process, so skip fetching data for {stock_symbol}...")
 				return False
 		fetch_start = fetch_end = None
-		if not self.xcfg["refresh_data"] and file_exist:
+		refresh_data = self.xcfg["refresh_data"]
+		# import pdb; pdb.set_trace()
+		if file_exist:
 			rows = self.__read_xlsx(source_filepath)
-			first_date_str = rows[0][self.DEFAULT_YAHOO_DATE_TITLE_INDEX]
+			first_date_str = rows[1][self.DEFAULT_YAHOO_DATE_TITLE_INDEX]
 			first_date = datetime.strptime(first_date_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
 			last_date_str = rows[-1][self.DEFAULT_YAHOO_DATE_TITLE_INDEX]
 			last_date = datetime.strptime(last_date_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
-# Check if date range is valid
-			date_range_start = datetime.strptime(date_range_start_str, self.DEFAULT_YAHOO_DATE_FORMAT).date() if date_range_start_str is not None else None
-			date_range_end = datetime.strptime(date_range_end_str, self.DEFAULT_YAHOO_DATE_FORMAT).date() if date_range_end_str is not None else None
-			fetch_start = last_date + timedelta(days=1)
+# Adjust the time range
+			date_range_start = datetime.strptime(date_range_start_str, self.DEFAULT_YAHOO_DATE_FORMAT).date() if date_range_start_str is not None else None  # self.DEFAULT_MIN_DATE  # first_date
+			date_range_end = datetime.strptime(date_range_end_str, self.DEFAULT_YAHOO_DATE_FORMAT).date() if date_range_end_str is not None else None  # self.DEFAULT_MAX_DATE  # datetime.today().date()  # last_date
+# Check the boundary condition of date range
+			if (date_range_start is not None) and (date_range_end is not None) and (date_range_start > date_range_end):
+				print(f"WARNING: The start date {date_range_start_str} is later than the end date {date_range_end_str}, so no data will be fetched.")
+				return False
+			if (date_range_end is not None) and (date_range_end < (first_date - timedelta(days=1))):
+				print(f"WARNING: The end date {date_range_end_str} is out of boundary of the local data {first_date_str} - {last_date_str}, so no data will be fetched.")
+				return False
+			if (date_range_start is not None) and (date_range_start > (last_date + timedelta(days=1))):
+				print(f"WARNING: The start date {date_range_start_str} is out of boundary of the local data {first_date_str} - {last_date_str}, so no data will be fetched.")
+				return False
 			if date_range_start is not None:
-				if date_range_start > fetch_start:
-					print(f"WARNING: The start date {date_range_start_str} is later than {last_date_str} in local data, so no data will be fetched.")
+				if date_range_start < first_date:
+					refresh_data = True
+				elif (date_range_end is not None) and first_date <= date_range_end <= last_date:
+					print(f"WARNING: The date range {date_range_start} - {date_range_end} is within the local data, so no data will be fetched.")
 					return False
+			# import pdb; pdb.set_trace()
+			if refresh_data:
+				fetch_start = date_range_start
+			else:	
+				fetch_start = last_date + timedelta(days=1)
+				# if date_range_start is not None:
+				# 	if date_range_start > fetch_start:
+				# 		print(f"WARNING: The start date {date_range_start_str} is later than {last_date_str} in local data, so no data will be fetched.")
+				# 		return False
 		else:
-			if date_range_start_str is None:
-				fetch_start = self.DEFAULT_DATE_BASE
-			else:
+			if date_range_start_str is not None:
 				fetch_start = datetime.strptime(date_range_start_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
-		if date_range_end_str is None:
-			fetch_end = datetime.today().date()
-		else:
+		if date_range_end_str is not None:
 			fetch_end = datetime.strptime(date_range_end_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
 			if fetch_end > datetime.today().date():
 				print(f"WARNING: The end date {date_range_start_str} shuld NOT be later than today")
 				return False
 # 如果已經最新，直接返回
-		if fetch_start > fetch_end:
-			print(f"WARNING: Incorrect time range %s - %s" % (fetch_start.strftime(self.DEFAULT_YAHOO_DATE_FORMAT), fetch_end.strftime(self.DEFAULT_YAHOO_DATE_FORMAT)))
-			return False
+		if (fetch_start is not None) and (fetch_end is not None):
+			if fetch_start > fetch_end:
+				print(f"WARNING: Incorrect time range %s - %s" % (fetch_start.strftime(self.DEFAULT_YAHOO_DATE_FORMAT), fetch_end.strftime(self.DEFAULT_YAHOO_DATE_FORMAT)))
+				return False
+		# import pdb; pdb.set_trace()
 # 抓取歷史資料
-		hist = yf.download(stock_symbol, start=fetch_start.strftime(self.DEFAULT_YAHOO_DATE_FORMAT), end=fetch_end.strftime(self.DEFAULT_YAHOO_DATE_FORMAT), group_by='column')
+# start=None: 會自動設為一個很早的日期（實務上接近 1900-01-01）等同於「從資料能取得的最早時間開始抓」
+# end=None: 會自動設為「現在時間」（today / now）
+# start=None 且 end=None: 抓「該股票所有可用歷史資料」 
+		# hist = yf.download(stock_symbol, start=fetch_start.strftime(self.DEFAULT_YAHOO_DATE_FORMAT), end=fetch_end.strftime(self.DEFAULT_YAHOO_DATE_FORMAT), group_by='column')
+		hist = yf.download(stock_symbol, start=fetch_start, end=fetch_end, group_by='column')
 		hist = hist.reset_index()
 # 把 MultiIndex 欄位轉成單層欄位
 		if isinstance(hist.columns, pd.MultiIndex):
@@ -309,7 +335,7 @@ class DataFetch(object):
 			row_data_list.append(one_row_data)
 # 寫入 XLSX
 		# import pdb; pdb.set_trace()
-		self.__write_xlsx(source_filepath, row_data_list)
+		self.__write_xlsx(source_filepath, row_data_list, refresh_data)
 		return True
 
 
