@@ -34,15 +34,28 @@ class DataFetch(object):
 	DEFAULT_TIME_FIELD_NAME = "時間"	
 	DEFAULT_CLOSING_PRICE_FIELD_NAME = "收盤價"	
 	# DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
-	# DEFAULT_DATE_BASE_NUMBER = 36526
-	# DEFAULT_DATE_BASE = date(2000, 1, 1)
-	# DEFAULT_DATA_DATE_TITLE = "時間"
-	# DEFAULT_DATA_OPEN_TITLE = "開盤價"
-	# DEFAULT_DATA_HIGH_TITLE = "最高價"
-	# DEFAULT_DATA_LOW_TITLE = "最低價"
-	# DEFAULT_DATA_CLOSE_TITLE = "收盤價"
-	# DEFAULT_DATA_VOLUME_TITLE = "成交量"
-	# DEFAULT_DATA_TITLE_LIST = [x[1] for x in DEFAULT_YAHOO_DATA_TITLE_MAPPING]
+
+	DEFAULT_DATA_DATE_TITLE = "時間"
+	DEFAULT_DATA_OPEN_TITLE = "開盤價"
+	DEFAULT_DATA_HIGH_TITLE = "最高價"
+	DEFAULT_DATA_LOW_TITLE = "最低價"
+	DEFAULT_DATA_CLOSE_TITLE = "收盤價"
+	DEFAULT_DATA_VOLUME_TITLE = "成交量"
+	DEFAULT_DATA_TITLE_LIST = [
+		DEFAULT_DATA_DATE_TITLE,
+		DEFAULT_DATA_OPEN_TITLE,
+		DEFAULT_DATA_HIGH_TITLE,
+		DEFAULT_DATA_LOW_TITLE,
+		DEFAULT_DATA_CLOSE_TITLE,
+		DEFAULT_DATA_VOLUME_TITLE
+	]
+	DEFAULT_DATA_DATE_TITLE_INDEX = DEFAULT_DATA_TITLE_LIST.index(DEFAULT_DATA_DATE_TITLE)
+	DEFAULT_DATA_OPEN_TITLE_INDEX = DEFAULT_DATA_TITLE_LIST.index(DEFAULT_DATA_OPEN_TITLE)
+	DEFAULT_DATA_HIGH_TITLE_INDEX = DEFAULT_DATA_TITLE_LIST.index(DEFAULT_DATA_HIGH_TITLE)
+	DEFAULT_DATA_LOW_TITLE_INDEX = DEFAULT_DATA_TITLE_LIST.index(DEFAULT_DATA_LOW_TITLE)
+	DEFAULT_DATA_CLOSE_TITLE_INDEX = DEFAULT_DATA_TITLE_LIST.index(DEFAULT_DATA_CLOSE_TITLE)
+	DEFAULT_DATA_VOLUME_TITLE_INDEX = DEFAULT_DATA_TITLE_LIST.index(DEFAULT_DATA_VOLUME_TITLE)
+
 # Yahoo
 	DEFAULT_YAHOO_DATE_TITLE = "Date"
 	DEFAULT_YAHOO_OPEN_TITLE = "Open"
@@ -51,14 +64,15 @@ class DataFetch(object):
 	DEFAULT_YAHOO_CLOSE_TITLE = "Close"
 	DEFAULT_YAHOO_VOLUME_TITLE = "Volume"
 	DEFAULT_YAHOO_DATA_TITLE_MAPPING = [
-		(DEFAULT_YAHOO_DATE_TITLE, "時間"), 
-		(DEFAULT_YAHOO_OPEN_TITLE, "開盤價"), 
-		(DEFAULT_YAHOO_HIGH_TITLE, "最高價"), 
-		(DEFAULT_YAHOO_LOW_TITLE, "最低價"), 
-		(DEFAULT_YAHOO_CLOSE_TITLE, "收盤價"), 
-		(DEFAULT_YAHOO_VOLUME_TITLE, "成交量")
+		(DEFAULT_YAHOO_DATE_TITLE, DEFAULT_DATA_DATE_TITLE), 
+		(DEFAULT_YAHOO_OPEN_TITLE, DEFAULT_DATA_OPEN_TITLE), 
+		(DEFAULT_YAHOO_HIGH_TITLE, DEFAULT_DATA_HIGH_TITLE), 
+		(DEFAULT_YAHOO_LOW_TITLE, DEFAULT_DATA_LOW_TITLE), 
+		(DEFAULT_YAHOO_CLOSE_TITLE, DEFAULT_DATA_CLOSE_TITLE), 
+		(DEFAULT_YAHOO_VOLUME_TITLE, DEFAULT_DATA_VOLUME_TITLE)
 	]
 	DEFAULT_YAHOO_TITLE_LIST = [x[0] for x in DEFAULT_YAHOO_DATA_TITLE_MAPPING]
+	DEFAULT_YAHOO_TITLE_DESCRIPTIOIN_LIST = [x[1] for x in DEFAULT_YAHOO_DATA_TITLE_MAPPING]
 	DEFAULT_YAHOO_DATE_TITLE_INDEX = DEFAULT_YAHOO_TITLE_LIST.index(DEFAULT_YAHOO_DATE_TITLE)
 	DEFAULT_YAHOO_OPEN_TITLE_INDEX = DEFAULT_YAHOO_TITLE_LIST.index(DEFAULT_YAHOO_OPEN_TITLE)
 	DEFAULT_YAHOO_HIGH_TITLE_INDEX = DEFAULT_YAHOO_TITLE_LIST.index(DEFAULT_YAHOO_HIGH_TITLE)
@@ -74,14 +88,15 @@ class DataFetch(object):
 	DEFAULT_FINMIND_CLOSE_TITLE = "close"
 	DEFAULT_FINMIND_VOLUME_TITLE = "Trading_Volume"
 	DEFAULT_FINMIND_DATA_TITLE_MAPPING = [
-		(DEFAULT_FINMIND_DATE_TITLE, "時間"), 
-		(DEFAULT_FINMIND_OPEN_TITLE, "開盤價"), 
-		(DEFAULT_FINMIND_HIGH_TITLE, "最高價"), 
-		(DEFAULT_FINMIND_LOW_TITLE, "最低價"), 
-		(DEFAULT_FINMIND_CLOSE_TITLE, "收盤價"), 
-		(DEFAULT_FINMIND_VOLUME_TITLE, "成交量")
+		(DEFAULT_FINMIND_DATE_TITLE, DEFAULT_DATA_DATE_TITLE), 
+		(DEFAULT_FINMIND_OPEN_TITLE, DEFAULT_DATA_OPEN_TITLE), 
+		(DEFAULT_FINMIND_HIGH_TITLE, DEFAULT_DATA_HIGH_TITLE), 
+		(DEFAULT_FINMIND_LOW_TITLE, DEFAULT_DATA_LOW_TITLE), 
+		(DEFAULT_FINMIND_CLOSE_TITLE, DEFAULT_DATA_CLOSE_TITLE), 
+		(DEFAULT_FINMIND_VOLUME_TITLE, DEFAULT_DATA_VOLUME_TITLE)
 	]
 	DEFAULT_FINMIND_TITLE_LIST = [x[0] for x in DEFAULT_FINMIND_DATA_TITLE_MAPPING]
+	DEFAULT_FINMIND_TITLE_DESCRIPTIOIN_LIST = [x[1] for x in DEFAULT_FINMIND_DATA_TITLE_MAPPING]
 	DEFAULT_FINMIND_DATE_TITLE_INDEX = DEFAULT_FINMIND_TITLE_LIST.index(DEFAULT_FINMIND_DATE_TITLE)
 	DEFAULT_FINMIND_OPEN_TITLE_INDEX = DEFAULT_FINMIND_TITLE_LIST.index(DEFAULT_FINMIND_OPEN_TITLE)
 	DEFAULT_FINMIND_HIGH_TITLE_INDEX = DEFAULT_FINMIND_TITLE_LIST.index(DEFAULT_FINMIND_HIGH_TITLE)
@@ -89,32 +104,13 @@ class DataFetch(object):
 	DEFAULT_FINMIND_CLOSE_TITLE_INDEX = DEFAULT_FINMIND_TITLE_LIST.index(DEFAULT_FINMIND_CLOSE_TITLE)
 	DEFAULT_FINMIND_VOLUME_TITLE_INDEX = DEFAULT_FINMIND_TITLE_LIST.index(DEFAULT_FINMIND_VOLUME_TITLE)
 	DEFAULT_FINMIND_DATE_FORMAT = "%Y-%m-%d"
-
-	DEFAULT_DATE_TITLE = DEFAULT_YAHOO_DATE_TITLE
-	DEFAULT_OPEN_TITLE = DEFAULT_YAHOO_OPEN_TITLE
-	DEFAULT_HIGH_TITLE = DEFAULT_YAHOO_HIGH_TITLE
-	DEFAULT_LOW_TITLE = DEFAULT_YAHOO_LOW_TITLE
-	DEFAULT_CLOSE_TITLE = DEFAULT_YAHOO_CLOSE_TITLE
-	DEFAULT_VOLUME_TITLE = DEFAULT_YAHOO_VOLUME_TITLE
-	DEFAULT_DATA_TITLE_LIST = [
-		DEFAULT_DATE_TITLE,
-		DEFAULT_OPEN_TITLE,
-		DEFAULT_HIGH_TITLE,
-		DEFAULT_LOW_TITLE,
-		DEFAULT_CLOSE_TITLE,
-		DEFAULT_VOLUME_TITLE
-	]
-	DEFAULT_DATE_TITLE = DEFAULT_YAHOO_DATE_TITLE
-	DEFAULT_OPEN_TITLE = DEFAULT_YAHOO_OPEN_TITLE
-	DEFAULT_HIGH_TITLE = DEFAULT_YAHOO_HIGH_TITLE
-	DEFAULT_LOW_TITLE = DEFAULT_YAHOO_LOW_TITLE
-	DEFAULT_CLOSE_TITLE = DEFAULT_YAHOO_CLOSE_TITLE
-	DEFAULT_VOLUME_TITLE = DEFAULT_YAHOO_VOLUME_TITLE
+	DEFAULT_FINMIND_MIN_DATE = date(1900, 1, 1)
+	DEFAULT_FINMIND_MIN_DATE_STR = DEFAULT_FINMIND_MIN_DATE.strftime(DEFAULT_FINMIND_DATE_FORMAT)
 
 	DEFAULT_DATE_BASE_NUMBER = 36526
 	DEFAULT_DATE_BASE = date(2000, 1, 1)
-	DEFAULT_MIN_DATE = date(1900, 1, 1)
-	DEFAULT_MAX_DATE = date(2099, 12, 31)
+	# DEFAULT_MIN_DATE = date(1900, 1, 1)
+	# DEFAULT_MAX_DATE = date(2099, 12, 31)
 	DEFAULT_YAHOO_TODAY_DATA_UPDATE_HOUR = 15
 	DEFAULT_WARNING_MEWSAGE_PREFIX = "WARNING"
 
@@ -215,6 +211,20 @@ class DataFetch(object):
 
 
 	@classmethod
+	def __is_excel_locked(cls, filepath):
+# Excel lock file
+		lock_path = os.path.join(os.path.dirname(filepath), "~$" + os.path.basename(filepath))
+		if os.path.exists(lock_path):
+			return True
+# OS lock
+		try:
+			with open(filepath, "a"):
+				return False
+		except PermissionError:
+			return True
+
+
+	@classmethod
 	def __get_yahoo_raw_data(cls, stock_symbol, fetch_start=None, fetch_end=None):
 # 抓取歷史資料
 # start=None: 會自動設為一個很早的日期（實務上接近 1900-01-01）等同於「從資料能取得的最早時間開始抓」
@@ -235,11 +245,21 @@ class DataFetch(object):
 			hist = yf.download(stock_symbol, start=fetch_start, end=fetch_end, group_by='column')
 		if hist.empty:
 			return hist
+		# import pdb; pdb.set_trace()
+		hist = hist.rename(columns={
+			cls.DEFAULT_YAHOO_DATE_TITLE: cls.DEFAULT_DATA_DATE_TITLE,
+			cls.DEFAULT_YAHOO_OPEN_TITLE: cls.DEFAULT_DATA_OPEN_TITLE,
+			cls.DEFAULT_YAHOO_HIGH_TITLE: cls.DEFAULT_DATA_HIGH_TITLE,
+			cls.DEFAULT_YAHOO_LOW_TITLE: cls.DEFAULT_DATA_LOW_TITLE,
+			cls.DEFAULT_YAHOO_CLOSE_TITLE: cls.DEFAULT_DATA_CLOSE_TITLE,
+			cls.DEFAULT_YAHOO_VOLUME_TITLE: cls.DEFAULT_DATA_VOLUME_TITLE,
+		})
 		hist = hist.reset_index()
 # 把 MultiIndex 欄位轉成單層欄位
 		if isinstance(hist.columns, pd.MultiIndex):
 			hist.columns = hist.columns.get_level_values(0)
-		return hist[cls.DEFAULT_OPEN_TITLE, cls.DEFAULT_HIGH_TITLE, cls.DEFAULT_LOW_TITLE, cls.DEFAULT_CLOSE_TITLE, cls.DEFAULT_VOLUME_TITLE]
+		return hist[[cls.DEFAULT_DATA_DATE_TITLE, cls.DEFAULT_DATA_OPEN_TITLE, cls.DEFAULT_DATA_HIGH_TITLE, cls.DEFAULT_DATA_LOW_TITLE, cls.DEFAULT_DATA_CLOSE_TITLE, cls.DEFAULT_DATA_VOLUME_TITLE]]
+		# return list[cls.DEFAULT_DATA_TITLE_LIST]
 
 
 	@classmethod
@@ -252,7 +272,7 @@ class DataFetch(object):
 		for _, r in hist.iterrows():
 			one_row_data = []
 			for data_title in cls.DEFAULT_DATA_TITLE_LIST:
-				if data_title == cls.DEFAULT_DATE_TITLE:
+				if data_title == cls.DEFAULT_DATA_DATE_TITLE:
 					date_str = r[data_title].strftime(cls.DEFAULT_YAHOO_DATE_FORMAT)
 					one_row_data.append(date_str)
 				else:
@@ -290,25 +310,32 @@ class DataFetch(object):
 		}
 		if fetch_start is not None:
 			params["start_date"] = fetch_start.strftime(cls.DEFAULT_FINMIND_DATE_FORMAT)
+		else:
+			params["start_date"] = cls.DEFAULT_FINMIND_MIN_DATE_STR
 		if fetch_end is not None:
 			params["end_date"] = fetch_end.strftime(cls.DEFAULT_FINMIND_DATE_FORMAT)
 		if token is not None:
 			params["token"] = token
-		data = requests.get(url, params=params).json()
-		hist = pd.DataFrame(data["data"])
-		if hist.empty:
-			return hist
+		# import pdb; pdb.set_trace()
+		resp = requests.get(url, params=params).json()
+		# print(dir(resp))
+		if resp["status"] != 200:
+			print("ERROR: Fails to fetch data[%s], due to: %s" % (stock_symbol, resp["msg"]))
+			return pd.DataFrame([])
+		hist = pd.DataFrame(resp["data"])
+		# if hist.empty:
+		# 	return hist
 		hist = hist.rename(columns={
-			cls.DEFAULT_FINMIND_DATE_TITLE: cls.DEFAULT_DATE_TITLE,
-			cls.DEFAULT_FINMIND_OPEN_TITLE: cls.DEFAULT_OPEN_TITLE,
-			cls.DEFAULT_FINMIND_HIGH_TITLE: cls.DEFAULT_HIGH_TITLE,
-			cls.DEFAULT_FINMIND_LOW_TITLE: cls.DEFAULT_LOW_TITLE,
-			cls.DEFAULT_FINMIND_CLOSE_TITLE: cls.DEFAULT_CLOSE_TITLE,
-			cls.DEFAULT_FINMIND_VOLUME_TITLE: cls.DEFAULT_VOLUME_TITLE,
+			cls.DEFAULT_FINMIND_DATE_TITLE: cls.DEFAULT_DATA_DATE_TITLE,
+			cls.DEFAULT_FINMIND_OPEN_TITLE: cls.DEFAULT_DATA_OPEN_TITLE,
+			cls.DEFAULT_FINMIND_HIGH_TITLE: cls.DEFAULT_DATA_HIGH_TITLE,
+			cls.DEFAULT_FINMIND_LOW_TITLE: cls.DEFAULT_DATA_LOW_TITLE,
+			cls.DEFAULT_FINMIND_CLOSE_TITLE: cls.DEFAULT_DATA_CLOSE_TITLE,
+			cls.DEFAULT_FINMIND_VOLUME_TITLE: cls.DEFAULT_DATA_VOLUME_TITLE,
 		})
-		hist[cls.DEFAULT_DATE_TITLE] = pd.to_datetime(hist[cls.DEFAULT_DATE_TITLE])
-		hist = hist.set_index(cls.DEFAULT_DATE_TITLE).sort_index()
-		return hist[[cls.DEFAULT_OPEN_TITLE, cls.DEFAULT_HIGH_TITLE, cls.DEFAULT_LOW_TITLE, cls.DEFAULT_CLOSE_TITLE, cls.DEFAULT_VOLUME_TITLE]]
+		hist[cls.DEFAULT_DATA_DATE_TITLE] = pd.to_datetime(hist[cls.DEFAULT_DATA_DATE_TITLE])
+		hist = hist.set_index(cls.DEFAULT_DATA_DATE_TITLE).sort_index()
+		return hist[[cls.DEFAULT_DATA_OPEN_TITLE, cls.DEFAULT_DATA_HIGH_TITLE, cls.DEFAULT_DATA_LOW_TITLE, cls.DEFAULT_DATA_CLOSE_TITLE, cls.DEFAULT_DATA_VOLUME_TITLE]]
 
 
 	@classmethod
@@ -321,7 +348,7 @@ class DataFetch(object):
 		for idx, row in hist.iterrows():
 			one_row_data = []
 			for data_title in cls.DEFAULT_DATA_TITLE_LIST:
-				if data_title == cls.DEFAULT_DATE_TITLE:
+				if data_title == cls.DEFAULT_DATA_DATE_TITLE:
 					date_str = idx.strftime(cls.DEFAULT_FINMIND_DATE_FORMAT)
 					one_row_data.append(date_str)
 				else:
@@ -352,9 +379,6 @@ class DataFetch(object):
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
 		self.xcfg["source_folderpath"] = self.DEFAULT_DATA_FOLDERPATH if self.xcfg["source_folderpath"] is None else self.xcfg["source_folderpath"]
-		# self.xcfg["source_filename"] = self.DEFAULT_SOURCE_FILENAME if self.xcfg["source_filename"] is None else self.xcfg["source_filename"]
-		# self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
-		# print ("__init__: %s" % self.xcfg["source_filepath"])
 		self.workbook = None
 
 		self.filepath_dict = OrderedDict()
@@ -364,12 +388,21 @@ class DataFetch(object):
 		if self.xcfg["fetch_method_string"] is None:
 			self.fetch_method = 0
 		else:
-			if re.match("finmind", self.xcfg["fetch_method_string"], re.I):
-				self.fetch_method = 1
-			elif re.match("yahoo", self.xcfg["fetch_method_string"], re.I):
-				self.fetch_method = 2
-			else:
-				raise ValueError("Unknown fetch method: %s" % self.xcfg["fetch_method_string"])
+			mobj = re.match(('[\d]'), self.xcfg["fetch_method_string"])
+			if mobj is not None:
+				fetch_method = int(mobj.group(0))
+				if fetch_method not in [0, 1, 2,]:
+					raise ValueError("Unknown fetch method: %d" % fetch_method)
+				self.fetch_method = fetch_method
+			else:	
+				if re.match("default", self.xcfg["fetch_method_string"], re.I):
+					self.fetch_method = 0
+				elif re.match("finmind", self.xcfg["fetch_method_string"], re.I):
+					self.fetch_method = 1
+				elif re.match("yahoo", self.xcfg["fetch_method_string"], re.I):
+					self.fetch_method = 2
+				else:
+					raise ValueError("Unknown fetch method: %s" % self.xcfg["fetch_method_string"])
 
 
 	def __enter__(self):
@@ -485,9 +518,6 @@ class DataFetch(object):
 					elif (date_range_end is not None) and first_date <= date_range_end <= last_date:
 						return f"WARNING: The date range {date_range_start} - {date_range_end} is within the local data."
 				fetch_start = last_date + timedelta(days=1)
-				# if date_range_start is not None:
-				# 	if date_range_start > fetch_start:
-				# 		return f"ERROR: The start date {date_range_start_str} is later than {last_date_str} in local data."
 		else:
 			if date_range_start_str is not None:
 				fetch_start = datetime.strptime(date_range_start_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
@@ -509,81 +539,13 @@ class DataFetch(object):
 				no_latest_data = True
 			if no_latest_data:
 				return f"WARNING: The data of {stock_symbol} is already the latest."
-		# import pdb; pdb.set_trace()
 # 抓取歷史資料
-# start=None: 會自動設為一個很早的日期（實務上接近 1900-01-01）等同於「從資料能取得的最早時間開始抓」
-# end=None: 會自動設為「現在時間」（today / now）
-# start=None 且 end=None: 抓「該股票所有可用歷史資料」 
-# 		# hist = yf.download(stock_symbol, start=fetch_start.strftime(self.DEFAULT_YAHOO_DATE_FORMAT), end=fetch_end.strftime(self.DEFAULT_YAHOO_DATE_FORMAT), group_by='column')
-# 		# hist = yf.download(stock_symbol, start=fetch_start, end=fetch_end, group_by='column')
-# 		if fetch_start is None and fetch_end is None:
-# # 全部資料
-# 			hist = yf.download(stock_symbol, period="max", group_by='column')
-# 		elif fetch_start is None and fetch_end is not None:
-# # 從最早到 end
-# 			hist = yf.download(stock_symbol, period="max", end=fetch_end, group_by='column')
-# 		elif fetch_start is not None and fetch_end is None:
-# # 從 start 到最新
-# 			hist = yf.download(stock_symbol, start=fetch_start, group_by='column')
-# 		else:
-# 			hist = yf.download(stock_symbol, start=fetch_start, end=fetch_end, group_by='column')
-# 		hist = hist.reset_index()
-# # 把 MultiIndex 欄位轉成單層欄位
-# 		if isinstance(hist.columns, pd.MultiIndex):
-# 			hist.columns = hist.columns.get_level_values(0)
-# # 轉成 CSV 格式
-# 		row_data_list = []
-# 		row_data_list.append(self.DEFAULT_DATA_TITLE_LIST)
-# 		# import pdb; pdb.set_trace()
-# 		for _, r in hist.iterrows():
-# 			one_row_data = []
-# 			for data_title in self.DEFAULT_YAHOO_TITLE_LIST:
-# 				if data_title == self.DEFAULT_YAHOO_DATE_TITLE:
-# 					date_str = r[data_title].strftime(self.DEFAULT_YAHOO_DATE_FORMAT)
-# 					one_row_data.append(date_str)
-# 				else:
-# 					one_row_data.append(r[data_title])
-# # Check if fake row
-# 			if one_row_data[self.DEFAULT_YAHOO_VOLUME_TITLE_INDEX] == 0:
-# 				[o, h, l, c] = [one_row_data[i] for i in [self.DEFAULT_YAHOO_OPEN_TITLE_INDEX, self.DEFAULT_YAHOO_HIGH_TITLE_INDEX, self.DEFAULT_YAHOO_LOW_TITLE_INDEX, self.DEFAULT_YAHOO_CLOSE_TITLE_INDEX]]
-# 				if not any(math.isnan(x) for x in [o,h,l,c]):
-# 					if o == h == l == c:
-# 						continue
-# 			row_data_list.append(one_row_data)
-# # 寫入 XLSX
-# 		# import pdb; pdb.set_trace()
-# 		latest_data_index = None
-# 		if len(row_data_list) > 0:
-# 			latest_date_str = row_data_list[-1][self.DEFAULT_YAHOO_DATE_TITLE_INDEX]
-# 			latest_date = datetime.strptime(latest_date_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
-# 			today = datetime.today().date()
-# 			if latest_date == today:
-# 				if datetime.now() < datetime(today.year, today.month, today.day, self.DEFAULT_YAHOO_TODAY_DATA_UPDATE_HOUR):
-# # Today's data is not updated yet, so skip today's data
-# 					latest_data_index = -1
-# 		if latest_data_index is not None:
-# 			row_data_list = row_data_list[:latest_data_index]
-# 			if not refresh_data and len(row_data_list) == 0:
-# 				return f"WARNING: No new data in {stock_symbol}."
 		# import pdb; pdb.set_trace()
 		row_data_list = self.__get_data(stock_symbol, fetch_start, fetch_end)
 		if len(row_data_list) == 0:
 			return f"WARNING: No new data in {stock_symbol}."
 		self.__write_xlsx(source_filepath, row_data_list, refresh_data)
 		return None
-
-
-	def __is_excel_locked(self, filepath):
-# Excel lock file
-		lock_path = os.path.join(os.path.dirname(filepath), "~$" + os.path.basename(filepath))
-		if os.path.exists(lock_path):
-			return True
-# OS lock
-		try:
-			with open(filepath, "a"):
-				return False
-		except PermissionError:
-			return True
 
 
 	def fetch_data(self):
@@ -631,15 +593,6 @@ class DataFetch(object):
 
 
 	def show_data_info(self):
-		'''
-		1. 報酬(Return) -> 代表「賺多少」
-		Cumulative Return / CAGR(最重要)
-		2. 風險(Risk) -> 代表「會不會讓你睡不著」
-		Volatility(波動) / Max Drawdow(最大跌幅) / DD Duration(回復時間)
-		3. 風險調整報酬(Risk-adjusted) -> 代表「每承擔一單位風險，換多少報酬」
-		Sharpe Ratio(超重要)
-		注意: CAGR、Sharpe → 越高越好 / Volatility、MaxDD → 越低越好（要反轉）
-		'''
 		# import pdb; pdb.set_trace()
 		if self.xcfg["stock_symbol_string"] is None:
 			print("Warning: No stock to fetch...")
@@ -689,7 +642,6 @@ if __name__ == "__main__":
 	>>> parser.add_argument('--baz', action='store_false')
 	'''
 	parser.add_argument('--source_folderpath', required=False, help='Fetch data into the XLS files in the designated folder path. Ex: %s' % DataFetch.DEFAULT_DATA_FOLDERPATH)
-	# parser.add_argument('--source_filename', required=False, help='The filename of chip analysis data source')
 	parser.add_argument('-f', '--fetch_data', required=False, action='store_true', help='Fetch the data of the specific target and exit.')
 	parser.add_argument('--stock_symbol_list', required=False, help='The stock symbol list. Mutiple stock symbols are split by comma. Ex: 00850.TW,00881.TW,00692.TW,MSFT,GOOG')
 	parser.add_argument('--data_date_range', required=False, 
@@ -704,7 +656,7 @@ if __name__ == "__main__":
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	parser.add_argument('--show_warning', required=False, action='store_true', help='Show warnings messages.')
 	parser.add_argument('--finmind_token', required=False, help='The FinMind Token')
-	parser.add_argument('--fetch_method', required=False, help='Select the fetch method: Yahoo/FinMind. Default: auto select. Use FinMind to fetch as stock symbol is .TW as suffix, otherwise use Yahoo to fetch.')
+	parser.add_argument('--fetch_method', required=False, help='Select the fetch method: Auto Select[0]/FinMind[1]/Yahoo[2]. Default: auto select. Use FinMind to fetch as stock symbol is .TW as suffix, otherwise use Yahoo to fetch.')
 	args = parser.parse_args()
 	# import pdb; pdb.set_trace()
 	cfg = {}
