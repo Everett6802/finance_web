@@ -6,12 +6,6 @@ import sys
 import re
 import argparse
 import errno
-# '''
-# Question: How to Solve xlrd.biffh.XLRDError: Excel xlsx file; not supported ?
-# Answer : The latest version of xlrd(2.01) only supports .xls files. Installing the older version 1.2.0 to open .xlsx files.
-# '''
-# import xlrd
-# import xlsxwriter
 from openpyxl import Workbook, load_workbook
 import math
 import pandas as pd
