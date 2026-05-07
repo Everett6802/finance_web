@@ -311,10 +311,21 @@ class DataFetch(object):
 		if token is not None:
 			params["token"] = token
 		# import pdb; pdb.set_trace()
-		resp = requests.get(url, params=params).json()
+		try:
+			response = requests.get(url, params=params, timeout=10)  # 加timeout 避免卡死
+			response.raise_for_status()   # HTTP 層
+			resp = response.json()
+		except requests.RequestException as e:  # 網路 / HTTP 層錯誤
+			print(f"HTTP ERROR: Fails to fetch data[{stock_symbol}], due to: {e}")
+			return pd.DataFrame([])
+		except ValueError:  # JSON 解碼錯誤
+			print(f"JSON ERROR: {stock_symbol}")
+			return pd.DataFrame([])
 		# print(dir(resp))
-		if resp["status"] != 200:
-			print("ERROR: Fails to fetch data[%s], due to: %s" % (stock_symbol, resp["msg"]))
+		# if resp["status"] != 200:
+		if resp.get("status", None) != 200:
+			# print("ERROR: Fails to fetch data[%s], due to: %s" % (stock_symbol, resp["msg"]))
+			print(f"API ERROR: Fails to fetch data[{stock_symbol}], due to: {resp.get('msg')}")
 			return pd.DataFrame([])
 		hist = pd.DataFrame(resp["data"])
 		# if hist.empty:
