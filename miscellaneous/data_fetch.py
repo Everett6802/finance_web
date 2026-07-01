@@ -358,12 +358,13 @@ class DataFetch(object):
 					one_row_data.append(date_str)
 				else:
 					one_row_data.append(row[data_title])
-# # Check if fake row
-# 			if one_row_data[cls.DEFAULT_FINMIND_VOLUME_TITLE_INDEX] == 0:
-# 				[o, h, l, c] = [one_row_data[i] for i in [cls.DEFAULT_FINMIND_OPEN_TITLE_INDEX, cls.DEFAULT_FINMIND_HIGH_TITLE_INDEX, cls.DEFAULT_FINMIND_LOW_TITLE_INDEX, cls.DEFAULT_FINMIND_CLOSE_TITLE_INDEX]]
-# 				if not any(math.isnan(x) for x in [o,h,l,c]):
-# 					if o == h == l == c:
-# 						continue
+# Check if fake row
+			# if one_row_data[cls.DEFAULT_FINMIND_VOLUME_TITLE_INDEX] == 0:
+			if one_row_data[cls.DEFAULT_FINMIND_CLOSE_TITLE_INDEX] == 0:
+				[o, h, l, c] = [one_row_data[i] for i in [cls.DEFAULT_FINMIND_OPEN_TITLE_INDEX, cls.DEFAULT_FINMIND_HIGH_TITLE_INDEX, cls.DEFAULT_FINMIND_LOW_TITLE_INDEX, cls.DEFAULT_FINMIND_CLOSE_TITLE_INDEX]]
+				if not any(math.isnan(x) for x in [o,h,l,c]):
+					if o == h == l == c:
+						continue
 			row_data_list.append(one_row_data)
 		return row_data_list
 

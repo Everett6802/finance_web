@@ -55,10 +55,10 @@ class StockChipAnalysis(object):
 			"sheet_rows": -1,
 			"sheet_columns": 7,
 		},
-		u"美股 ETF": {
-			"key_mode": 5, # JEPQ
-			"data_start_column_index": 2,
-		},
+		# u"美股 ETF": {
+		# 	"key_mode": 5, # JEPQ
+		# 	"data_start_column_index": 2,
+		# },
 		# u"外資賺錢": {
 		# 	"key_mode": 3, # 台積電(2330)
 		# 	"data_start_column_index": 1,
@@ -134,7 +134,7 @@ class StockChipAnalysis(object):
 		# },
 	}
 	ALL_SHEET_NAME_LIST = SHEET_METADATA_DICT.keys()
-	DEFAULT_SHEET_NAME_LIST = [u"台股 ETF", u"美股 ETF", u"券商賺錢", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"個股夏普值", u"月平均報酬", u"六大買超", u"大戶籌碼", u"SSB", u"上市融資增加", u"上櫃融資增加", u"外資賺錢", u"成交比重", u"主法量率",]
+	DEFAULT_SHEET_NAME_LIST = [u"台股 ETF", u"券商賺錢", u"主力買超天數累計", u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",]  #  u"個股夏普值", u"月平均報酬", u"六大買超", u"大戶籌碼", u"SSB", u"上市融資增加", u"上櫃融資增加", u"外資賺錢", u"成交比重", u"主法量率", u"美股 ETF"]
 	SHEET_SET_LIST = [
 		[u"法人共同買超累計", u"主力買超天數累計", u"外資買超天數累計", u"投信買超天數累計",],
 		[u"法人共同買超累計", u"外資買超天數累計", u"投信買超天數累計",],
@@ -158,7 +158,7 @@ class StockChipAnalysis(object):
 	LARGE_SHAREHOLD_POSITION_FIELDNAME_SHARPE_RATIO = "夏普值"
 	LARGE_SHAREHOLD_POSITION_FIELDNAME_STANDARD_DEVIATION = "標準差"
 	SSB_SORT_FIELD_NAME_LIST = ["夏普", "標準差", "貝它",]
-	ETF_SHEET_NAME_LIST = ["台股 ETF", "美股 ETF",]
+	ETF_SHEET_NAME_LIST = ["台股 ETF",]
 	ETF_SORT_FIELD_NAME_LIST = ["年化標準差", "年報酬", "Alpha", "Beta", "Sharpe", "R-Squared",]
 # # CB Related
 # 	DEFAULT_CB_FOLDERPATH =  "C:\\可轉債"

@@ -477,6 +477,7 @@ class PerformanceAnalysis(object):
 			# if len(daily_returns) == 0:
 			# 	prev_closing_price = closing_price
 			# 	continue
+			# print(row)
 			daily_return = (closing_price - prev_closing_price) / prev_closing_price
 			daily_returns.append(daily_return)
 			prev_closing_price = closing_price
