@@ -16,6 +16,7 @@ import getpass
 from collections import OrderedDict
 import yfinance as yf
 import requests
+import copy
 
 
 class ReadXLSException(Exception): pass
@@ -25,8 +26,8 @@ class DataFetch(object):
 	DEFAULT_HOST_DATA_FOLDERPATH =  "C:\\Users\\%s\\project_data\\finance_web" % getpass.getuser()
 	DEFAULT_DATA_FOLDERPATH =  os.getenv("DATA_PATH", DEFAULT_HOST_DATA_FOLDERPATH)
 	# DEFAULT_SOURCE_FILENAME = "加權指數歷史資料2000-2025.xlsx"
-	DEFAULT_TIME_FIELD_NAME = "時間"	
-	DEFAULT_CLOSING_PRICE_FIELD_NAME = "收盤價"	
+	# DEFAULT_TIME_FIELD_NAME = "時間"	
+	# DEFAULT_CLOSING_PRICE_FIELD_NAME = "收盤價"	
 	# DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
 
 	DEFAULT_DATA_DATE_TITLE = "時間"
@@ -43,13 +44,22 @@ class DataFetch(object):
 		DEFAULT_DATA_CLOSE_TITLE,
 		DEFAULT_DATA_VOLUME_TITLE
 	]
+	DEFAULT_DATA_TITLE_LIST_LEN = len(DEFAULT_DATA_TITLE_LIST)
 	DEFAULT_DATA_DATE_TITLE_INDEX = DEFAULT_DATA_TITLE_LIST.index(DEFAULT_DATA_DATE_TITLE)
 	DEFAULT_DATA_OPEN_TITLE_INDEX = DEFAULT_DATA_TITLE_LIST.index(DEFAULT_DATA_OPEN_TITLE)
 	DEFAULT_DATA_HIGH_TITLE_INDEX = DEFAULT_DATA_TITLE_LIST.index(DEFAULT_DATA_HIGH_TITLE)
 	DEFAULT_DATA_LOW_TITLE_INDEX = DEFAULT_DATA_TITLE_LIST.index(DEFAULT_DATA_LOW_TITLE)
 	DEFAULT_DATA_CLOSE_TITLE_INDEX = DEFAULT_DATA_TITLE_LIST.index(DEFAULT_DATA_CLOSE_TITLE)
 	DEFAULT_DATA_VOLUME_TITLE_INDEX = DEFAULT_DATA_TITLE_LIST.index(DEFAULT_DATA_VOLUME_TITLE)
-
+	DEFAULT_DATA_DATE_FORMAT = "%Y-%m-%d"
+# Extended
+	DEFAULT_EXT_CHANGE_FIELD_TITLE = "漲跌"
+	DEFAULT_EXT_CHANGE_PCT_FIELD_TITLE = "漲跌幅"
+	DEFAULT_EXT_DATA_TITLE_LIST = []  # copy.copy(DEFAULT_DATA_TITLE_LIST)
+	DEFAULT_EXT_DATA_TITLE_LIST.extend([DEFAULT_EXT_CHANGE_FIELD_TITLE, DEFAULT_EXT_CHANGE_PCT_FIELD_TITLE])
+	DEFAULT_EXT_DATA_TITLE_LIST_LEN = len(DEFAULT_EXT_DATA_TITLE_LIST)
+	# DEFAULT_EXT_DATA_CHANGE_TITLE_INDEX = DEFAULT_EXT_DATA_TITLE_LIST.index(DEFAULT_EXT_CHANGE_FIELD_TITLE)
+	# DEFAULT_EXT_DATA_CHANGE_PCT_TITLE_INDEX = DEFAULT_EXT_DATA_TITLE_LIST.index(DEFAULT_EXT_CHANGE_PCT_FIELD_TITLE)
 # Yahoo
 	DEFAULT_YAHOO_DATE_TITLE = "Date"
 	DEFAULT_YAHOO_OPEN_TITLE = "Open"
@@ -144,6 +154,14 @@ class DataFetch(object):
 		return False
 
 
+	@classmethod
+	def __get_change_and_percentage(cls, cur_value, prev_value):
+		# import pdb; pdb.set_trace()
+		change = float(cur_value) - float(prev_value)
+		change_percentage = change / float(prev_value)
+		return (change, change_percentage)
+
+
 # ========= XLSX 工具 =========
 	@classmethod
 	def __read_xlsx(cls, source_filepath):
@@ -156,8 +174,18 @@ class DataFetch(object):
 		# for row in ws.iter_rows(min_row=2, values_only=True):
 		# 	rows.append(dict(zip(header, row)))
 		for row in ws.iter_rows(min_row=2, values_only=True):
-			rows.append(row)
+# row 是一個 tuple -> 如果要新增欄位，轉成 list
+			rows.append(list(row))
 		return rows
+
+
+	@classmethod
+	def __read_xlsx_last_row(cls, source_filepath):
+		# wb = self.__get_workbook()
+		wb = load_workbook(source_filepath)
+		ws = wb.active
+		last_row = [cell.value for cell in ws[ws.max_row]]
+		return last_row
 
 
 	@classmethod
@@ -165,18 +193,58 @@ class DataFetch(object):
 		ws = None
 		start_index = None
 		# import pdb; pdb.set_trace()
+		old_row = None
 		if not refresh_data and cls.__check_file_exist(source_filepath):
 # If file exists, append new data...
 			wb = load_workbook(source_filepath)
 			ws = wb.active
+# Check if the extended field exists...
+			extended_field_exist = True
+			try:
+				header = [c.value for c in ws[1]]
+				change_field_title_index = header.index(cls.DEFAULT_EXT_CHANGE_FIELD_TITLE)
+			except ValueError:
+				print(f"WARNING: The extended field does NOT exists in {source_filepath}...")
+				extended_field_exist = False
+# Add the extra fields for old data
+			if not extended_field_exist:
+				wb.close()
+				new_rows = rows
+				rows = cls.__read_xlsx(source_filepath)
+				wb = Workbook()
+				ws = wb.active
+# The title
+				rows[0].extend(cls.DEFAULT_EXT_DATA_TITLE_LIST) 
+				ws.append(rows[0])
+# The first data
+				rows[1].extend([None, None,])
+				ws.append(rows[1])
+				old_row = rows[1]
+# The rest data
+				for row in rows[2:]:
+					change, change_percentage = cls.__get_change_and_percentage(row[cls.DEFAULT_DATA_CLOSE_TITLE_INDEX], old_row[cls.DEFAULT_DATA_CLOSE_TITLE_INDEX])
+					row.extend([change, change_percentage])
+					old_row = row
+# Update the data into the file
+					ws.append(row)
+				wb.save(source_filepath)
+# Reopen the file....
+				wb = load_workbook(source_filepath)
+				ws = wb.active
+				rows = new_rows
 # openpyxl 的 row / column 是從 1 開始，不是 0
 # openpyxl 是 Excel 操作庫，不是資料結構庫 它選擇「跟 Excel 一樣」而不是「跟 Python 一樣」
 # Excel 的世界本來就是從 1 開始
-			data_last_date_str = ws.cell(row=ws.max_row, column=cls.DEFAULT_YAHOO_DATE_TITLE_INDEX + 1).value
-			data_last_date = datetime.strptime(data_last_date_str, cls.DEFAULT_YAHOO_DATE_FORMAT).date()
+			# import pdb; pdb.set_trace()
+			data_last_date_str = ws.cell(row=ws.max_row, column=cls.DEFAULT_DATA_DATE_TITLE_INDEX + 1).value
+			data_last_date = datetime.strptime(data_last_date_str, cls.DEFAULT_DATA_DATE_FORMAT).date()
+			old_row = [cell.value for cell in ws[ws.max_row]]
+			# func_map = lambda x: datetime.strptime(x[cls.DEFAULT_DATA_DATE_TITLE_INDEX], cls.DEFAULT_DATA_DATE_FORMAT).date()
+			# func_filter = lambda x: x> data_last_date
+			# filterd_row = filter(func_filter, map(func_map, rows[1:]))
 			for index, row in enumerate(rows[1:]):
-				row_date_str = row[cls.DEFAULT_YAHOO_DATE_TITLE_INDEX]
-				row_date = datetime.strptime(row_date_str, cls.DEFAULT_YAHOO_DATE_FORMAT).date()
+				row_date_str = row[cls.DEFAULT_DATA_DATE_TITLE_INDEX]
+				row_date = datetime.strptime(row_date_str, cls.DEFAULT_DATA_DATE_FORMAT).date()
 				if row_date > data_last_date:
 # row 0 是 header，所以 index 從 0 開始對應到 rows[1:] 的第一行資料
 					start_index = index + 1 # 因為 rows[1:] 的 index 是從 0 開始，所以要加 1 才是正確的行數
@@ -188,14 +256,26 @@ class DataFetch(object):
 # If file does NOT exist, create new file...
 			wb = Workbook()
 			ws = wb.active
-			# headers = rows[0].keys()
-			# ws.append(list(headers))
-			ws.append(cls.DEFAULT_DATA_TITLE_LIST)
+			headers = copy.deepcopy(list(rows[0].keys()))
+			headers.extend(cls.DEFAULT_EXT_DATA_TITLE_LIST)
+			ws.append(headers)
 			start_index = 1
 		# import pdb; pdb.set_trace()
 		if start_index != None:
-			for r in rows[start_index:]:
-				ws.append(r)
+			try:
+				data_close_title_index = rows[0].index(cls.DEFAULT_DATA_CLOSE_TITLE)
+			except ValueError as e:
+				print("ERROR: The field[%s] does NOT exist" % cls.DEFAULT_DATA_CLOSE_TITLE)
+				raise e
+			for row in rows[start_index:]:
+				row_tmp = copy.deepcopy(row)
+				if old_row is None:
+					row_tmp.extend([None, None,])
+				else:
+					change, change_percentage = cls.__get_change_and_percentage(row[data_close_title_index], old_row[data_close_title_index])
+					row_tmp.extend([change, change_percentage])
+				ws.append(row_tmp)
+				old_row = row
 			data_len = len(rows[start_index:])
 			print(f"{data_len} is updated in {source_filepath}")
 			wb.save(source_filepath)
@@ -328,8 +408,8 @@ class DataFetch(object):
 			print(f"API ERROR: Fails to fetch data[{stock_symbol}], due to: {resp.get('msg')}")
 			return pd.DataFrame([])
 		hist = pd.DataFrame(resp["data"])
-		# if hist.empty:
-		# 	return hist
+		if hist.empty:
+			return hist
 		hist = hist.rename(columns={
 			cls.DEFAULT_FINMIND_DATE_TITLE: cls.DEFAULT_DATA_DATE_TITLE,
 			cls.DEFAULT_FINMIND_OPEN_TITLE: cls.DEFAULT_DATA_OPEN_TITLE,
@@ -338,6 +418,7 @@ class DataFetch(object):
 			cls.DEFAULT_FINMIND_CLOSE_TITLE: cls.DEFAULT_DATA_CLOSE_TITLE,
 			cls.DEFAULT_FINMIND_VOLUME_TITLE: cls.DEFAULT_DATA_VOLUME_TITLE,
 		})
+		# import pdb; pdb.set_trace()
 		hist[cls.DEFAULT_DATA_DATE_TITLE] = pd.to_datetime(hist[cls.DEFAULT_DATA_DATE_TITLE])
 		hist = hist.set_index(cls.DEFAULT_DATA_DATE_TITLE).sort_index()
 		return hist[[cls.DEFAULT_DATA_OPEN_TITLE, cls.DEFAULT_DATA_HIGH_TITLE, cls.DEFAULT_DATA_LOW_TITLE, cls.DEFAULT_DATA_CLOSE_TITLE, cls.DEFAULT_DATA_VOLUME_TITLE]]
@@ -500,17 +581,22 @@ class DataFetch(object):
 		refresh_data = self.xcfg["refresh_data"]
 		# import pdb; pdb.set_trace()
 		if file_exist:
-			date_range_start = datetime.strptime(date_range_start_str, self.DEFAULT_YAHOO_DATE_FORMAT).date() if date_range_start_str is not None else None  # self.DEFAULT_MIN_DATE  # first_date
-			date_range_end = datetime.strptime(date_range_end_str, self.DEFAULT_YAHOO_DATE_FORMAT).date() if date_range_end_str is not None else None  # self.DEFAULT_MAX_DATE  # datetime.today().date()  # last_date
+			date_range_start = datetime.strptime(date_range_start_str, self.DEFAULT_DATA_DATE_FORMAT).date() if date_range_start_str is not None else None  # self.DEFAULT_MIN_DATE  # first_date
+			date_range_end = datetime.strptime(date_range_end_str, self.DEFAULT_DATA_DATE_FORMAT).date() if date_range_end_str is not None else None  # self.DEFAULT_MAX_DATE  # datetime.today().date()  # last_date
 			# import pdb; pdb.set_trace()
 			if refresh_data:
 				fetch_start = date_range_start
 			else:	
 				rows = self.__read_xlsx(source_filepath)
-				first_date_str = rows[1][self.DEFAULT_YAHOO_DATE_TITLE_INDEX]
-				first_date = datetime.strptime(first_date_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
-				last_date_str = rows[-1][self.DEFAULT_YAHOO_DATE_TITLE_INDEX]
-				last_date = datetime.strptime(last_date_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
+				date_title_index = None
+				try:
+					date_title_index = rows[0].index(self.DEFAULT_DATA_DATE_TITLE)
+				except ValueError:
+					return f"ERROR: Incorrect title: '%s' NOT found" % self.DEFAULT_DATA_DATE_TITLE
+				first_date_str = rows[1][date_title_index]
+				first_date = datetime.strptime(first_date_str, self.DEFAULT_DATA_DATE_FORMAT).date()
+				last_date_str = rows[-1][date_title_index]
+				last_date = datetime.strptime(last_date_str, self.DEFAULT_DATA_DATE_FORMAT).date()
 # Check the boundary condition of date range
 				if (date_range_start is not None) and (date_range_end is not None) and (date_range_start > date_range_end):
 					return f"ERROR: The start date {date_range_start_str} is later than the end date {date_range_end_str}."
@@ -526,14 +612,14 @@ class DataFetch(object):
 				fetch_start = last_date + timedelta(days=1)
 		else:
 			if date_range_start_str is not None:
-				fetch_start = datetime.strptime(date_range_start_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
+				fetch_start = datetime.strptime(date_range_start_str, self.DEFAULT_DATA_DATE_FORMAT).date()
 		if date_range_end_str is not None:
-			fetch_end = datetime.strptime(date_range_end_str, self.DEFAULT_YAHOO_DATE_FORMAT).date()
+			fetch_end = datetime.strptime(date_range_end_str, self.DEFAULT_DATA_DATE_FORMAT).date()
 			if fetch_end > datetime.today().date():
 				return f"ERROR: The end date {date_range_end_str} should NOT be later than today"
 		if (fetch_start is not None) and (fetch_end is not None):
 			if fetch_start > fetch_end:
-				return f"ERROR: Incorrect time range %s - %s" % (fetch_start.strftime(self.DEFAULT_YAHOO_DATE_FORMAT), fetch_end.strftime(self.DEFAULT_YAHOO_DATE_FORMAT))
+				return f"ERROR: Incorrect time range %s - %s" % (fetch_start.strftime(self.DEFAULT_DATA_DATE_FORMAT), fetch_end.strftime(self.DEFAULT_YAHOO_DATE_FORMAT))
 # 如果已經最新，直接返回
 		# import pdb; pdb.set_trace()
 		if not refresh_data and fetch_start is not None and fetch_end is None:
