@@ -166,7 +166,7 @@ class DataFetch(object):
 	@classmethod
 	def __read_xlsx(cls, source_filepath):
 		# wb = self.__get_workbook()
-		wb = load_workbook(source_filepath)
+		wb = load_workbook(source_filepath, read_only=True, data_only=True)
 		ws = wb.active
 		rows = []
 		header = [c.value for c in ws[1]]
@@ -182,7 +182,7 @@ class DataFetch(object):
 	@classmethod
 	def __read_xlsx_last_row(cls, source_filepath):
 		# wb = self.__get_workbook()
-		wb = load_workbook(source_filepath)
+		wb = load_workbook(source_filepath, read_only=True, data_only=True)
 		ws = wb.active
 		last_row = [cell.value for cell in ws[ws.max_row]]
 		return last_row
@@ -256,7 +256,13 @@ class DataFetch(object):
 # If file does NOT exist, create new file...
 			wb = Workbook()
 			ws = wb.active
-			headers = copy.deepcopy(list(rows[0].keys()))
+			headers = None
+			if isinstance(rows[0], dict):
+				print("WARNING: The first row is a dict, so use the keys as the header...")
+				headers = copy.deepcopy(list(rows[0].keys()))
+			else:
+				# headers = list(rows[0])
+				headers = copy.deepcopy(rows[0])
 			headers.extend(cls.DEFAULT_EXT_DATA_TITLE_LIST)
 			ws.append(headers)
 			start_index = 1
