@@ -231,6 +231,7 @@ class PerformanceAnalysis(object):
 			# "source_filename": None,
 			"source_filename_string": None,
 			"risk_free_rate": 0.0,
+			"statistics_period_string": None,
 			"statistics_date_range_string": None,
 			# "date_range_start": None,
 			# "date_range_end": None,
@@ -459,7 +460,28 @@ class PerformanceAnalysis(object):
 		# import pdb; pdb.set_trace()
 		date_range_start = None
 		date_range_end = None
-		if self.xcfg["statistics_date_range_string"] is not None:
+		if self.xcfg["statistics_period_string"] is not None:
+			if self.xcfg["statistics_period_string"].endswith("m") or self.xcfg["statistics_period_string"].endswith("M"):
+				today = datetime.now()
+				month_period = int(self.xcfg["statistics_period_string"][:-1])
+				year_diff = month_period // 12
+				month_diff = month_period % 12
+				year = today.year - year_diff
+				month = today.month - month_diff
+				if month < 0:
+					year -= 1
+					month += 12
+				date_range_start = "%d-%02d-%02d" % (year, month, today.day)
+				date_range_end = today.strftime("%Y-%m-%d")
+			elif self.xcfg["statistics_period_string"].endswith("y") or self.xcfg["statistics_period_string"].endswith("Y"):
+				today = datetime.now()
+				year_period = int(self.xcfg["statistics_period_string"][:-1])
+				year = today.year - year_period
+				date_range_start = "%d-%02d-%02d" % (year, today.month, today.day)
+				date_range_end = today.strftime("%Y-%m-%d")
+			else:
+				raise ValueError("Incorrect statistics period format: %s" % self.xcfg["statistics_period_string"])
+		elif self.xcfg["statistics_date_range_string"] is not None:
 			date_range_list = self.xcfg["statistics_date_range_string"].split(":")
 			if len(date_range_list) != 2:
 				raise ValueError("Incorrect date range format: %s" % self.xcfg["statistics_date_range_string"])
@@ -579,19 +601,23 @@ if __name__ == "__main__":
 	parser.add_argument('--source_folderpath', required=False, help='Update database from the XLS files in the designated folder path. Ex: %s' % PerformanceAnalysis.DEFAULT_DATA_FOLDERPATH)
 	parser.add_argument('--source_filepath_list', required=False, help='The filename list. Mutiple source filenames are split by comma. The file extension(xlsx) can be ignored. Ex: 00850.TW.xlsx,00881.TW,00692.TW,MSFT.xlsx,GOOG')
 	parser.add_argument('-s', '--show_performance', required=False, action='store_true', help='Show the result of performace analysis for the specific target and exit.')
+	parser.add_argument('--statistics_period', required=False, 
+		 help='''The statistics data during the specific period. Ex: 3M, 1Y, 5Y
+    * Caution: Only take effect when --show_performance is set. Exclusive with --statistics_date_range.''')
 	parser.add_argument('--statistics_date_range', required=False, 
 		 help='''The statistics data during the date range.
   Date range
     Format: yy1-mm1-dd1:yy2-mm2-dd2   From yy1-mm1-dd1 to yy2-mm2-dd2   Ex: 2014-09-04:2025-10-15
     Format: yy-mm-dd:   From yy-mm-dd to 'the last date of the data'   Ex: 2014-09-04:
     Format: :yy-mm-dd   From 'the first date of the data' to yy-mm-dd   Ex: :2025-09-04
-    * Caution: Only take effect when --show_performance is set.''')
+    * Caution: Only take effect when --show_performance is set. Exclusive with --statistics_period.''')
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	args = parser.parse_args()
 	# import pdb; pdb.set_trace()
 	cfg = {}
 	if args.source_folderpath is not None: cfg['source_folderpath'] = args.source_folderpath
 	if args.source_filepath_list is not None: cfg['source_filename_string'] = args.source_filepath_list
+	if args.statistics_period is not None: cfg['statistics_period_string'] = args.statistics_period
 	if args.statistics_date_range is not None: cfg['statistics_date_range_string'] = args.statistics_date_range
 	# import pdb; pdb.set_trace()
 	with PerformanceAnalysis(cfg) as obj:
