@@ -28,6 +28,8 @@ class PerformanceAnalysis(object):
 	# DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
 	DEFAULT_DATE_BASE_NUMBER = 36526
 	DEFAULT_DATE_BASE = date(2000, 1, 1)
+	DEFAULT_START_DATE_WARNING_THRESHOLD_DAYS = 5
+	DEFAULT_DATA_DATE_FORMAT = "%Y-%m-%d"
 
 	@classmethod
 	def __is_string(cls, value):
@@ -513,15 +515,26 @@ class PerformanceAnalysis(object):
 			"Max Dropdown": dd_summary,
 		}
 		date_range_dict = None
+		start_date_warning_dict = None
 		try:
 			time_index = worksheet_data["title"].index(self.DEFAULT_TIME_FIELD_NAME)
 			date_range_dict = {}
 			date_range_dict["Start Date"] = worksheet_data["data"][0][time_index]
 			date_range_dict["End Date"] = worksheet_data["data"][-1][time_index]
+			if date_range_start is not None:
+				requested_start_date = datetime.strptime(date_range_start, self.DEFAULT_DATA_DATE_FORMAT).date()
+				actual_start_date = datetime.strptime(date_range_dict["Start Date"], self.DEFAULT_DATA_DATE_FORMAT).date()
+				start_date_diff = actual_start_date - requested_start_date
+				if start_date_diff > timedelta(days=self.DEFAULT_START_DATE_WARNING_THRESHOLD_DAYS):
+					start_date_warning_dict = {
+						"requested": requested_start_date,
+						"actual": actual_start_date,
+						"diff": start_date_diff.days,
+					}
 		except ValueError as e:
 			# raise ValueError("Column not found: %s" % self.DEFAULT_TIME_FIELD_NAME)
 			pass
-		return statistics_dict, date_range_dict
+		return statistics_dict, date_range_dict, start_date_warning_dict
 
 
 	def show_performance(self):
@@ -537,10 +550,12 @@ class PerformanceAnalysis(object):
 			else:
 				source_filename = os.path.basename(source_filepath)
 				target_name = source_filename.rstrip(".xlsx")
-				perf_dict, date_range_dict = self.analyze_performance(source_filepath)
+				perf_dict, date_range_dict, start_date_warning_dict = self.analyze_performance(source_filepath)
 				if date_range_dict is not None:
 					date_range = date_range_dict["Start Date"] + " ~ " + date_range_dict["End Date"]
 					print(f"{target_name} Performance Analysis ({date_range}): ")
+					if start_date_warning_dict is not None:
+						print(f"* WARNING: Actual start date: {start_date_warning_dict['actual']}  Requested start date: {start_date_warning_dict['requested']}  Difference: {start_date_warning_dict['diff']} days")
 				else:	
 					print(f"{target_name} Performance Analysis:")
 			print("========================================")
