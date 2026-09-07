@@ -157,6 +157,8 @@ class DataFetch(object):
 	@classmethod
 	def __get_change_and_percentage(cls, cur_value, prev_value):
 		# import pdb; pdb.set_trace()
+		if prev_value == 0.0:
+			raise ValueError(f"Invalid data: prev_value: {prev_value}, cur_value: {cur_value}")
 		change = float(cur_value) - float(prev_value)
 		change_percentage = change / float(prev_value)
 		return (change, change_percentage)
@@ -278,6 +280,7 @@ class DataFetch(object):
 				if old_row is None:
 					row_tmp.extend([None, None,])
 				else:
+					# print(row)
 					change, change_percentage = cls.__get_change_and_percentage(row[data_close_title_index], old_row[data_close_title_index])
 					row_tmp.extend([change, change_percentage])
 				ws.append(row_tmp)
@@ -447,11 +450,13 @@ class DataFetch(object):
 					one_row_data.append(row[data_title])
 # Check if fake row
 			# if one_row_data[cls.DEFAULT_FINMIND_VOLUME_TITLE_INDEX] == 0:
-			if one_row_data[cls.DEFAULT_FINMIND_CLOSE_TITLE_INDEX] == 0:
-				[o, h, l, c] = [one_row_data[i] for i in [cls.DEFAULT_FINMIND_OPEN_TITLE_INDEX, cls.DEFAULT_FINMIND_HIGH_TITLE_INDEX, cls.DEFAULT_FINMIND_LOW_TITLE_INDEX, cls.DEFAULT_FINMIND_CLOSE_TITLE_INDEX]]
-				if not any(math.isnan(x) for x in [o,h,l,c]):
-					if o == h == l == c:
-						continue
+			# if one_row_data[cls.DEFAULT_FINMIND_CLOSE_TITLE_INDEX] == 0:
+			# 	[o, h, l, c] = [one_row_data[i] for i in [cls.DEFAULT_FINMIND_OPEN_TITLE_INDEX, cls.DEFAULT_FINMIND_HIGH_TITLE_INDEX, cls.DEFAULT_FINMIND_LOW_TITLE_INDEX, cls.DEFAULT_FINMIND_CLOSE_TITLE_INDEX]]
+			# 	if not any(math.isnan(x) for x in [o,h,l,c]):
+			# 		if o == h == l == c:
+			# 			continue
+			if one_row_data[cls.DEFAULT_FINMIND_VOLUME_TITLE_INDEX] == 0 and one_row_data[cls.DEFAULT_FINMIND_CLOSE_TITLE_INDEX] == 0:
+				continue
 			row_data_list.append(one_row_data)
 		return row_data_list
 
@@ -461,6 +466,7 @@ class DataFetch(object):
 			"source_folderpath": None,
 			# "source_filename": None,
 			"stock_symbol_string": None,
+			"stock_symbol_filename": None,
 			"data_date_range_string": None,
 			"refresh_data": False,
 			# "date_range_start": None,
@@ -496,6 +502,26 @@ class DataFetch(object):
 					self.fetch_method = 2
 				else:
 					raise ValueError("Unknown fetch method: %s" % self.xcfg["fetch_method_string"])
+		self.stock_symbol_list = None
+		self.__check_stock_symbol_exist()
+
+
+	def __check_stock_symbol_exist(self):
+		if self.xcfg["stock_symbol_string"] is not None:
+			self.stock_symbol_list = self.xcfg["stock_symbol_string"].split(",")
+		elif self.xcfg["stock_symbol_filename"] is not None:
+			stock_symbol_filepath = os.path.join(self.xcfg["source_folderpath"], self.xcfg["stock_symbol_filename"])
+			if not self.__check_file_exist(stock_symbol_filepath):
+				raise FileNotFoundError(f"The stock symbol file {stock_symbol_filepath} does NOT exist")
+			with open(stock_symbol_filepath, "r") as f:
+				self.stock_symbol_list = []
+				for line in f:
+					line = line.strip()
+					if line == "":
+						continue
+					if line.startswith("#"):
+						continue
+					self.stock_symbol_list.extend(line.split(","))
 
 
 	def __enter__(self):
@@ -648,10 +674,10 @@ class DataFetch(object):
 
 	def fetch_data(self):
 		# import pdb; pdb.set_trace()
-		if self.xcfg["stock_symbol_string"] is None:
-			print("Warning: No stock to fetch...")
-			return
-		stock_symbol_list = self.xcfg["stock_symbol_string"].split(",")
+		# if self.xcfg["stock_symbol_string"] is None:
+		# 	print("Warning: No stock to fetch...")
+		# 	return
+		# stock_symbol_list = self.xcfg["stock_symbol_string"].split(",")
 		date_range_start_str = date_range_end_str = None
 		if self.xcfg["data_date_range_string"] is not None:
 			date_range_elems = self.xcfg["data_date_range_string"].split(":")
@@ -663,7 +689,10 @@ class DataFetch(object):
 			else:
 				print("Error: Incorrect date range format[%s]" % self.xcfg["data_date_range_string"])
 				return 
-		for stock_symbol in stock_symbol_list:
+		for stock_symbol in self.stock_symbol_list:
+# 加上flush=True 可以選擇我要即時印出來的資料 但不用每行都要即時印出來
+# 不會造成「buffer 混亂」執行 flush=True 時，會把當下 buffer 裡的內容一起送出去
+			print(f"Fetching data for {stock_symbol}...", flush=True)
 			return_message = self.__fetch_data(stock_symbol, date_range_start_str, date_range_end_str)
 			if return_message is not None:
 				if not self.xcfg["show_warning"]:
@@ -692,11 +721,11 @@ class DataFetch(object):
 
 	def show_data_info(self):
 		# import pdb; pdb.set_trace()
-		if self.xcfg["stock_symbol_string"] is None:
-			print("Warning: No stock to fetch...")
-			return
-		stock_symbol_list = self.xcfg["stock_symbol_string"].split(",")
-		for stock_symbol in stock_symbol_list:
+		# if self.xcfg["stock_symbol_string"] is None:
+		# 	print("Warning: No stock to fetch...")
+		# 	return
+		# stock_symbol_list = self.xcfg["stock_symbol_string"].split(",")
+		for stock_symbol in self.stock_symbol_list:
 			try:
 				data_info = self.__inspect_data(stock_symbol)
 				if data_info is not None:
@@ -741,7 +770,8 @@ if __name__ == "__main__":
 	'''
 	parser.add_argument('--source_folderpath', required=False, help='Fetch data into the XLS files in the designated folder path. Ex: %s' % DataFetch.DEFAULT_DATA_FOLDERPATH)
 	parser.add_argument('-f', '--fetch_data', required=False, action='store_true', help='Fetch the data of the specific target and exit.')
-	parser.add_argument('--stock_symbol_list', required=False, help='The stock symbol list. Mutiple stock symbols are split by comma. Ex: 00850.TW,00881.TW,00692.TW,MSFT,GOOG')
+	parser.add_argument('--stock_symbol_list', required=False, help='The stock symbol list. Mutiple stock symbols are seperated by comma. Ex: 00850.TW,00881.TW,00692.TW,MSFT,GOOG.')
+	parser.add_argument('--stock_symbol_filename', required=False, help='The filename containing the stock symbol list. Mutiple stock symbols are seperated by comma.')
 	parser.add_argument('--data_date_range', required=False, 
 		 help='''The data during the date range.
   Date range:
@@ -760,6 +790,8 @@ if __name__ == "__main__":
 	cfg = {}
 	if args.source_folderpath is not None: cfg['source_folderpath'] = args.source_folderpath
 	if args.stock_symbol_list is not None: cfg['stock_symbol_string'] = args.stock_symbol_list
+	if args.stock_symbol_list is None:
+		if args.stock_symbol_filename is not None: cfg['stock_symbol_filename'] = args.stock_symbol_filename
 	if args.data_date_range is not None: cfg['data_date_range_string'] = args.data_date_range
 	if args.refresh_data: cfg['refresh_data'] = True
 	if args.show_warning: cfg['show_warning'] = True
