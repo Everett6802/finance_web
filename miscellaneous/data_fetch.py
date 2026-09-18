@@ -52,6 +52,8 @@ class DataFetch(object):
 	DEFAULT_DATA_CLOSE_TITLE_INDEX = DEFAULT_DATA_TITLE_LIST.index(DEFAULT_DATA_CLOSE_TITLE)
 	DEFAULT_DATA_VOLUME_TITLE_INDEX = DEFAULT_DATA_TITLE_LIST.index(DEFAULT_DATA_VOLUME_TITLE)
 	DEFAULT_DATA_DATE_FORMAT = "%Y-%m-%d"
+# Adjustment due to split
+	DEFAULT_DATA_ADJUSTED_CLOSE_TITLE = "校正收盤價"
 # Extended
 	DEFAULT_EXT_CHANGE_FIELD_TITLE = "漲跌"
 	DEFAULT_EXT_CHANGE_PCT_FIELD_TITLE = "漲跌幅"
@@ -118,6 +120,17 @@ class DataFetch(object):
 	DEFAULT_YAHOO_TODAY_DATA_UPDATE_HOUR = 15
 	DEFAULT_WARNING_MEWSAGE_PREFIX = "WARNING"
 
+# The split date must be in the order of ascending, otherwise the adjustment will be wrong
+	STOCK_SPLITS = {
+		"0052.TW": [
+			{
+				"date": "2025-11-26",
+				"ratio": 7
+			}
+		]
+	}
+
+
 	@classmethod
 	def __is_string(cls, value):
 		is_string = False
@@ -166,17 +179,23 @@ class DataFetch(object):
 
 # ========= XLSX 工具 =========
 	@classmethod
-	def __read_xlsx(cls, source_filepath):
+	def __read_xlsx(cls, source_filepath, ignored_title_list=None):
 		# wb = self.__get_workbook()
 		wb = load_workbook(source_filepath, read_only=True, data_only=True)
 		ws = wb.active
 		rows = []
 		header = [c.value for c in ws[1]]
+		title_index = None
+		if ignored_title_list is not None:
+			title_index = [i for i, c in enumerate(header) if c not in ignored_title_list]
+			header = [c for c in header if c not in ignored_title_list]
 		rows.append(header)
 		# for row in ws.iter_rows(min_row=2, values_only=True):
 		# 	rows.append(dict(zip(header, row)))
 		for row in ws.iter_rows(min_row=2, values_only=True):
 # row 是一個 tuple -> 如果要新增欄位，轉成 list
+			if title_index is not None:
+				row = [row[i] for i in title_index]
 			rows.append(list(row))
 		return rows
 
@@ -196,7 +215,12 @@ class DataFetch(object):
 		start_index = None
 		# import pdb; pdb.set_trace()
 		old_row = None
+		adjusted_close_exist = False
+		adjusted_close_index = None
+		header = None
+		use_existing_data = False
 		if not refresh_data and cls.__check_file_exist(source_filepath):
+			use_existing_data = True
 # If file exists, append new data...
 			wb = load_workbook(source_filepath)
 			ws = wb.active
@@ -208,6 +232,7 @@ class DataFetch(object):
 			except ValueError:
 				print(f"WARNING: The extended field does NOT exists in {source_filepath}...")
 				extended_field_exist = False
+#############################################################################################
 # Add the extra fields for old data
 			if not extended_field_exist:
 				wb.close()
@@ -215,7 +240,6 @@ class DataFetch(object):
 				rows = cls.__read_xlsx(source_filepath)
 				wb = Workbook()
 				ws = wb.active
-# The title
 				rows[0].extend(cls.DEFAULT_EXT_DATA_TITLE_LIST) 
 				ws.append(rows[0])
 # The first data
@@ -234,6 +258,7 @@ class DataFetch(object):
 				wb = load_workbook(source_filepath)
 				ws = wb.active
 				rows = new_rows
+############################################################################################
 # openpyxl 的 row / column 是從 1 開始，不是 0
 # openpyxl 是 Excel 操作庫，不是資料結構庫 它選擇「跟 Excel 一樣」而不是「跟 Python 一樣」
 # Excel 的世界本來就是從 1 開始
@@ -251,29 +276,41 @@ class DataFetch(object):
 # row 0 是 header，所以 index 從 0 開始對應到 rows[1:] 的第一行資料
 					start_index = index + 1 # 因為 rows[1:] 的 index 是從 0 開始，所以要加 1 才是正確的行數
 					break
-			# if start_index is None: # 已存在，不寫入
-			# 	wb.close()
-			# 	return
+			header = [c.value for c in ws[1]]
+			use_adjusted_close_data = adjusted_close_exist
 		else:
 # If file does NOT exist, create new file...
 			wb = Workbook()
 			ws = wb.active
-			headers = None
+			header = None
 			if isinstance(rows[0], dict):
 				print("WARNING: The first row is a dict, so use the keys as the header...")
-				headers = copy.deepcopy(list(rows[0].keys()))
+				header = copy.deepcopy(list(rows[0].keys()))
 			else:
-				# headers = list(rows[0])
-				headers = copy.deepcopy(rows[0])
-			headers.extend(cls.DEFAULT_EXT_DATA_TITLE_LIST)
-			ws.append(headers)
+				# header = list(rows[0])
+				header = copy.deepcopy(rows[0])
+# # Check if the adjusted close field exists...
+# 			if cls.DEFAULT_DATA_ADJUSTED_CLOSE_TITLE in header:
+# 				adjusted_close_exist = True
+# 				adjusted_close_index = header.index(cls.DEFAULT_DATA_ADJUSTED_CLOSE_TITLE)
+			header.extend(cls.DEFAULT_EXT_DATA_TITLE_LIST)
+			ws.append(header)
 			start_index = 1
+# Check if the adjusted close field exists...
+		if cls.DEFAULT_DATA_ADJUSTED_CLOSE_TITLE in header:
+			adjusted_close_exist = True
+			adjusted_close_index = header.index(cls.DEFAULT_DATA_ADJUSTED_CLOSE_TITLE)
+		data_close_title = cls.DEFAULT_DATA_CLOSE_TITLE
+		if not use_existing_data and adjusted_close_exist:
+			data_close_title = cls.DEFAULT_DATA_ADJUSTED_CLOSE_TITLE
 		# import pdb; pdb.set_trace()
 		if start_index != None:
+			real_data_close_title_index = None
 			try:
-				data_close_title_index = rows[0].index(cls.DEFAULT_DATA_CLOSE_TITLE)
+				data_close_title_index = rows[0].index(data_close_title)
+				real_data_close_title_index = rows[0].index(cls.DEFAULT_DATA_CLOSE_TITLE)
 			except ValueError as e:
-				print("ERROR: The field[%s] does NOT exist" % cls.DEFAULT_DATA_CLOSE_TITLE)
+				print("ERROR: The field[%s] does NOT exist" % data_close_title)
 				raise e
 			for row in rows[start_index:]:
 				row_tmp = copy.deepcopy(row)
@@ -281,6 +318,8 @@ class DataFetch(object):
 					row_tmp.extend([None, None,])
 				else:
 					# print(row)
+					if use_existing_data and adjusted_close_exist:
+						row_tmp.append(row[real_data_close_title_index])
 					change, change_percentage = cls.__get_change_and_percentage(row[data_close_title_index], old_row[data_close_title_index])
 					row_tmp.extend([change, change_percentage])
 				ws.append(row_tmp)
@@ -474,6 +513,7 @@ class DataFetch(object):
 			"show_warning": False,
 			"finmind_token": None,
 			"fetch_method_string": None,
+			"apply_split_adjustment": False,
 		}
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
@@ -503,7 +543,8 @@ class DataFetch(object):
 				else:
 					raise ValueError("Unknown fetch method: %s" % self.xcfg["fetch_method_string"])
 		self.stock_symbol_list = None
-		self.__check_stock_symbol_exist()
+		if not self.xcfg["apply_split_adjustment"]:
+			self.__check_stock_symbol_exist()
 
 
 	def __check_stock_symbol_exist(self):
@@ -745,6 +786,51 @@ class DataFetch(object):
 			print("%s: %s" % (key, value))
 
 
+	def __apply_split_adjustment(self, stock_symbol, split_info_list):
+		source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
+		file_exist = self.__check_file_exist(source_filepath)
+		if not file_exist:
+			print(f"WARNING: The file {source_filepath} does NOT exist, so skip applying split adjustment for {stock_symbol}...")
+			return
+		if self.__is_excel_locked(source_filepath):
+			print(f"ERROR: The file {source_filepath} is locked by other process, so skip applying split adjustment for {stock_symbol}...")
+			return
+		ignored_title_list = [self.DEFAULT_DATA_ADJUSTED_CLOSE_TITLE,]
+		ignored_title_list.extend(self.DEFAULT_EXT_DATA_TITLE_LIST)
+		rows = self.__read_xlsx(source_filepath, ignored_title_list=ignored_title_list)
+		split_info_list_len = len(split_info_list)
+		split_index = 0
+		split_date = split_info_list[split_index]["date"]
+		split_ratio = split_info_list[split_index]["ratio"]
+		split_factor = 1
+		time_index = rows[0].index(self.DEFAULT_DATA_DATE_TITLE)
+		close_index = rows[0].index(self.DEFAULT_DATA_CLOSE_TITLE)
+		rows[0].append(self.DEFAULT_DATA_ADJUSTED_CLOSE_TITLE)
+		# import pdb; pdb.set_trace()
+		for row in rows[-1:0:-1]:  # 從最後一行往前找，直到找到分割日期
+			if split_factor == 1:
+				row.append(row[close_index])
+			else:
+				adjusted_close = row[close_index] / split_factor
+				row.append(adjusted_close)
+			if row[time_index] == split_date:
+				# import pdb; pdb.set_trace()
+				split_factor = split_factor * split_ratio
+				split_index += 1
+				# if split_index > split_info_list_len:
+				# 	raise ValueError(f"The split info list is exhausted in {stock_symbol}...")
+				if split_index < split_info_list_len:
+					split_date = split_info_list[split_index]["date"]
+					split_ratio = split_info_list[split_index]["ratio"]
+		self.__write_xlsx(source_filepath, rows, refresh_data=True)
+
+
+	def apply_split_adjustment(self):
+		for stock_symbol, split_infos in self.STOCK_SPLITS.items():
+			print(f"Applying split adjustment for {stock_symbol}...")
+			self.__apply_split_adjustment(stock_symbol, split_infos)
+
+
 if __name__ == "__main__":
 # argparse 預設會把 help 文字裡的換行與多重空白「壓縮」成一行，所以你在字串裡寫的 \n 不一定會照原樣顯示。 => 建立 parser 時加上 formatter_class=argparse.RawTextHelpFormatter
 	parser = argparse.ArgumentParser(description='Print help', formatter_class=argparse.RawTextHelpFormatter)
@@ -769,6 +855,7 @@ if __name__ == "__main__":
 	>>> parser.add_argument('--baz', action='store_false')
 	'''
 	parser.add_argument('--source_folderpath', required=False, help='Fetch data into the XLS files in the designated folder path. Ex: %s' % DataFetch.DEFAULT_DATA_FOLDERPATH)
+	parser.add_argument('--apply_split_adjustment', required=False, action='store_true', help='Apply stock split adjustments to the fetched data.')
 	parser.add_argument('-f', '--fetch_data', required=False, action='store_true', help='Fetch the data of the specific target and exit.')
 	parser.add_argument('--stock_symbol_list', required=False, help='The stock symbol list. Mutiple stock symbols are seperated by comma. Ex: 00850.TW,00881.TW,00692.TW,MSFT,GOOG.')
 	parser.add_argument('--stock_symbol_filename', required=False, help='The filename containing the stock symbol list. Mutiple stock symbols are seperated by comma.')
@@ -799,12 +886,15 @@ if __name__ == "__main__":
 	if args.fetch_method is not None: cfg['fetch_method_string'] = args.fetch_method
 	# import pdb; pdb.set_trace()
 	with DataFetch(cfg) as obj:
+		if args.apply_split_adjustment:
+			obj.apply_split_adjustment()
+			sys.exit(0)
+		if args.fetch_data:
+			obj.fetch_data()
+			sys.exit(0)
 		if args.show_data_info:
 			obj.show_data_info()
 			sys.exit(0)
 		if args.print_filepath:
 			obj.print_filepath()
-			sys.exit(0)
-		if args.fetch_data:
-			obj.fetch_data()
 			sys.exit(0)
