@@ -25,6 +25,8 @@ class PerformanceAnalysis(object):
 	DEFAULT_SOURCE_FILENAME = "加權指數歷史資料2000-2025.xlsx"
 	DEFAULT_TIME_FIELD_NAME = "時間"	
 	DEFAULT_CLOSING_PRICE_FIELD_NAME = "收盤價"	
+# Adjustment due to split
+	DEFAULT_ADJUSTED_CLOSING_PRICE_FIELD_NAME = "校正收盤價"
 	# DEFAULT_CONFIG_FOLDERPATH =  "C:\\Users\\%s" % os.getlogin()
 	DEFAULT_DATE_BASE_NUMBER = 36526
 	DEFAULT_DATE_BASE = date(2000, 1, 1)
@@ -320,6 +322,9 @@ class PerformanceAnalysis(object):
 			# title_index_list = [time_index,]
 			title_index_list = []
 			for expected_title in expected_title_list:
+				if expected_title == self.DEFAULT_CLOSING_PRICE_FIELD_NAME:
+					if self.DEFAULT_ADJUSTED_CLOSING_PRICE_FIELD_NAME in title_list:
+						expected_title = self.DEFAULT_ADJUSTED_CLOSING_PRICE_FIELD_NAME
 				index = title_list.index(expected_title)
 				title_index_list.append(index)
 			new_title_list = [title for index, title in enumerate(title_list) if index in title_index_list]
@@ -492,9 +497,13 @@ class PerformanceAnalysis(object):
 				date_range_start = None
 			if date_range_end == "":
 				date_range_end = None
+		# import pdb; pdb.set_trace()
 		worksheet_data = self.__extract_data(source_filename, date_range_start, date_range_end)
 		daily_returns = []
-		closing_price_index = worksheet_data["title"].index(self.DEFAULT_CLOSING_PRICE_FIELD_NAME)
+		if self.DEFAULT_ADJUSTED_CLOSING_PRICE_FIELD_NAME in worksheet_data["title"]:
+			closing_price_index = worksheet_data["title"].index(self.DEFAULT_ADJUSTED_CLOSING_PRICE_FIELD_NAME)
+		else:
+			closing_price_index = worksheet_data["title"].index(self.DEFAULT_CLOSING_PRICE_FIELD_NAME)
 		prev_closing_price = float(worksheet_data["data"][0][closing_price_index])
 		for row in worksheet_data["data"][1:]:
 			closing_price = float(row[closing_price_index])
@@ -580,9 +589,10 @@ class PerformanceAnalysis(object):
 								else:
 									print("    %s: %s" % (dd_key, dd_value))
 						else:
-							raise ValueError("Unsupport performance data type: %s" % type(value))
+							raise ValueError("Unsupport performance data type (1): %s" % type(value))
 					else:
-						raise ValueError("Unsupport performance data type: %s" % type(value))
+						import pdb; pdb.set_trace()
+						raise ValueError("Unsupport performance data type (2): %s" % type(value))
 
 
 	# @property
