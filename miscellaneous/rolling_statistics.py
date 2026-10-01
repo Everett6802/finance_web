@@ -38,6 +38,7 @@ class RollingStatistics(object):
 
 	DEFAULT_HOST_DATA_FOLDERPATH =  "C:\\Users\\%s\\project_data\\finance_web" % getpass.getuser()
 	DEFAULT_DATA_FOLDERPATH =  os.getenv("DATA_PATH", DEFAULT_HOST_DATA_FOLDERPATH)
+	DEFAULT_DATA_SOURCE_FOLDERNAME = "data_source"
 	DEFAULT_SOURCE_FILENAME = "加權指數歷史資料2000-2025.xlsx"
 	DEFAULT_TIME_FIELD_NAME = "時間"	
 	# DEFAULT_CLOSING_PRICE_FIELD_NAME = "收盤價"	
@@ -187,6 +188,7 @@ class RollingStatistics(object):
 		self.xcfg.update(cfg)
 		self.xcfg["source_folderpath"] = self.DEFAULT_DATA_FOLDERPATH if self.xcfg["source_folderpath"] is None else self.xcfg["source_folderpath"]
 		# self.xcfg["source_filename"] = self.DEFAULT_SOURCE_FILENAME if self.xcfg["source_filename"] is None else self.xcfg["source_filename"]
+		self.data_source_folderpath = os.path.join(self.xcfg["source_folderpath"], self.DEFAULT_DATA_SOURCE_FOLDERNAME)
 		self.cur_year = datetime.now().year
 		self.filepath_dict = OrderedDict()
 		self.filepath_dict["source_folderpath"] = self.xcfg["source_folderpath"]
@@ -408,16 +410,17 @@ class RollingStatistics(object):
 		stock_symbol_list = self.xcfg["stock_symbol_string"].split(",")
 		check_date = self.xcfg["check_date"]
 		for stock_symbol in stock_symbol_list:
-			source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
-			file_exist = self.__check_file_exist(source_filepath)
+			# source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
+			data_source_filepath = os.path.join(self.data_source_folderpath, f"{stock_symbol}.xlsx")
+			file_exist = self.__check_file_exist(data_source_filepath)
 			if not file_exist:
-				print(f"Warning: The file {source_filepath} is not found, so skip fetching data for {stock_symbol}...")
+				print(f"Warning: The file {data_source_filepath} is not found, so skip fetching data for {stock_symbol}...")
 				continue
-			if self.__is_excel_locked(source_filepath):
-				print(f"Warning: The file {source_filepath} is locked by other process, so skip fetching data for {stock_symbol}...")
+			if self.__is_excel_locked(data_source_filepath):
+				print(f"Warning: The file {data_source_filepath} is locked by other process, so skip fetching data for {stock_symbol}...")
 				continue
 			# import pdb; pdb.set_trace()
-			worksheet_data = self.__read_worksheet(source_filepath, expected_title_list)
+			worksheet_data = self.__read_worksheet(data_source_filepath, expected_title_list)
 			print(f"==========  {stock_symbol}  ==========")
 			check_change_pct_date, check_change_pct_value, percentile_rank = self.analyze_change_pct_percentile(worksheet_data, expected_title_list)
 			print("Change Percentage: date=%s, value=%.2f%%, percentile_rank=%.2f%%" % (check_change_pct_date, check_change_pct_value * 100.0, percentile_rank))
@@ -436,15 +439,16 @@ class RollingStatistics(object):
 			expected_title_list.append(self.DEFAULT_VOLUME_FIELD_NAME)
 		if self.xcfg["target_change_pct_value"] is not None:
 			expected_title_list.append(self.DEFAULT_EXT_CHANGE_PCT_FIELD_TITLE)
-		source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
-		file_exist = self.__check_file_exist(source_filepath)
+		# source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
+		data_source_filepath = os.path.join(self.data_source_folderpath, f"{stock_symbol}.xlsx")
+		file_exist = self.__check_file_exist(data_source_filepath)
 		if not file_exist:
-			print(f"Warning: The file {source_filepath} is not found, so skip fetching data for {stock_symbol}...")
+			print(f"Warning: The file {data_source_filepath} is not found, so skip fetching data for {stock_symbol}...")
 			return
-		if self.__is_excel_locked(source_filepath):
-			print(f"Warning: The file {source_filepath} is locked by other process, so skip fetching data for {stock_symbol}...")
+		if self.__is_excel_locked(data_source_filepath):
+			print(f"Warning: The file {data_source_filepath} is locked by other process, so skip fetching data for {stock_symbol}...")
 			return
-		worksheet_data = self.__read_worksheet(source_filepath, expected_title_list)
+		worksheet_data = self.__read_worksheet(data_source_filepath, expected_title_list)
 		print(f"==========  {stock_symbol}  ==========")
 		# import pdb; pdb.set_trace()
 		if self.xcfg["target_change_pct_value"] is not None:

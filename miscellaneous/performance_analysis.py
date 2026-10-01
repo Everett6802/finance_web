@@ -22,6 +22,7 @@ class PerformanceAnalysis(object):
 
 	DEFAULT_HOST_DATA_FOLDERPATH =  "C:\\Users\\%s\\project_data\\finance_web" % getpass.getuser()
 	DEFAULT_DATA_FOLDERPATH =  os.getenv("DATA_PATH", DEFAULT_HOST_DATA_FOLDERPATH)
+	DEFAULT_DATA_SOURCE_FOLDERNAME = "data_source"
 	DEFAULT_SOURCE_FILENAME = "加權指數歷史資料2000-2025.xlsx"
 	DEFAULT_TIME_FIELD_NAME = "時間"	
 	DEFAULT_CLOSING_PRICE_FIELD_NAME = "收盤價"	
@@ -142,13 +143,44 @@ class PerformanceAnalysis(object):
 		return cls.std(daily_returns) * (periods_per_year ** 0.5)
 
 
+	# @classmethod
+	# def sharpe_ratio_old(cls, daily_returns, risk_free_rate=0.0, periods_per_year=252):
+	# 	ann_return = cls.cagr(daily_returns, periods_per_year)
+	# 	ann_vol = cls.annualized_volatility(daily_returns, periods_per_year)
+	# 	if ann_vol == 0:
+	# 		return 0.0
+	# 	return (ann_return - risk_free_rate) / ann_vol
+
+
+# 比較不同標的間的夏普值 應該設定同時間區間 才公平
 	@classmethod
 	def sharpe_ratio(cls, daily_returns, risk_free_rate=0.0, periods_per_year=252):
-		ann_return = cls.cagr(daily_returns, periods_per_year)
-		ann_vol = cls.annualized_volatility(daily_returns, periods_per_year)
-		if ann_vol == 0:
+		"""
+		先算每日超額報酬(日報酬 − 日無風險利率),取算術平均後乘 252 做為年化報酬分子,分母則是日報酬標準差乘 √252
+		Sharpe: 分子為「日超額報酬的算術平均」年化,分母為「日報酬標準差」年化,無風險利率視為年化值。
+		"""
+		daily_rf = risk_free_rate / periods_per_year
+		excess_returns = [r - daily_rf for r in daily_returns]
+		mean_excess_daily = cls.mean(excess_returns)
+		std_daily = cls.std(daily_returns)
+		if std_daily == 0:
 			return 0.0
-		return (ann_return - risk_free_rate) / ann_vol
+		ann_excess_return = mean_excess_daily * periods_per_year
+		ann_vol = std_daily * (periods_per_year ** 0.5)
+		return ann_excess_return / ann_vol
+
+
+	@classmethod
+	def calmar_ratio(cls, daily_returns, max_drawdown, periods_per_year=252):
+		"""
+		Calmar Ratio = CAGR / |Max Drawdown|
+		max_drawdown: 傳入 drawdown_summary()["Max Drawdown"]，是負值（例如 -0.2635）
+		衡量「拿歷史最深回撤去換來的年化報酬」是否划算，跟 Sharpe 互補參考。
+		"""
+		ann_return = cls.cagr(daily_returns, periods_per_year)
+		if max_drawdown == 0:
+			return 0.0
+		return ann_return / abs(max_drawdown)
 
 
 	@classmethod
@@ -246,18 +278,20 @@ class PerformanceAnalysis(object):
 		# self.xcfg["source_filename"] = self.DEFAULT_SOURCE_FILENAME if self.xcfg["source_filename"] is None else self.xcfg["source_filename"]
 		# self.xcfg["source_filepath"] = os.path.join(self.xcfg["source_folderpath"], self.xcfg["source_filename"])
 		# print ("__init__: %s" % self.xcfg["source_filepath"])
+		self.data_source_folderpath = os.path.join(self.xcfg["source_folderpath"], self.DEFAULT_DATA_SOURCE_FOLDERNAME)
 		self.workbook = None
 		self.cur_year = datetime.now().year
 		self.worksheet_data = None
 		self.worksheet_data_full_cols = None
 
-		self.source_filepath_list = []
+		self.data_source_filepath_list = []
 		if self.xcfg["source_filename_string"] is not None:
 			source_filepath_list = self.xcfg["source_filename_string"].split(",")
 			for source_filename in source_filepath_list:
 				if not source_filename.endswith(".xlsx"):
 					source_filename = source_filename + ".xlsx"
-				self.source_filepath_list.append(os.path.join(self.xcfg["source_folderpath"], source_filename))
+				# self.source_filepath_list.append(os.path.join(self.xcfg["source_folderpath"], source_filename))
+				self.data_source_filepath_list.append(os.path.join(self.data_source_folderpath, source_filename))
 
 		self.filepath_dict = OrderedDict()
 		self.filepath_dict["source_folderpath"] = self.xcfg["source_folderpath"]
@@ -521,6 +555,7 @@ class PerformanceAnalysis(object):
 			"CAGR": self.cagr(daily_returns),
 			"Annualized Volatility": self.annualized_volatility(daily_returns),
 			"Sharpe Ratio": self.sharpe_ratio(daily_returns, self.xcfg["risk_free_rate"]),
+			"Calmar Ratio": self.calmar_ratio(daily_returns, dd_summary["Max Drawdown"]),
 			"Max Dropdown": dd_summary,
 		}
 		date_range_dict = None
@@ -549,17 +584,17 @@ class PerformanceAnalysis(object):
 	def show_performance(self):
 		PERCENT_KEYS = {"Cumulative Return", "CAGR", "Annualized Volatility", "Max Drawdown",}
 		# import pdb; pdb.set_trace()
-		for source_filepath in self.source_filepath_list:
+		for data_source_filepath in self.data_source_filepath_list:
 			print("========================================")
 			file_exist = True
 			date_range_exist = False
-			if not self.__check_file_exist(source_filepath):
+			if not self.__check_file_exist(data_source_filepath):
 				file_exist = False
-				print(f"* The file {source_filepath} does NOT exist...")
+				print(f"* The file {data_source_filepath} does NOT exist...")
 			else:
-				source_filename = os.path.basename(source_filepath)
+				source_filename = os.path.basename(data_source_filepath)
 				target_name = source_filename.rstrip(".xlsx")
-				perf_dict, date_range_dict, start_date_warning_dict = self.analyze_performance(source_filepath)
+				perf_dict, date_range_dict, start_date_warning_dict = self.analyze_performance(data_source_filepath)
 				if date_range_dict is not None:
 					date_range = date_range_dict["Start Date"] + " ~ " + date_range_dict["End Date"]
 					print(f"{target_name} Performance Analysis ({date_range}): ")
@@ -632,9 +667,9 @@ if __name__ == "__main__":
 	parser.add_argument('--statistics_date_range', required=False, 
 		 help='''The statistics data during the date range.
   Date range
-    Format: yy1-mm1-dd1:yy2-mm2-dd2   From yy1-mm1-dd1 to yy2-mm2-dd2   Ex: 2014-09-04:2025-10-15
-    Format: yy-mm-dd:   From yy-mm-dd to 'the last date of the data'   Ex: 2014-09-04:
-    Format: :yy-mm-dd   From 'the first date of the data' to yy-mm-dd   Ex: :2025-09-04
+    Format: yyyy1-mm1-dd1:yyyy2-mm2-dd2   From yyyy1-mm1-dd1 to yyyy2-mm2-dd2   Ex: 2014-09-04:2025-10-15
+    Format: yyyy-mm-dd:   From yyyy-mm-dd to 'the last date of the data'   Ex: 2014-09-04:
+    Format: :yyyy-mm-dd   From 'the first date of the data' to yyyy-mm-dd   Ex: :2025-09-04
     * Caution: Only take effect when --show_performance is set. Exclusive with --statistics_period.''')
 	parser.add_argument('--print_filepath', required=False, action='store_true', help='Print the filepaths used in the process and exit.')
 	args = parser.parse_args()

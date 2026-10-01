@@ -25,6 +25,7 @@ class DataFetch(object):
 
 	DEFAULT_HOST_DATA_FOLDERPATH =  "C:\\Users\\%s\\project_data\\finance_web" % getpass.getuser()
 	DEFAULT_DATA_FOLDERPATH =  os.getenv("DATA_PATH", DEFAULT_HOST_DATA_FOLDERPATH)
+	DEFAULT_DATA_SOURCE_FOLDERNAME = "data_source"
 	# DEFAULT_SOURCE_FILENAME = "加權指數歷史資料2000-2025.xlsx"
 	# DEFAULT_TIME_FIELD_NAME = "時間"	
 	# DEFAULT_CLOSING_PRICE_FIELD_NAME = "收盤價"	
@@ -518,6 +519,7 @@ class DataFetch(object):
 		# import pdb; pdb.set_trace()
 		self.xcfg.update(cfg)
 		self.xcfg["source_folderpath"] = self.DEFAULT_DATA_FOLDERPATH if self.xcfg["source_folderpath"] is None else self.xcfg["source_folderpath"]
+		self.data_source_folderpath = os.path.join(self.xcfg["source_folderpath"], self.DEFAULT_DATA_SOURCE_FOLDERNAME)
 		self.workbook = None
 
 		self.filepath_dict = OrderedDict()
@@ -645,11 +647,12 @@ class DataFetch(object):
 		# csv_file = os.path.join(self.xcfg["source_filepath"], f"{stock_symbol}.csv")
 # 檢查是否已存在本地資料
 		# import pdb; pdb.set_trace()
-		source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
-		file_exist = self.__check_file_exist(source_filepath)
+		# source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
+		data_source_filepath = os.path.join(self.data_source_folderpath, f"{stock_symbol}.xlsx")
+		file_exist = self.__check_file_exist(data_source_filepath)
 		if file_exist:
-			if self.__is_excel_locked(source_filepath):
-				return f"ERROR: The file {source_filepath} is locked by other process, so skip fetching data for {stock_symbol}..."
+			if self.__is_excel_locked(data_source_filepath):
+				return f"ERROR: The file {data_source_filepath} is locked by other process, so skip fetching data for {stock_symbol}..."
 		fetch_start = fetch_end = None
 		refresh_data = self.xcfg["refresh_data"]
 		# import pdb; pdb.set_trace()
@@ -660,7 +663,7 @@ class DataFetch(object):
 			if refresh_data:
 				fetch_start = date_range_start
 			else:	
-				rows = self.__read_xlsx(source_filepath)
+				rows = self.__read_xlsx(data_source_filepath)
 				date_title_index = None
 				try:
 					date_title_index = rows[0].index(self.DEFAULT_DATA_DATE_TITLE)
@@ -709,7 +712,7 @@ class DataFetch(object):
 		row_data_list = self.__get_data(stock_symbol, fetch_start, fetch_end)
 		if len(row_data_list) == 0:
 			return f"WARNING: No new data in {stock_symbol}."
-		self.__write_xlsx(source_filepath, row_data_list, refresh_data)
+		self.__write_xlsx(data_source_filepath, row_data_list, refresh_data)
 		return None
 
 
