@@ -546,10 +546,10 @@ class DataFetch(object):
 					raise ValueError("Unknown fetch method: %s" % self.xcfg["fetch_method_string"])
 		self.stock_symbol_list = None
 		if not self.xcfg["apply_split_adjustment"]:
-			self.__check_stock_symbol_exist()
+			self.__parse_stock_symbol()
 
 
-	def __check_stock_symbol_exist(self):
+	def __parse_stock_symbol(self):
 		if self.xcfg["stock_symbol_string"] is not None:
 			self.stock_symbol_list = self.xcfg["stock_symbol_string"].split(",")
 		elif self.xcfg["stock_symbol_filename"] is not None:
@@ -565,6 +565,8 @@ class DataFetch(object):
 					if line.startswith("#"):
 						continue
 					self.stock_symbol_list.extend(line.split(","))
+		else:
+			raise ValueError("Error: No stock symbols provided")
 
 
 	def __enter__(self):

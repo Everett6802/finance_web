@@ -265,7 +265,8 @@ class PerformanceAnalysis(object):
 		self.xcfg = {
 			"source_folderpath": None,
 			# "source_filename": None,
-			"source_filename_string": None,
+			"stock_symbol_string": None,
+			"stock_symbol_filename": None,
 			"risk_free_rate": 0.0,
 			"statistics_period_string": None,
 			"statistics_date_range_string": None,
@@ -284,17 +285,46 @@ class PerformanceAnalysis(object):
 		self.worksheet_data = None
 		self.worksheet_data_full_cols = None
 
-		self.data_source_filepath_list = []
-		if self.xcfg["source_filename_string"] is not None:
-			source_filepath_list = self.xcfg["source_filename_string"].split(",")
+		# self.data_source_filepath_list = []
+		# if self.xcfg["stock_symbol_string"] is not None:
+		# 	source_filepath_list = self.xcfg["stock_symbol_string"].split(",")
+		# 	for source_filename in source_filepath_list:
+		# 		if not source_filename.endswith(".xlsx"):
+		# 			source_filename = source_filename + ".xlsx"
+		# 		# self.source_filepath_list.append(os.path.join(self.xcfg["source_folderpath"], source_filename))
+		# 		self.data_source_filepath_list.append(os.path.join(self.data_source_folderpath, source_filename))
+		self.__parse_stock_symbol()
+
+		self.filepath_dict = OrderedDict()
+		self.filepath_dict["source_folderpath"] = self.xcfg["source_folderpath"]
+
+
+	def __parse_stock_symbol(self):
+		source_filepath_list = None
+		if self.xcfg["stock_symbol_string"] is not None:
+			source_filepath_list = self.xcfg["stock_symbol_string"].split(",")
+		elif self.xcfg["stock_symbol_filename"] is not None:
+			stock_symbol_filepath = os.path.join(self.xcfg["source_folderpath"], self.xcfg["stock_symbol_filename"])
+			if not self.__check_file_exist(stock_symbol_filepath):
+				raise FileNotFoundError(f"The stock symbol file {stock_symbol_filepath} does NOT exist")
+			with open(stock_symbol_filepath, "r") as f:
+				source_filepath_list = []
+				for line in f:
+					line = line.strip()
+					if line == "":
+						continue
+					if line.startswith("#"):
+						continue
+					source_filepath_list.extend(line.split(","))
+		if source_filepath_list is not None:
+			self.data_source_filepath_list = []
 			for source_filename in source_filepath_list:
 				if not source_filename.endswith(".xlsx"):
 					source_filename = source_filename + ".xlsx"
 				# self.source_filepath_list.append(os.path.join(self.xcfg["source_folderpath"], source_filename))
 				self.data_source_filepath_list.append(os.path.join(self.data_source_folderpath, source_filename))
-
-		self.filepath_dict = OrderedDict()
-		self.filepath_dict["source_folderpath"] = self.xcfg["source_folderpath"]
+		else:
+			print("WARNING: No stock symbols provided.")
 
 
 	def __enter__(self):
@@ -626,13 +656,30 @@ class PerformanceAnalysis(object):
 						else:
 							raise ValueError("Unsupport performance data type (1): %s" % type(value))
 					else:
-						import pdb; pdb.set_trace()
+						# import pdb; pdb.set_trace()
 						raise ValueError("Unsupport performance data type (2): %s" % type(value))
+# flush 目前 buffer 裡的資料
+					sys.stdout.flush()
+					
 
-
-	# @property
-	# def Worksheet(self):
-	# 	return self.__get_worksheet()
+	def show_parameter_description(self):
+		descriptions = OrderedDict([
+			("Cumulative Return", "累積報酬率：這段期間總共漲跌幾%，不年化。"),
+			("CAGR", "年化報酬率：把累積報酬平均攤成每年幾%成長，方便跨期間比較。"),
+			("Annualized Volatility", "年化波動率：報酬起伏程度，數字越大代表漲跌越劇烈。"),
+			("Sharpe Ratio", "夏普值 = 年化報酬 / 年化波動率。衡量承受「日常起伏」換來的報酬是否划算，越高越好。"),
+			("Calmar Ratio", "卡瑪比率 = CAGR / |最大回撤|。衡量承受過「最深一次回撤」換來的年化報酬是否划算，越高越好。"),
+			("Max Drawdown", "最大回撤：從某個高點到之後最低點，最多曾經跌幾%。"),
+			("Max DD Duration", "最大回撤的天數：從高點跌到最深低點，經過幾個交易日。"),
+			("Recovered MaxDD", "最大回撤是否已經填補回來（股價是否重新創高）。"),
+			("Current DD Duration", "目前這次尚未填補的回撤，已經經過幾個交易日（0 代表目前在創新高附近）。"),
+			("Total Drawdowns", "整段期間總共發生過幾次回撤（含大小次數）。"),
+			("Recovered Count", "這些回撤中，已經填補回來（創新高）的次數。"),
+			("Unrecovered Count", "這些回撤中，尚未填補回來的次數（通常是最後一次，若資料結束時還在跌）。"),
+		])
+		print("************** Parameter Description **************")
+		for key, desc in descriptions.items():
+			print("  %s: %s" % (key, desc))
 
 
 if __name__ == "__main__":
@@ -659,8 +706,10 @@ if __name__ == "__main__":
 	>>> parser.add_argument('--baz', action='store_false')
 	'''
 	parser.add_argument('--source_folderpath', required=False, help='Update database from the XLS files in the designated folder path. Ex: %s' % PerformanceAnalysis.DEFAULT_DATA_FOLDERPATH)
-	parser.add_argument('--source_filepath_list', required=False, help='The filename list. Mutiple source filenames are split by comma. The file extension(xlsx) can be ignored. Ex: 00850.TW.xlsx,00881.TW,00692.TW,MSFT.xlsx,GOOG')
+	parser.add_argument('--stock_symbol_list', required=False, help='The stock symbol list. Mutiple stock symbols are seperated by comma. Ex: 00850.TW,00881.TW,00692.TW,MSFT,GOOG.')
+	parser.add_argument('--stock_symbol_filename', required=False, help='The filename containing the stock symbol list. Mutiple stock symbols are seperated by comma.')
 	parser.add_argument('-s', '--show_performance', required=False, action='store_true', help='Show the result of performace analysis for the specific target and exit.')
+	parser.add_argument('--show_parameter_description', required=False, action='store_true', help='Show the description of each performance parameter and exit.')
 	parser.add_argument('--statistics_period', required=False, 
 		 help='''The statistics data during the specific period. Ex: 3M, 1Y, 5Y
     * Caution: Only take effect when --show_performance is set. Exclusive with --statistics_date_range.''')
@@ -676,7 +725,9 @@ if __name__ == "__main__":
 	# import pdb; pdb.set_trace()
 	cfg = {}
 	if args.source_folderpath is not None: cfg['source_folderpath'] = args.source_folderpath
-	if args.source_filepath_list is not None: cfg['source_filename_string'] = args.source_filepath_list
+	if args.stock_symbol_list is not None: cfg['stock_symbol_string'] = args.stock_symbol_list
+	if args.stock_symbol_list is None:
+		if args.stock_symbol_filename is not None: cfg['stock_symbol_filename'] = args.stock_symbol_filename
 	if args.statistics_period is not None: cfg['statistics_period_string'] = args.statistics_period
 	if args.statistics_date_range is not None: cfg['statistics_date_range_string'] = args.statistics_date_range
 	# import pdb; pdb.set_trace()
@@ -686,4 +737,7 @@ if __name__ == "__main__":
 			sys.exit(0)
 		if args.show_performance:
 			obj.show_performance()
+			sys.exit(0)
+		if args.show_parameter_description:
+			obj.show_parameter_description()
 			sys.exit(0)
