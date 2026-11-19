@@ -482,16 +482,17 @@ class RollingStatistics(object):
 		time_index = expected_title_list.index(self.DEFAULT_TIME_FIELD_NAME)
 		stock_symbol_list = self.xcfg["stock_symbol_string"].split(",")
 		for stock_symbol in stock_symbol_list:
-			source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
-			file_exist = self.__check_file_exist(source_filepath)
+			# source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
+			data_source_filepath = os.path.join(self.data_source_folderpath, f"{stock_symbol}.xlsx")
+			file_exist = self.__check_file_exist(data_source_filepath)
 			if not file_exist:
-				print(f"Warning: The file {source_filepath} is not found, so skip fetching data for {stock_symbol}...")
+				print(f"Warning: The file {data_source_filepath} is not found, so skip fetching data for {stock_symbol}...")
 				continue
-			if self.__is_excel_locked(source_filepath):
-				print(f"Warning: The file {source_filepath} is locked by other process, so skip fetching data for {stock_symbol}...")
+			if self.__is_excel_locked(data_source_filepath):
+				print(f"Warning: The file {data_source_filepath} is locked by other process, so skip fetching data for {stock_symbol}...")
 				continue
 			# import pdb; pdb.set_trace()
-			worksheet_data = self.__read_worksheet(source_filepath, expected_title_list)
+			worksheet_data = self.__read_worksheet(data_source_filepath, expected_title_list)
 			print(f"==========  {stock_symbol}  ==========")
 			print("Date: %s ~ %s" % (worksheet_data["data"][0][time_index], worksheet_data["data"][-1][time_index]))
 			if self.xcfg["distribution_statistics"] in ["all", "volume"]:
@@ -504,7 +505,7 @@ class RollingStatistics(object):
 				change_pct_data_list = list(map(lambda x: x[change_pct_index], worksheet_data["data"]))
 				change_pct_statistics = self.__get_statistics(change_pct_data_list, descending=False)
 				print("Change Percentage Statistics: %s" % change_pct_statistics)
-			print(f"=====================================\n")
+			print(f"=====================================\n", flush=True)
 		
 
 if __name__ == "__main__":
