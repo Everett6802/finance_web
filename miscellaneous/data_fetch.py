@@ -124,10 +124,10 @@ class DataFetch(object):
 # The split date must be in the order of ascending, otherwise the adjustment will be wrong
 	STOCK_SPLITS = {
 		"0052.TW": [
-			{
-				"date": "2025-11-26",
-				"ratio": 7
-			}
+			{"date": "2025-11-26", "ratio": 7}
+		],
+		"00631L.TW": [
+			{"date": "2026-03-31", "ratio": 22}
 		]
 	}
 
@@ -792,17 +792,18 @@ class DataFetch(object):
 
 
 	def __apply_split_adjustment(self, stock_symbol, split_info_list):
-		source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
-		file_exist = self.__check_file_exist(source_filepath)
+		# source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
+		data_source_filepath = os.path.join(self.data_source_folderpath, f"{stock_symbol}.xlsx")
+		file_exist = self.__check_file_exist(data_source_filepath)
 		if not file_exist:
-			print(f"WARNING: The file {source_filepath} does NOT exist, so skip applying split adjustment for {stock_symbol}...")
+			print(f"WARNING: The file {data_source_filepath} does NOT exist, so skip applying split adjustment for {stock_symbol}...")
 			return
-		if self.__is_excel_locked(source_filepath):
-			print(f"ERROR: The file {source_filepath} is locked by other process, so skip applying split adjustment for {stock_symbol}...")
+		if self.__is_excel_locked(data_source_filepath):
+			print(f"ERROR: The file {data_source_filepath} is locked by other process, so skip applying split adjustment for {stock_symbol}...")
 			return
 		ignored_title_list = [self.DEFAULT_DATA_ADJUSTED_CLOSE_TITLE,]
 		ignored_title_list.extend(self.DEFAULT_EXT_DATA_TITLE_LIST)
-		rows = self.__read_xlsx(source_filepath, ignored_title_list=ignored_title_list)
+		rows = self.__read_xlsx(data_source_filepath, ignored_title_list=ignored_title_list)
 		split_info_list_len = len(split_info_list)
 		split_index = 0
 		split_date = split_info_list[split_index]["date"]
@@ -827,7 +828,7 @@ class DataFetch(object):
 				if split_index < split_info_list_len:
 					split_date = split_info_list[split_index]["date"]
 					split_ratio = split_info_list[split_index]["ratio"]
-		self.__write_xlsx(source_filepath, rows, refresh_data=True)
+		self.__write_xlsx(data_source_filepath, rows, refresh_data=True)
 
 
 	def apply_split_adjustment(self):
@@ -889,6 +890,7 @@ if __name__ == "__main__":
 	if args.show_warning: cfg['show_warning'] = True
 	if args.finmind_token is not None: cfg['finmind_token'] = args.finmind_token
 	if args.fetch_method is not None: cfg['fetch_method_string'] = args.fetch_method
+	if args.apply_split_adjustment: cfg['apply_split_adjustment'] = True
 	# import pdb; pdb.set_trace()
 	with DataFetch(cfg) as obj:
 		if args.apply_split_adjustment:

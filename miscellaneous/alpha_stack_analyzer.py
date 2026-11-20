@@ -36,10 +36,22 @@ class AlphaStackAnalyzer(object):
 			"token": token,
 			"data_id": stock_symbol,
 		}
-		if fetch_start:
-			params["start_date"] = fetch_start.strftime("%Y-%m-%d")
+		if fetch_start is not None:
+			if isinstance(fetch_start, str):
+				if re.match(r"\d{4}-\d{2}-\d{2}", fetch_start) is None:
+					print(f"Error: Incorrect start date format[{fetch_start}]")
+					raise ValueError(f"Incorrect start date format[{fetch_start}]")
+				params["start_date"] = fetch_start
+			else:
+				params["start_date"] = fetch_start.strftime("%Y-%m-%d")
 		if fetch_end:
-			params["end_date"] = fetch_end.strftime("%Y-%m-%d")
+			if isinstance(fetch_end, str):
+				if re.match(r"\d{4}-\d{2}-\d{2}", fetch_end) is None:
+					print(f"Error: Incorrect end date format[{fetch_end}]")
+					raise ValueError(f"Incorrect end date format[{fetch_end}]")
+				params["end_date"] = fetch_end
+			else:
+				params["end_date"] = fetch_end.strftime("%Y-%m-%d")
 		return params
 
 
@@ -130,12 +142,367 @@ class AlphaStackAnalyzer(object):
 	@classmethod
 	# def __get_financial_factors(cls, token, stock_symbol, fetch_start=None, fetch_end=None):
 	# 	statement = cls.__get_data(token, "TaiwanStockFinancialStatements", stock_symbol, fetch_start, fetch_end)
-	def __calculate_financial_factors(cls, statement):
-		statement = statement.pivot_table(index="date", columns="type", values="value", aggfunc="first").reset_index()
-		statement["ROE"] = statement["NetIncome"] / statement["Equity"]
-		statement["FCF"] = statement["CashFlowsFromOperatingActivities"] - statement["CapitalExpenditures"]
-		return statement[["date", "ROE", "FCF"]]
+	def __calculate_financial_factors(cls, income_stmt, balance_sheet, cashflow):
 
+		def pivot(df):
+			if df.empty:
+				return pd.DataFrame()
+
+			df = df.pivot_table(
+				index="date",
+				columns="type",
+				values="value",
+				aggfunc="first"
+			).reset_index()
+
+			df["date"] = pd.to_datetime(df["date"])
+			return df
+
+		# ==================================================
+		# 1. Pivot 原始財報
+		# ==================================================
+		income_stmt = pivot(income_stmt)
+		balance_sheet = pivot(balance_sheet)
+		cashflow = pivot(cashflow)
+
+		# ==================================================
+		# 2. 找出財報欄位
+		# ==================================================
+
+		# ---- Net Income ----
+		net_income_col = next(
+			(c for c in [
+				"NetIncome",
+				"IncomeAfterTaxes",
+				"ProfitLoss"
+			] if c in income_stmt.columns),
+			None
+		)
+
+		if net_income_col is None:
+			raise ValueError("No Net Income column")
+
+		# ---- Equity ----
+		equity_col = next(
+			(c for c in [
+				"EquityAttributableToOwnersOfParent",
+				"Equity",
+				"TotalEquity"
+			] if c in balance_sheet.columns),
+			None
+		)
+
+		if equity_col is None:
+			raise ValueError("No Equity column")
+
+		# ---- Operating Cash Flow ----
+		ocf_col = next(
+			(c for c in [
+				"CashFlowsFromOperatingActivities",
+				"NetCashProvidedByUsedInOperatingActivities"
+			] if c in cashflow.columns),
+			None
+		)
+
+		if ocf_col is None:
+			raise ValueError("No OCF column")
+
+		# ---- Capital Expenditure ----
+		capex_col = next(
+			(c for c in [
+				"CapitalExpenditures",
+				"PurchaseOfPropertyPlantAndEquipment",
+				"PropertyAndPlantAndEquipment"
+			] if c in cashflow.columns),
+			None
+		)
+
+		if capex_col is None:
+			# cashflow["CAPEX"] = 0
+			# capex_col = "CAPEX"
+			raise ValueError(
+				"No CAPEX column found in Cash Flow Statement"
+			)
+
+		# ==================================================
+		# 3. Income Statement：單季淨利 → 全年淨利
+		# ==================================================
+		income_stmt = income_stmt.sort_values("date").copy()
+
+		income_stmt["year"] = income_stmt["date"].dt.year
+		income_stmt["quarter"] = income_stmt["date"].dt.quarter
+
+		# 每年必須具備完整 Q1 ~ Q4
+		quarter_count = (
+			income_stmt.groupby("year")["quarter"]
+			.transform("nunique")
+		)
+
+		income_stmt["AnnualNetIncome"] = (
+			income_stmt.groupby("year")[net_income_col]
+			.transform(
+				lambda s: s.sum(min_count=4)
+			)
+		)
+
+		# 缺少任一季度時，不計算全年淨利
+		income_stmt.loc[
+			quarter_count != 4,
+			"AnnualNetIncome"
+		] = np.nan
+
+		# 只保留年底資料
+		income_stmt = income_stmt[
+			income_stmt["date"].dt.month == 12
+		].copy()
+
+		# ==================================================
+		# 4. Balance Sheet：保留年底股東權益
+		# ==================================================
+		balance_sheet = balance_sheet[
+			balance_sheet["date"].dt.month == 12
+		].copy()
+
+		balance_sheet = balance_sheet.sort_values("date")
+
+		# 計算期初、期末平均股東權益
+		balance_sheet["BeginningEquity"] = (
+			balance_sheet[equity_col].shift(1)
+		)
+
+		balance_sheet["AverageEquity"] = (
+			balance_sheet["BeginningEquity"]
+			+ balance_sheet[equity_col]
+		) / 2
+
+		# ==================================================
+		# 5. Cash Flow：暫時維持原本邏輯
+		# ==================================================
+		# print("\n[DEBUG] 現金流量表欄位")
+		# print("OCF column  :", ocf_col)
+		# print("CAPEX column:", capex_col)
+
+		# print("\n[DEBUG] 2025 年各季現金流量原始資料")
+
+		# debug_cashflow = cashflow[
+		# 	cashflow["date"].dt.year == 2025
+		# ].copy()
+
+		# print(
+		# 	debug_cashflow[
+		# 		["date", ocf_col, capex_col]
+		# 	].to_string(index=False)
+		# )
+		cashflow = cashflow[
+			cashflow["date"].dt.month == 12
+		].copy()
+
+		# ==================================================
+		# 6. Merge 年度財報
+		# ==================================================
+		df = income_stmt[
+			["date", "AnnualNetIncome"]
+		].merge(
+			balance_sheet[
+				[
+					"date",
+					equity_col,
+					"BeginningEquity",
+					"AverageEquity"
+				]
+			],
+			on="date",
+			how="inner"
+		).merge(
+			cashflow[
+				["date", ocf_col, capex_col]
+			],
+			on="date",
+			how="left"
+		)
+
+		df = df.sort_values("date")
+
+		# ==================================================
+		# 7. ROE
+		# ==================================================
+		df["ROE"] = np.where(
+			df["AverageEquity"] > 0,
+			df["AnnualNetIncome"] / df["AverageEquity"],
+			np.nan
+		)
+
+		# ==================================================
+		# 8. FCF（暫時沿用原本計算方式）
+		# ==================================================
+		df["FCF"] = (
+			df[ocf_col] - df[capex_col].abs()
+		)
+
+		# ==================================================
+		# 9. 清理異常值
+		# ==================================================
+		df["ROE"] = df["ROE"].replace(
+			[np.inf, -np.inf],
+			np.nan
+		)
+
+		df["FCF"] = df["FCF"].replace(
+			[np.inf, -np.inf],
+			np.nan
+		)
+
+		# # ==================================================
+		# # 10. DEBUG
+		# # ==================================================
+		# print("\n[DEBUG] 年度 ROE 計算資料")
+
+		# debug_df = df[
+		# 	[
+		# 		"date",
+		# 		"AnnualNetIncome",
+		# 		"BeginningEquity",
+		# 		equity_col,
+		# 		"AverageEquity",
+		# 		"ROE"
+		# 	]
+		# ].tail(10).copy()
+
+		# print(debug_df.to_string(index=False))
+
+		# ==================================================
+		# 11. Return
+		# ==================================================
+		return df[["date", "ROE", "FCF"]]
+
+
+# ========================
+# Dividend（TTM）
+# ========================
+	@classmethod
+	def __calculate_ttm_dividend(cls, dividend_df, lookback_days=900, outlier_multiple=3):
+		"""
+		自動判斷配息頻率並計算 TTM Dividend
+		1. 先觀察過去數年的配息模式
+		2. 自動判斷： 月配 季配 半年配 年配
+		3. 檢查配息週期是否穩定 若穩定：使用最近 N 次配息加總 若不穩定： fallback → rolling(365D)
+		4. 過濾特別股利（outlier）
+		* Parameters
+		dividend_df : pd.DataFrame   必須包含: date cash_dividend
+		lookback_days : int   用於分析配息模式的歷史天數
+		outlier_multiple : float   超過 median * N 視為特別股利
+		* Returns
+		result : dict   {"TTM_dividend": float, "frequency": str, "stable": bool, "warning": str or None}
+		"""
+		df = dividend_df.copy()
+		if len(df) == 0:
+			return {
+				"TTM_dividend": np.nan,
+				"frequency": "unknown",
+				"stable": False,
+				"warning": "No dividend data",
+			}
+		df["date"] = pd.to_datetime(df["date"])
+		df = df.sort_values("date")
+# 只看近幾年
+		latest_date = df["date"].max()
+		cutoff_date = latest_date - pd.Timedelta(days=lookback_days)
+		df = df[df["date"] >= cutoff_date].copy()
+# 至少需要兩筆資料
+		if len(df) < 2:
+			ttm = df["cash_dividend"].sum()
+			return {
+				"TTM_dividend": ttm,
+				"frequency": "unknown",
+				"stable": False,
+				"warning": "Not enough dividend history",
+			}
+# 計算間隔
+# df["date"].diff() => 計算「與前一筆的差值」但第一筆「沒有前一筆可以比較」=> 要dropna()才能算平均與標準差
+		df["interval_days"] = df["date"].diff().dt.days
+		intervals = df["interval_days"].dropna()
+		mean_days = intervals.mean()
+		std_days = intervals.std()
+# 判斷配息頻率
+		if mean_days <= 45:
+			frequency = "monthly"
+			expected_count = 12
+			tolerance_std = 5
+		elif mean_days <= 120:
+			frequency = "quarterly"
+			expected_count = 4
+			tolerance_std = 15
+		elif mean_days <= 240:
+			frequency = "semiannual"
+			expected_count = 2
+			tolerance_std = 30
+		else:
+			frequency = "annual"
+			expected_count = 1
+			tolerance_std = 45
+# 判斷穩定性
+		stable = std_days <= tolerance_std
+# 過濾特別股利
+		median_dividend = df["cash_dividend"].median()
+		upper_limit = median_dividend * outlier_multiple
+# series.clip(lower=?, upper=?)
+# 作用：lower	最小值限制 upper 最大值限制
+# s = pd.Series([1, 2, 100])
+# s.clip(upper=10) -> [1, 2, 10]
+		df["filtered_dividend"] = df["cash_dividend"].clip(upper=upper_limit)
+		if stable and len(df) >= expected_count:  # 穩定 → 最近 N 次加總
+			ttm_dividend = df["filtered_dividend"].tail(expected_count).sum()
+			warning = None
+		else:  # 不穩定 → rolling(365D)
+			warning = (f"Dividend schedule unstable (std={std_days:.1f} days). Fallback to rolling 365D calculation.")
+			ttm_dividend = df.set_index("date")["filtered_dividend"].rolling("365D").sum().iloc[-1]
+		return {
+			"TTM_dividend": float(ttm_dividend),
+			"frequency": frequency,
+			"stable": stable,
+			"warning": warning,
+		}
+
+
+	@classmethod
+	def __convert_cumulative_to_quarterly(cls, df, eps_col):
+
+		df = df.copy()
+
+		df["date"] = pd.to_datetime(df["date"])
+
+		df = df.sort_values("date")
+
+		quarterly_eps = []
+
+		prev_year = None
+		prev_cum_eps = 0.0
+
+		for _, row in df.iterrows():
+
+			current_date = row["date"]
+			current_year = current_date.year
+
+			cum_eps = row[eps_col]
+
+			if pd.isna(cum_eps):
+				quarterly_eps.append(np.nan)
+				continue
+
+			# 新年度 Q1
+			if prev_year != current_year:
+				q_eps = cum_eps
+			else:
+				q_eps = cum_eps - prev_cum_eps
+
+			quarterly_eps.append(q_eps)
+
+			prev_cum_eps = cum_eps
+			prev_year = current_year
+
+		df["quarter_eps"] = quarterly_eps
+
+		return df
 
 # ========================
 # PEGY（TTM）
@@ -147,39 +514,154 @@ class AlphaStackAnalyzer(object):
 	# 	dividend = cls.__get_data(token, "TaiwanStockDividend", stock_symbol, fetch_start, fetch_end)
 	# 	price = cls.__get_data(token, "TaiwanStockPrice", stock_symbol, fetch_start, fetch_end)
 	def __calculate_pegy(cls, pe, revenue, dividend, price):
-# PE
-		# pe = cls.__get_data(token, "TaiwanStockPER", stock_symbol, fetch_start, fetch_end)
-		pe = pe.rename(columns={"PER": "PE"})
+
+		# ---- PE ----
+		pe = pe.rename(columns={"PER": "PE"}).copy()
 		pe["date"] = pd.to_datetime(pe["date"])
-# 月營收
-		# revenue = cls.__get_data(token, "TaiwanStockMonthRevenue", stock_symbol, fetch_start, fetch_end)
+		pe = pe.sort_values("date")
+
+		# ---- Revenue: TTM revenue growth ----
+		revenue = revenue.copy()
 		revenue["date"] = pd.to_datetime(revenue["date"])
 		revenue = revenue.sort_values("date")
-# TTM營收
-		revenue["TTM_revenue"] = revenue["revenue"].rolling(12).sum()
-		revenue["TTM_YoY"] = revenue["TTM_revenue"].pct_change(12)
-# 股利
-		# dividend = cls.__get_data(token, "TaiwanStockDividend", stock_symbol, fetch_start, fetch_end)
+
+		# 每月營收 → TTM 營收
+		revenue["TTM_revenue"] = revenue["revenue"].rolling(
+			window=12,
+			min_periods=12
+		).sum()
+
+		# TTM YoY
+		revenue["TTM_YoY"] = revenue["TTM_revenue"].pct_change(periods=12)
+
+		revenue_growth = revenue[
+			["date", "TTM_revenue", "TTM_YoY"]
+		].dropna()
+
+		# ---- Dividend ----
+		dividend = dividend.copy()
 		dividend["date"] = pd.to_datetime(dividend["date"])
-		dividend["cash_dividend"] = dividend["CashDividend"]
-# forward fill
+
+		dividend["cash_dividend"] = (
+			dividend.get("CashEarningsDistribution", 0).fillna(0)
+			+ dividend.get("CashStatutorySurplus", 0).fillna(0)
+		)
+
 		dividend = dividend.sort_values("date")
-		dividend["TTM_dividend"] = dividend["cash_dividend"]
-		dividend["TTM_dividend"] = dividend["TTM_dividend"].fillna(method="ffill")
-# 股價
-		# price = cls.__get_data(token, "TaiwanStockPrice", stock_symbol, fetch_start, fetch_end)
+
+		dividend["TTM_dividend"] = dividend["cash_dividend"].rolling(
+			window=4,
+			min_periods=1
+		).sum()
+
+		# ---- Price ----
+		price = price.copy()
 		price["date"] = pd.to_datetime(price["date"])
-# 合併（月頻）
-		df = pe.merge(revenue, on="date", how="left")
-		df = df.merge(dividend[["date", "TTM_dividend"]], on="date", how="left")
-		df = df.merge(price[["date", "close"]], on="date", how="left")
-		df = df.sort_values("date")
-# forward fill
-		df = df.fillna(method="ffill")
-# 殖利率
+		price = price.sort_values("date")
+
+		# ---- Merge ----
+		df = pe[["date", "PE"]].copy()
+
+		df = pd.merge_asof(
+			df,
+			revenue_growth,
+			on="date",
+			direction="backward"
+		)
+
+		df = pd.merge_asof(
+			df,
+			dividend[["date", "TTM_dividend"]],
+			on="date",
+			direction="backward"
+		)
+
+		df = pd.merge_asof(
+			df,
+			price[["date", "close"]],
+			on="date",
+			direction="backward"
+		)
+
+		# ---- Dividend yield ----
 		df["yield"] = df["TTM_dividend"] / df["close"]
-# PEGY
-		df["PEGY"] = df["PE"] / (df["TTM_YoY"] + df["yield"])
+
+		# ---- PEGY ----
+		#
+		# TTM_YoY 是小數，例如：
+		# 0.403 = 40.3%
+		#
+		# PEGY 傳統上 growth 使用百分點，
+		# 所以要轉成：
+		# 40.3 + 0.96 = 41.26
+		#
+		growth_pct = df["TTM_YoY"] * 100
+		yield_pct = df["yield"] * 100
+
+		denom = growth_pct + yield_pct
+
+		df["PEGY"] = np.where(
+			denom > 0,
+			df["PE"] / denom,
+			np.nan
+		)
+
+		# ---- remove invalid values ----
+		df["PEGY"] = df["PEGY"].replace(
+			[np.inf, -np.inf],
+			np.nan
+		)
+
+		# # ---- DEBUG ----
+		# print("\n[DEBUG] PEGY 計算資料")
+		# print(
+		# 	df[
+		# 		[
+		# 			"date",
+		# 			"PE",
+		# 			"TTM_revenue",
+		# 			"TTM_YoY",
+		# 			"TTM_dividend",
+		# 			"close",
+		# 			"yield",
+		# 			"PEGY",
+		# 		]
+		# 	].tail(12).to_string(index=False)
+		# )
+
+		print("\n[DEBUG] PEGY 最新計算資料")
+
+		debug_cols = [
+			"date",
+			"PE",
+			"TTM_revenue",
+			"TTM_YoY",
+			"TTM_dividend",
+			"close",
+			"yield",
+			"PEGY"
+		]
+
+		print(
+			df[debug_cols]
+			.tail(10)
+			.to_string(index=False)
+		)
+
+		print("\n[DEBUG] 月營收原始日期")
+		print(
+			revenue[
+				["date", "revenue", "TTM_YoY"]
+			].tail(6).to_string(index=False)
+		)
+
+		print("\n[DEBUG] 股利原始日期")
+		print(
+			dividend[
+				["date", "cash_dividend", "TTM_dividend"]
+			].tail(8).to_string(index=False)
+		)
+
 		return df[["date", "PEGY"]]
 
 
@@ -190,11 +672,24 @@ class AlphaStackAnalyzer(object):
 	# def __get_sharpe(cls, token, stock_symbol, fetch_start=None, fetch_end=None):
 	# 	price = cls.__get_data(token, "TaiwanStockPrice", stock_symbol, fetch_start, fetch_end)
 	def __calculate_sharpe(cls, price):
+
 		price["date"] = pd.to_datetime(price["date"])
 		price = price.sort_values("date")
+
 		price["return"] = price["close"].pct_change()
+
 		window = 252
-		price["Sharpe"] = (price["return"].rolling(window).mean() / price["return"].rolling(window).std()) * np.sqrt(252)
+
+		mean = price["return"].rolling(window).mean()
+		std = price["return"].rolling(window).std()
+
+		price["Sharpe"] = (mean / std) * np.sqrt(252)
+
+		price["Sharpe"] = price["Sharpe"].replace([np.inf, -np.inf], np.nan)
+
+		price["Sharpe"] = price["Sharpe"].fillna(0)
+		price["Sharpe"] = price["Sharpe"].clip(-5, 5)
+
 		return price[["date", "Sharpe"]]
 
 
@@ -217,26 +712,167 @@ class AlphaStackAnalyzer(object):
 		return False
 
 
-	def __process_data(self, statement, pe, revenue, dividend, price):
-# calcuate the paramters
-		df1 = self.__calculate_financial_factors(statement)
-		df2 = self.__calculate_pegy(pe, revenue, dividend, price)
+	def __process_data(
+		self, income_stmt, balance_sheet, cashflow,
+		pe, revenue, dividend, price
+	):
+		# ==================================================
+		# 1. 檢查原始資料
+		# ==================================================
+		datasets = {
+			"Income Statement": income_stmt,
+			"Balance Sheet": balance_sheet,
+			"Cash Flow": cashflow,
+			"PE": pe,
+			"Revenue": revenue,
+			"Dividend": dividend,
+			"Price": price,
+		}
+
+		empty_names = [
+			name for name, data in datasets.items()
+			if data is None or data.empty
+		]
+
+		if empty_names:
+			print(
+				"Warning: The following dataframes are empty: "
+				+ ", ".join(empty_names)
+			)
+			return None
+
+		# ==================================================
+		# 2. 計算三組指標
+		# ==================================================
+		df1 = self.__calculate_financial_factors(
+			income_stmt, balance_sheet, cashflow
+		)
+		df2 = self.__calculate_pegy(
+			pe, revenue, dividend, price
+		)
 		df3 = self.__calculate_sharpe(price)
-# merge
-		df = df2.merge(df1, on="date", how="left")
-		df = df.merge(df3, on="date", how="left")
-		df = df.sort_values("date")
-# 避免未來函數
+
+		if any(x is None or x.empty for x in [df1, df2, df3]):
+			print("Warning: Factor calculation returned empty data")
+			return None
+
+		# ==================================================
+		# 3. 年度財報的保守可用日期
+		# ==================================================
+		df1 = df1.copy()
+		df1["date"] = pd.to_datetime(df1["date"])
+
+		# 財報年度 Y，於 Y+1 年 4 月 1 日起使用
+		# 注意：這是保守代理日期，不是實際公告日期
+		df1["available_date"] = pd.to_datetime(
+			(df1["date"].dt.year + 1).astype(str)
+			+ "-04-01"
+		)
+
+		# 2020 年因缺少 2019 年底權益，ROE 為 NaN
+		# 排除無法計算的年度財報
+		df1 = df1.dropna(
+			subset=["ROE", "FCF", "available_date"]
+		)
+
+		df1 = (
+			df1.sort_values("available_date")
+			.drop_duplicates(
+				subset=["available_date"],
+				keep="last"
+			)
+		)
+
+		# ==================================================
+		# 4. 準備每日指標
+		# ==================================================
+		df2 = df2.copy()
+		df3 = df3.copy()
+
+		df2["date"] = pd.to_datetime(df2["date"])
+		df3["date"] = pd.to_datetime(df3["date"])
+
+		df2 = df2.sort_values("date")
+		df3 = df3.sort_values("date")
+
+		# ==================================================
+		# 5. 合併年度財報與每日 PEGY
+		# ==================================================
+		df = pd.merge_asof(
+			df2,
+			df1[
+				["available_date", "ROE", "FCF"]
+			],
+			left_on="date",
+			right_on="available_date",
+			direction="backward",
+			allow_exact_matches=True
+		)
+
+		# ==================================================
+		# 6. 合併 Sharpe
+		# ==================================================
+		df = df.merge(
+			df3[["date", "Sharpe"]],
+			on="date",
+			how="left",
+			validate="one_to_one"
+		)
+
+		df = df.sort_values("date").reset_index(drop=True)
+
+		# 當日收盤後計算的 Sharpe，
+		# 最早只能用於下一交易日的訊號
 		df["Sharpe"] = df["Sharpe"].shift(1)
-# 清理資料
-		df = df.replace([np.inf, -np.inf], np.nan)
-		df = df.dropna()
-		return df
+
+		# ==================================================
+		# 7. 清理資料
+		# ==================================================
+		df = df.replace(
+			[np.inf, -np.inf],
+			np.nan
+		)
+
+		df = df.dropna(
+			subset=["PEGY", "ROE", "FCF", "Sharpe"]
+		).copy()
+
+		# # ==================================================
+		# # 8. DEBUG
+		# # ==================================================
+		# print("\n[DEBUG] 年度財報可用日期")
+		# print(
+		# 	df1[
+		# 		["date", "available_date", "ROE", "FCF"]
+		# 	].to_string(index=False)
+		# )
+
+		# print("\n[DEBUG] 最終資料範圍")
+
+		# if not df.empty:
+		# 	print("Start:", df["date"].min())
+		# 	print("End  :", df["date"].max())
+		# 	print("Rows :", len(df))
+
+		# 	print("\n[DEBUG] 年度資料筆數")
+		# 	print(
+		# 		df.groupby(df["date"].dt.year)
+		# 		.size()
+		# 		.to_string()
+		# 	)
+		# else:
+		# 	print("No valid records")
+
+		# ==================================================
+		# 9. Return
+		# ==================================================
+		return df[["date", "PEGY", "ROE", "FCF", "Sharpe"]]
 
 	
 	def __filter_data(self, df):
 # 篩選條件（可調整）
-		df_filtered = df[(df["PEGY"] < 1) & (df["ROE"] > 0.15) & (df["FCF"] > 0) & (df["Sharpe"] > 0.5)]
+		# df_filtered = df[(df["PEGY"] < 1) & (df["ROE"] > 0.15) & (df["FCF"] > 0) & (df["Sharpe"] > 0.5)]
+		df_filtered = df[(df["PEGY"] < 20) & (df["ROE"] > 0.08) & (df["FCF"] > 0) & (df["Sharpe"] > 0)]
 		return df_filtered
 
 
@@ -245,9 +881,33 @@ class AlphaStackAnalyzer(object):
 	# ========================
 	def __analyze(self, stock_symbol, fetch_start=None, fetch_end=None):
 # get data 
-		statement = self.__get_data(self.xcfg["finmind_token"], "TaiwanStockFinancialStatements", stock_symbol, fetch_start, fetch_end)
+		income_stmt = self.__get_data(
+			self.xcfg["finmind_token"],
+			"TaiwanStockFinancialStatements",
+			stock_symbol,
+			fetch_start,
+			fetch_end,
+		)
+		# print(f"[DEBUG] Income Statement data: {income_stmt}")
+
+		balance_sheet = self.__get_data(
+			self.xcfg["finmind_token"],
+			"TaiwanStockBalanceSheet",
+			stock_symbol,
+			fetch_start,
+			fetch_end,
+		)
+
+		cashflow = self.__get_data(
+			self.xcfg["finmind_token"],
+			"TaiwanStockCashFlowsStatement",
+			stock_symbol,
+			fetch_start,
+			fetch_end,
+		)
 		pe = self.__get_data(self.xcfg["finmind_token"], "TaiwanStockPER", stock_symbol, fetch_start, fetch_end)
 		revenue = self.__get_data(self.xcfg["finmind_token"], "TaiwanStockMonthRevenue", stock_symbol, fetch_start, fetch_end)
+		income_stmt = self.__get_data(self.xcfg["finmind_token"], "TaiwanStockFinancialStatements", stock_symbol, fetch_start, fetch_end)
 		dividend = self.__get_data(self.xcfg["finmind_token"], "TaiwanStockDividend", stock_symbol, fetch_start, fetch_end)
 		price = self.__get_data(self.xcfg["finmind_token"], "TaiwanStockPrice", stock_symbol, fetch_start, fetch_end)
 # # calcuate the paramters
@@ -263,10 +923,16 @@ class AlphaStackAnalyzer(object):
 # # 清理資料
 # 		df = df.replace([np.inf, -np.inf], np.nan)
 # 		df = df.dropna()
-		df = self.__process_data(statement, pe, revenue, dividend, price)
+		# import pdb; pdb.set_trace()
+		df = self.__process_data(income_stmt, balance_sheet, cashflow, pe, revenue, dividend, price)
+		if df is None:
+			print(f"Error: Failed to process data for {stock_symbol}")
+			return
 		df_filtered = self.__filter_data(df)
+		df_filtered["stock_symbol"] = stock_symbol
 		# print(df_filtered.tail())
 		# df.to_csv("factor_data.csv", index=False)
+		self.print_analysis(df, df_filtered, stock_symbol)
 		return df_filtered
 
 
@@ -297,7 +963,11 @@ class AlphaStackAnalyzer(object):
 						dividend = await self.__get_data_async(client, self.xcfg["finmind_token"], "TaiwanStockDividend", stock_symbol, fetch_start, fetch_end)
 						price = await self.__get_data_async(client, self.xcfg["finmind_token"], "TaiwanStockPrice", stock_symbol, fetch_start, fetch_end)
 						df = self.__process_data(statement, pe, revenue, dividend, price)
+						if df is None:
+							print(f"Error: Failed to process data for {stock_symbol}")
+							return None
 						df_filtered = self.__filter_data(df)
+						df_filtered["stock_symbol"] = stock_symbol
 						return df_filtered
 					except Exception as e:
 						print(f"error {stock_symbol}: {e}")
@@ -344,12 +1014,77 @@ class AlphaStackAnalyzer(object):
 		if self.xcfg["enable_async"] and not HAS_HTTPX:
 			print("Warning: No httpx pakcage, fallback to the synchronous mode")
 			self.xcfg["enable_async"] = False
+		df_targets = None
 		if self.xcfg["enable_async"]:
-			asyncio.run(self.__analyze_many(stock_symbol_list, date_range_start_str, date_range_end_str))
+			df_targets = asyncio.run(self.__analyze_many(stock_symbol_list, date_range_start_str, date_range_end_str))
 		else:
+			# import pdb; pdb.set_trace()
+			df_list = []
 			for stock_symbol in stock_symbol_list:
-				self.__analyze(stock_symbol, date_range_start_str, date_range_end_str)
+				result = self.__analyze(stock_symbol, date_range_start_str, date_range_end_str)
+				if result is not None:
+					df_list.append(result)
+			if len(df_list) == 0:
+				return pd.DataFrame()
+			df_targets = pd.concat(df_list, ignore_index=True)
+		return df_targets
 
+
+	def print_analysis(self, df_raw, df_filtered, stock_symbol):
+		"""
+		印出分析結果：原始計算數據 + 篩選後結果
+		df_raw     : __process_data 回傳的完整 DataFrame
+		df_filtered: __filter_data  回傳的篩選後 DataFrame
+		stock_symbol: 股票代號（用於標題）
+		"""
+		SEP = "=" * 70
+
+		print(f"\n{SEP}")
+		print(f"  股票代號: {stock_symbol}")
+		print(SEP)
+
+		# ── 最新一筆各指標數值 ──────────────────────────────────────
+		if df_raw is not None and not df_raw.empty:
+			latest = df_raw.iloc[-1]
+			print(f"  【最新數據】 ({latest['date'].date()})")
+			print(f"    PEGY   : {latest['PEGY']:.4f}")
+			print(f"    ROE    : {latest['ROE']:.2%}")
+			print(f"    FCF    : {latest['FCF']:>15,.0f}")
+			print(f"    Sharpe : {latest['Sharpe']:.4f}")
+		else:
+			print("  【最新數據】 無資料")
+
+		print()
+
+		# ── 篩選條件說明 ────────────────────────────────────────────
+		print("  【篩選條件】")
+		# print("    PEGY < 1  |  ROE > 15%  |  FCF > 0  |  Sharpe > 0.5")
+		print("    PEGY < 20  |  ROE > 8%  |  FCF > 0  |  Sharpe > 0")
+		print()
+
+		# ── 篩選後結果 ──────────────────────────────────────────────
+		if df_filtered is not None and not df_filtered.empty:
+			total_days  = len(df_raw) if df_raw is not None else 0
+			passed_days = len(df_filtered)
+			hit_rate    = passed_days / total_days if total_days > 0 else 0.0
+
+			print(f"  【符合篩選條件的交易日】 {passed_days} / {total_days} 天 ({hit_rate:.1%})")
+			print()
+
+			# 取最近 10 筆
+			display = df_filtered.tail(10).copy()
+			display["date"] = display["date"].dt.date
+			display["ROE"]  = display["ROE"].map(lambda x: f"{x:.2%}")
+			display["FCF"]  = display["FCF"].map(lambda x: f"{x:,.0f}")
+			display["PEGY"] = display["PEGY"].map(lambda x: f"{x:.4f}")
+			display["Sharpe"] = display["Sharpe"].map(lambda x: f"{x:.4f}")
+
+			cols = ["date", "PEGY", "ROE", "FCF", "Sharpe"]
+			print(display[cols].to_string(index=False))
+		else:
+			print("  【符合篩選條件的交易日】 0 天（無符合紀錄）")
+
+		print(f"{SEP}\n", flush=True)
 
 if __name__ == "__main__":
 # argparse 預設會把 help 文字裡的換行與多重空白「壓縮」成一行，所以你在字串裡寫的 \n 不一定會照原樣顯示。 => 建立 parser 時加上 formatter_class=argparse.RawTextHelpFormatter
@@ -377,12 +1112,22 @@ if __name__ == "__main__":
 	parser.add_argument('-a', '--analyze', required=False, action='store_true', help='Analysz data and exit.')
 	parser.add_argument('--finmind_token', required=False, help='The FinMind Token')
 	parser.add_argument('--enable_async', required=False, help='Fetch data in the asynchronous mode')
-	parser.add_argument('--stock_symbol_list', required=False, help='The stock symbol list. Mutiple stock symbols are split by comma. Ex: 00850.TW,00881.TW,00692.TW,MSFT,GOOG')
+	parser.add_argument('--stock_symbol_list', required=False, help='The Taiwan stock symbol list. Mutiple stock symbols are split by comma. Ex: 00850,00881,00692')
+	parser.add_argument('--data_date_range', required=False, 
+		 help='''The data during the date range.
+  Date range:
+    Format: yy1-mm1-dd1:yy2-mm2-dd2   From yy1-mm1-dd1 to yy2-mm2-dd2   Ex: 2014-09-04:2025-10-15
+    Format: yy-mm-dd:   From yy-mm-dd to 'the last date of the data'   Ex: 2014-09-04:
+    Format: :yy-mm-dd   From 'the first date of the data' to yy-mm-dd   Ex: :2025-09-04
+    * Caution: Only take effect when --fetch_data is set.''')
+
 	args = parser.parse_args()
 	# import pdb; pdb.set_trace()
 	cfg = {}
 	if args.finmind_token is not None: cfg['finmind_token'] = args.finmind_token
 	if args.enable_async is not None: cfg['enable_async'] = True
+	if args.stock_symbol_list is not None: cfg['stock_symbol_string'] = args.stock_symbol_list
+	if args.data_date_range is not None: cfg['data_date_range_string'] = args.data_date_range
 	# import pdb; pdb.set_trace()
 	with AlphaStackAnalyzer(cfg) as obj:
 		if args.analyze:
