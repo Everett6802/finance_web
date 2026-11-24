@@ -185,6 +185,7 @@ class RollingStatistics(object):
 			"source_folderpath": None,
 			# "source_filename": None,
 			"stock_symbol_string": None,
+			"stock_symbol_filename": None,
 			"check_date": None,
 			"target_change_pct_value": None,
 			"target_volume_value": None,
@@ -208,6 +209,29 @@ class RollingStatistics(object):
 			self.statistics_by_date_range = False
 			if self.xcfg["rolling_window_size"] is None:
 				self.xcfg["rolling_window_size"] = self.DEFAULT_ROLLING_WINDOW_SIZE
+		self.stock_symbol_list = None
+		# import pdb; pdb.set_trace()
+		self.__parse_stock_symbol()
+
+
+	def __parse_stock_symbol(self):
+		if self.xcfg["stock_symbol_string"] is not None:
+			self.stock_symbol_list = self.xcfg["stock_symbol_string"].split(",")
+		elif self.xcfg["stock_symbol_filename"] is not None:
+			stock_symbol_filepath = os.path.join(self.xcfg["source_folderpath"], self.xcfg["stock_symbol_filename"])
+			if not self.__check_file_exist(stock_symbol_filepath):
+				raise FileNotFoundError(f"The stock symbol file {stock_symbol_filepath} does NOT exist")
+			with open(stock_symbol_filepath, "r") as f:
+				self.stock_symbol_list = []
+				for line in f:
+					line = line.strip()
+					if line == "":
+						continue
+					if line.startswith("#"):
+						continue
+					self.stock_symbol_list.extend(line.split(","))
+		else:
+			raise ValueError("Error: No stock symbols provided")
 
 
 	def __enter__(self):
@@ -472,7 +496,8 @@ class RollingStatistics(object):
 
 
 	def show_analysis(self, is_target=False):
-		if self.xcfg["stock_symbol_string"] is None:
+		# if self.xcfg["stock_symbol_string"] is None:
+		if self.stock_symbol_list is None or len(self.stock_symbol_list) == 0:
 			print("Warning: No stock to fetch...")
 			return
 		if is_target:
@@ -482,13 +507,14 @@ class RollingStatistics(object):
 
 
 	def show_trading_thresholds(self):
-		if self.xcfg["stock_symbol_string"] is None:
+		# if self.xcfg["stock_symbol_string"] is None:
+		if self.stock_symbol_list is None or len(self.stock_symbol_list) == 0:
 			print("Warning: No stock to fetch...")
 			return
-		expected_title_list = [self.DEFAULT_TIME_FIELD_NAME, "volume", "change_pct"]
+		expected_title_list = [self.DEFAULT_TIME_FIELD_NAME, self.DEFAULT_VOLUME_FIELD_NAME, self.DEFAULT_EXT_CHANGE_PCT_FIELD_TITLE]
 		time_index = expected_title_list.index(self.DEFAULT_TIME_FIELD_NAME)
-		stock_symbol_list = self.xcfg["stock_symbol_string"].split(",")
-		for stock_symbol in stock_symbol_list:
+		# stock_symbol_list = self.xcfg["stock_symbol_string"].split(",")
+		for stock_symbol in self.stock_symbol_list:
 			# source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
 			data_source_filepath = os.path.join(self.data_source_folderpath, f"{stock_symbol}.xlsx")
 			file_exist = self.__check_file_exist(data_source_filepath)
@@ -501,22 +527,25 @@ class RollingStatistics(object):
 			# import pdb; pdb.set_trace()
 			worksheet_data = self.__read_worksheet(data_source_filepath, expected_title_list)
 			print(f"==========  {stock_symbol}  ==========")
-			print("Date: %s ~ %s" % (worksheet_data["data"][0][time_index], worksheet_data["data"][-1][time_index]))
-			if self.xcfg["distribution_statistics"] in ["all", "volume"]:
-				volume_index = expected_title_list.index(self.DEFAULT_VOLUME_FIELD_NAME)
-				volume_data_list = list(map(lambda x: x[volume_index], worksheet_data["data"]))
-				volume_thresholds = self.__get_thresholds(volume_data_list, descending=True)
-				print("Volume Thresholds: %s" % volume_thresholds)
-			if self.xcfg["distribution_statistics"] in ["all", "change_pct"]:
-				change_pct_index = expected_title_list.index(self.DEFAULT_EXT_CHANGE_PCT_FIELD_TITLE)
-				change_pct_data_list = list(map(lambda x: x[change_pct_index], worksheet_data["data"]))
-				change_pct_thresholds = self.__get_thresholds(change_pct_data_list, descending=False)
-				print("Change Percentage Thresholds: %s" % change_pct_thresholds)
+			print("Date: %s ~ %s, Count: %d" % (worksheet_data["data"][0][time_index], worksheet_data["data"][-1][time_index], len(worksheet_data["data"])))
+# Volume Thresholds
+			volume_index = expected_title_list.index(self.DEFAULT_VOLUME_FIELD_NAME)
+			volume_data_list = list(map(lambda x: x[volume_index], worksheet_data["data"]))
+			volume_thresholds = self.__get_thresholds(volume_data_list, descending=True)
+			normalized_volume_thresholds = {k: int(v / 1000) for k, v in volume_thresholds.items()}
+			print("Volume Thresholds: %s" % normalized_volume_thresholds)
+# Chnage Percentage Thresholds
+			change_pct_index = expected_title_list.index(self.DEFAULT_EXT_CHANGE_PCT_FIELD_TITLE)
+			change_pct_data_list = list(map(lambda x: x[change_pct_index], worksheet_data["data"]))
+			change_pct_thresholds = self.__get_thresholds(change_pct_data_list, descending=False)
+			normalized_change_pct_thresholds = {k: "%.2f%%" % (v * 100) for k, v in change_pct_thresholds.items()}
+			print("Change Percentage Thresholds: %s" % normalized_change_pct_thresholds)
 			print(f"=====================================\n", flush=True)
 
 
 	def show_distribution_statistics(self):
-		if self.xcfg["stock_symbol_string"] is None:
+		# if self.xcfg["stock_symbol_string"] is None:
+		if self.stock_symbol_list is None or len(self.stock_symbol_list) == 0:
 			print("Warning: No stock to fetch...")
 			return
 		expected_title_list = [self.DEFAULT_TIME_FIELD_NAME,]
@@ -525,8 +554,8 @@ class RollingStatistics(object):
 		if self.xcfg["distribution_statistics"] in ["all", "change_pct"]:
 			expected_title_list.append(self.DEFAULT_EXT_CHANGE_PCT_FIELD_TITLE)
 		time_index = expected_title_list.index(self.DEFAULT_TIME_FIELD_NAME)
-		stock_symbol_list = self.xcfg["stock_symbol_string"].split(",")
-		for stock_symbol in stock_symbol_list:
+		# stock_symbol_list = self.xcfg["stock_symbol_string"].split(",")
+		for stock_symbol in self.stock_symbol_list:
 			# source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
 			data_source_filepath = os.path.join(self.data_source_folderpath, f"{stock_symbol}.xlsx")
 			file_exist = self.__check_file_exist(data_source_filepath)
@@ -595,6 +624,7 @@ if __name__ == "__main__":
 			 1/change_pct: change percentage 
 			 2/volume: volume.''')
 	parser.add_argument('--stock_symbol_list', required=False, help='The stock symbol list. Multiple stock symbols are seperated by comma. Ex: 00850.TW,00881.TW,00692.TW,MSFT,GOOG')
+	parser.add_argument('--stock_symbol_filename', required=False, help='The filename containing the stock symbol list. Mutiple stock symbols are seperated by comma.')
 	parser.add_argument('--check_date', required=False, help='The date to check. Ex: 2023-01-01. If not specified, the latest date in the data will be used.')
 	parser.add_argument('--target_stock_symbol', required=False, help='The target stock symbol. Mutually exclusive with --stock_symbol_list.')
 	parser.add_argument('--target_change_pct_value', required=False, help='The target change percentage to check. Ex: 3.11. Mutually exclusive with --stock_symbol_list.')
@@ -611,8 +641,10 @@ if __name__ == "__main__":
 		if args.end_date is not None: cfg['end_date'] = args.end_date
 	if args.distribution_statistics is not None: cfg['distribution_statistics'] = args.distribution_statistics
 	if args.stock_symbol_list is not None: cfg['stock_symbol_string'] = args.stock_symbol_list
-	if args.check_date is not None: cfg['check_date'] = args.check_date
 	if args.stock_symbol_list is None:
+		if args.stock_symbol_filename is not None: cfg['stock_symbol_filename'] = args.stock_symbol_filename
+	if args.check_date is not None: cfg['check_date'] = args.check_date
+	if args.stock_symbol_list is None and args.stock_symbol_filename is None:
 		is_target = True
 		if args.target_stock_symbol is not None: cfg['stock_symbol_string'] = args.target_stock_symbol
 		if args.target_change_pct_value is not None: cfg['target_change_pct_value'] = float(args.target_change_pct_value) / 100.0
