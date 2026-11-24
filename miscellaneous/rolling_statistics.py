@@ -152,6 +152,17 @@ class RollingStatistics(object):
 
 
 	@classmethod
+	def __get_thresholds(cls, data, descending=False, percentile_ranks = [5, 10]):
+		if len(data) == 0:
+			return None
+		percentiles = cls.__get_percentiles(data, percentile_ranks, descending=descending)
+		percentiles_dict = {"p%d" % k: v for k, v in zip(percentile_ranks, percentiles)}
+		return {
+			**percentiles_dict
+		}
+
+
+	@classmethod
 	def __get_statistics(cls, data, descending=False):
 		if len(data) == 0:
 			return None
@@ -470,6 +481,40 @@ class RollingStatistics(object):
 			self.__show_analysis()
 
 
+	def show_trading_thresholds(self):
+		if self.xcfg["stock_symbol_string"] is None:
+			print("Warning: No stock to fetch...")
+			return
+		expected_title_list = [self.DEFAULT_TIME_FIELD_NAME, "volume", "change_pct"]
+		time_index = expected_title_list.index(self.DEFAULT_TIME_FIELD_NAME)
+		stock_symbol_list = self.xcfg["stock_symbol_string"].split(",")
+		for stock_symbol in stock_symbol_list:
+			# source_filepath = os.path.join(self.xcfg["source_folderpath"], f"{stock_symbol}.xlsx")
+			data_source_filepath = os.path.join(self.data_source_folderpath, f"{stock_symbol}.xlsx")
+			file_exist = self.__check_file_exist(data_source_filepath)
+			if not file_exist:
+				print(f"Warning: The file {data_source_filepath} is not found, so skip fetching data for {stock_symbol}...")
+				continue
+			if self.__is_excel_locked(data_source_filepath):
+				print(f"Warning: The file {data_source_filepath} is locked by other process, so skip fetching data for {stock_symbol}...")
+				continue
+			# import pdb; pdb.set_trace()
+			worksheet_data = self.__read_worksheet(data_source_filepath, expected_title_list)
+			print(f"==========  {stock_symbol}  ==========")
+			print("Date: %s ~ %s" % (worksheet_data["data"][0][time_index], worksheet_data["data"][-1][time_index]))
+			if self.xcfg["distribution_statistics"] in ["all", "volume"]:
+				volume_index = expected_title_list.index(self.DEFAULT_VOLUME_FIELD_NAME)
+				volume_data_list = list(map(lambda x: x[volume_index], worksheet_data["data"]))
+				volume_thresholds = self.__get_thresholds(volume_data_list, descending=True)
+				print("Volume Thresholds: %s" % volume_thresholds)
+			if self.xcfg["distribution_statistics"] in ["all", "change_pct"]:
+				change_pct_index = expected_title_list.index(self.DEFAULT_EXT_CHANGE_PCT_FIELD_TITLE)
+				change_pct_data_list = list(map(lambda x: x[change_pct_index], worksheet_data["data"]))
+				change_pct_thresholds = self.__get_thresholds(change_pct_data_list, descending=False)
+				print("Change Percentage Thresholds: %s" % change_pct_thresholds)
+			print(f"=====================================\n", flush=True)
+
+
 	def show_distribution_statistics(self):
 		if self.xcfg["stock_symbol_string"] is None:
 			print("Warning: No stock to fetch...")
@@ -506,7 +551,7 @@ class RollingStatistics(object):
 				change_pct_statistics = self.__get_statistics(change_pct_data_list, descending=False)
 				print("Change Percentage Statistics: %s" % change_pct_statistics)
 			print(f"=====================================\n", flush=True)
-		
+
 
 if __name__ == "__main__":
 # argparse 預設會把 help 文字裡的換行與多重空白「壓縮」成一行，所以你在字串裡寫的 \n 不一定會照原樣顯示。 => 建立 parser 時加上 formatter_class=argparse.RawTextHelpFormatter
@@ -537,6 +582,7 @@ if __name__ == "__main__":
 	parser.add_argument('--start_date', required=False, help='The start date for the analysis period. Mutually exclusive with --rolling_window_size.')
 	parser.add_argument('--end_date', required=False, help='The end date for the analysis period. Mutually exclusive with --rolling_window_size.')
 	parser.add_argument('-s', '--show_analysis', required=False, action='store_true', help='Show the analysis results and exit.')
+	parser.add_argument('--show_trading_thresholds', required=False, action='store_true', help='Show the trading thresholds and exit.')
 	parser.add_argument('--show_distribution_statistics', required=False, action='store_true', help='Show the distribution statistics of the data and exit.')
 	parser.add_argument(
 		'distribution_statistics', 
@@ -578,6 +624,9 @@ if __name__ == "__main__":
 			sys.exit(0)
 		if args.show_analysis:
 			obj.show_analysis(is_target)
+			sys.exit(0)
+		if args.show_trading_thresholds:
+			obj.show_trading_thresholds()
 			sys.exit(0)
 		if args.show_distribution_statistics:
 			obj.show_distribution_statistics()
