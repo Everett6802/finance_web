@@ -532,49 +532,303 @@ class AlphaStackAnalyzer(object):
 		).sum()
 
 		# TTM YoY
-		revenue["TTM_YoY"] = revenue["TTM_revenue"].pct_change(periods=12)
+		revenue["TTM_YoY"] = revenue["TTM_revenue"].pct_change(
+			periods=12,
+			fill_method=None
+		)
+
+		# ==================================================
+		# Revenue available date
+		# ==================================================
+
+		REVENUE_FALLBACK_DAY = 16
+
+		# 部分歷史資料可能沒有 create_time 欄位
+		if "create_time" not in revenue.columns:
+			revenue["create_time"] = pd.NaT
+
+		revenue["create_time"] = pd.to_datetime(
+			revenue["create_time"],
+			errors="coerce"
+		)
+
+		# FinMind 的 date 已經是營收所屬月份的次月 1 日
+		#
+		# 例如：
+		# revenue_year  = 2025
+		# revenue_month = 12
+		# date          = 2026-01-01
+		# fallback_date = 2026-01-16
+
+		revenue["fallback_date"] = (
+			revenue["date"].dt.to_period("M").dt.to_timestamp()
+			+ pd.Timedelta(days=REVENUE_FALLBACK_DAY - 1)
+		)
+
+		# 有 create_time 時，從隔天開始使用
+		revenue["available_date"] = (
+			revenue["create_time"].dt.normalize()
+			+ pd.Timedelta(days=1)
+		)
+
+		# 記錄原始日期來源
+		revenue["available_date_source"] = np.where(
+			revenue["create_time"].notna(),
+			"create_time",
+			"fallback"
+		)
+
+		# 缺少 create_time 時，使用 fallback_date
+		revenue["available_date"] = (
+			revenue["available_date"]
+			.fillna(revenue["fallback_date"])
+		)
+
+		# 避免異常的 create_time 早於營收所屬月份結束
+		invalid_available_date = (
+			revenue["available_date"] < revenue["date"]
+		)
+
+		revenue.loc[
+			invalid_available_date,
+			"available_date"
+		] = revenue.loc[
+			invalid_available_date,
+			"fallback_date"
+		]
+
+		revenue.loc[
+			invalid_available_date,
+			"available_date_source"
+		] = "fallback_invalid_create_time"
+
+		# 保留 cummax 調整前的日期，供 DEBUG 使用
+		revenue["original_available_date"] = (
+			revenue["available_date"]
+		)
+
+		# 確保較新的 TTM 營收不會早於
+		# 較舊營收資料的可用日期
+		revenue["available_date"] = (
+			revenue["available_date"].cummax()
+		)
+
+		# 記錄因 cummax 而被延後的資料
+		revenue["available_date_adjusted"] = (
+			revenue["available_date"]
+			!= revenue["original_available_date"]
+		)
+
+		# ==================================================
+		# DEBUG A: Historical revenue availability
+		# ==================================================
+
+		print("\n[DEBUG A] 月營收歷史資料")
+
+		print(
+			revenue[
+				[
+					"date",
+					"revenue_year",
+					"revenue_month",
+					"create_time",
+					"fallback_date",
+					"available_date",
+					"available_date_source",
+					"available_date_adjusted",
+					"TTM_revenue",
+					"TTM_YoY"
+				]
+			].to_string(index=False)
+		)
+
+		print("\n[DEBUG A] Revenue availability statistics")
+
+		print("Total rows:", len(revenue))
+
+		print(
+			"Missing create_time:",
+			revenue["create_time"].isna().sum()
+		)
+
+		print(
+			"Missing available_date:",
+			revenue["available_date"].isna().sum()
+		)
+
+		print(
+			"Adjusted available_date:",
+			revenue["available_date_adjusted"].sum()
+		)
+
+		print("\n[DEBUG A] Available date source count")
+
+		print(
+			revenue["available_date_source"]
+			.value_counts()
+			.to_string()
+		)
+
+		# ==================================================
+		# DEBUG B: create_time delay statistics
+		# ==================================================
+
+		revenue["create_time_delay_days"] = (
+			revenue["create_time"].dt.normalize()
+			- revenue["date"].dt.normalize()
+		).dt.days
+
+		print("\n[DEBUG B] create_time delay statistics")
+
+		print(
+			revenue.groupby("revenue_year")[
+				"create_time_delay_days"
+			].agg(
+				["size", "count", "min", "median", "max"]
+			).to_string()
+		)
+
+		# ---- Prepare revenue growth ----
 
 		revenue_growth = revenue[
-			["date", "TTM_revenue", "TTM_YoY"]
-		].dropna()
+			[
+				"available_date",
+				"available_date_source",
+				"revenue_year",
+				"revenue_month",
+				"TTM_revenue",
+				"TTM_YoY"
+			]
+		].dropna().sort_values(
+			[
+				"available_date",
+				"revenue_year",
+				"revenue_month"
+			]
+		)
+
+		# 記錄移除重複日期之前的筆數
+		revenue_growth_rows_before = len(revenue_growth)
+
+		# 同一天有多筆營收資料可用時，
+		# 保留營收所屬月份最新的一筆
+		revenue_growth = revenue_growth.drop_duplicates(
+			subset=["available_date"],
+			keep="last"
+		).reset_index(drop=True)
+
+		# ==================================================
+		# DEBUG C: Revenue growth data coverage
+		# ==================================================
+
+		print("\n[DEBUG C] revenue_growth date range")
+
+		print("Rows :", len(revenue_growth))
+		print("Start:", revenue_growth["available_date"].min())
+		print("End  :", revenue_growth["available_date"].max())
+
+		print(
+			"Removed duplicate available_date:",
+			revenue_growth_rows_before - len(revenue_growth)
+		)
+
+		print("\n[DEBUG C] revenue_growth yearly count")
+
+		print(
+			revenue_growth.groupby(
+				revenue_growth["available_date"].dt.year
+			).size().to_string()
+		)
 
 		# ---- Dividend ----
+
 		dividend = dividend.copy()
 		dividend["date"] = pd.to_datetime(dividend["date"])
 
+		dividend_cols = [
+			"CashEarningsDistribution",
+			"CashStatutorySurplus"
+		]
+
+		if not any(col in dividend.columns for col in dividend_cols):
+			raise ValueError("No cash dividend columns found")
+
+		for col in dividend_cols:
+
+			if col not in dividend.columns:
+				dividend[col] = 0.0
+
+			dividend[col] = pd.to_numeric(
+				dividend[col],
+				errors="coerce"
+			).fillna(0.0)
+
 		dividend["cash_dividend"] = (
-			dividend.get("CashEarningsDistribution", 0).fillna(0)
-			+ dividend.get("CashStatutorySurplus", 0).fillna(0)
+			dividend["CashEarningsDistribution"]
+			+ dividend["CashStatutorySurplus"]
 		)
 
 		dividend = dividend.sort_values("date")
 
-		dividend["TTM_dividend"] = dividend["cash_dividend"].rolling(
-			window=4,
-			min_periods=1
-		).sum()
-
 		# ---- Price ----
+
 		price = price.copy()
 		price["date"] = pd.to_datetime(price["date"])
 		price = price.sort_values("date")
 
-		# ---- Merge ----
+		# ---- Merge: PE and Revenue ----
+
 		df = pe[["date", "PE"]].copy()
 
 		df = pd.merge_asof(
-			df,
+			df.sort_values("date"),
 			revenue_growth,
-			on="date",
-			direction="backward"
+			left_on="date",
+			right_on="available_date",
+			direction="backward",
+			allow_exact_matches=True
 		)
 
-		df = pd.merge_asof(
-			df,
-			dividend[["date", "TTM_dividend"]],
-			on="date",
-			direction="backward"
+		# ==================================================
+		# TTM Dividend: trailing 365 calendar days
+		# ==================================================
+
+		# 將同一天的現金股利加總
+		dividend_daily = (
+			dividend.groupby("date")["cash_dividend"]
+			.sum(min_count=1)
+			.sort_index()
 		)
+
+		# 建立包含交易日及股利事件日的完整時間軸
+		timeline = dividend_daily.index.union(
+			pd.DatetimeIndex(df["date"])
+		).unique().sort_values()
+
+		# 非股利事件日的現金股利設為 0
+		dividend_daily = dividend_daily.reindex(
+			timeline,
+			fill_value=0.0
+		)
+
+		# 每一天往前 365 天的現金股利總和
+		ttm_dividend = dividend_daily.rolling(
+			window="365D",
+			min_periods=1,
+			closed="right"
+		).sum()
+
+		# 將 TTM 股利對應回每個交易日
+		df["TTM_dividend"] = df["date"].map(
+			ttm_dividend
+		)
+
+		# 保留股利事件日的 TTM 股利，供 DEBUG 使用
+		dividend["TTM_dividend"] = dividend["date"].map(
+			ttm_dividend
+		)
+
+		# ---- Merge: Price ----
 
 		df = pd.merge_asof(
 			df,
@@ -584,55 +838,141 @@ class AlphaStackAnalyzer(object):
 		)
 
 		# ---- Dividend yield ----
+
 		df["yield"] = df["TTM_dividend"] / df["close"]
 
-		# ---- PEGY ----
-		#
+		# ==================================================
+		# PEGY
+		# ==================================================
+
 		# TTM_YoY 是小數，例如：
 		# 0.403 = 40.3%
 		#
-		# PEGY 傳統上 growth 使用百分點，
-		# 所以要轉成：
+		# PEGY 使用百分點：
 		# 40.3 + 0.96 = 41.26
-		#
+
 		growth_pct = df["TTM_YoY"] * 100
 		yield_pct = df["yield"] * 100
 
 		denom = growth_pct + yield_pct
 
 		df["PEGY"] = np.where(
-			denom > 0,
+			(denom > 0)
+			& (df["PE"] > 0)
+			& (df["close"] > 0),
 			df["PE"] / denom,
 			np.nan
 		)
 
-		# ---- remove invalid values ----
+		# ---- Remove invalid values ----
+
 		df["PEGY"] = df["PEGY"].replace(
 			[np.inf, -np.inf],
 			np.nan
 		)
 
-		# # ---- DEBUG ----
-		# print("\n[DEBUG] PEGY 計算資料")
-		# print(
-		# 	df[
-		# 		[
-		# 			"date",
-		# 			"PE",
-		# 			"TTM_revenue",
-		# 			"TTM_YoY",
-		# 			"TTM_dividend",
-		# 			"close",
-		# 			"yield",
-		# 			"PEGY",
-		# 		]
-		# 	].tail(12).to_string(index=False)
-		# )
+		# ==================================================
+		# DEBUG D: PEGY yearly data coverage
+		# ==================================================
 
-		print("\n[DEBUG] PEGY 最新計算資料")
+		print("\n[DEBUG D] PEGY yearly data coverage")
+
+		print(
+			df.groupby(df["date"].dt.year).agg(
+				total_days=("date", "size"),
+				valid_pe_days=("PE", "count"),
+				valid_revenue_days=("TTM_YoY", "count"),
+				valid_dividend_days=("TTM_dividend", "count"),
+				valid_price_days=("close", "count"),
+				valid_pegy_days=("PEGY", "count")
+			).to_string()
+		)
+
+		print("\n[DEBUG D] PEGY invalid reason count")
+
+		print("Total rows:", len(df))
+
+		print(
+			"Missing PE:",
+			df["PE"].isna().sum()
+		)
+
+		print(
+			"Missing TTM_YoY:",
+			df["TTM_YoY"].isna().sum()
+		)
+
+		print(
+			"Missing TTM_dividend:",
+			df["TTM_dividend"].isna().sum()
+		)
+
+		print(
+			"Missing close:",
+			df["close"].isna().sum()
+		)
+
+		print(
+			"PE <= 0:",
+			(df["PE"] <= 0).sum()
+		)
+
+		print(
+			"Denominator <= 0:",
+			(denom <= 0).sum()
+		)
+
+		print(
+			"Close <= 0:",
+			(df["close"] <= 0).sum()
+		)
+
+		print(
+			"Invalid PEGY:",
+			df["PEGY"].isna().sum()
+		)
+
+		valid_pegy = df[df["PEGY"].notna()]
+
+		print("\n[DEBUG D] Valid PEGY date range")
+
+		print("Rows :", len(valid_pegy))
+		print("Start:", valid_pegy["date"].min())
+		print("End  :", valid_pegy["date"].max())
+
+		# ==================================================
+		# DEBUG E: Check look-ahead bias
+		# ==================================================
+
+		future_revenue_count = (
+			df["available_date"] > df["date"]
+		).sum()
+
+		print("\n[DEBUG E] Revenue date alignment check")
+
+		print(
+			"Future revenue records:",
+			future_revenue_count
+		)
+
+		# 理論上 merge_asof backward 不應發生此情況
+		if future_revenue_count > 0:
+			raise ValueError(
+				"Revenue available_date is later than trading date"
+			)
+
+		# ==================================================
+		# DEBUG F: Latest PEGY data
+		# ==================================================
+
+		print("\n[DEBUG F] PEGY 最新計算資料")
 
 		debug_cols = [
 			"date",
+			"available_date",
+			"available_date_source",
+			"revenue_year",
+			"revenue_month",
 			"PE",
 			"TTM_revenue",
 			"TTM_YoY",
@@ -644,21 +984,33 @@ class AlphaStackAnalyzer(object):
 
 		print(
 			df[debug_cols]
-			.tail(10)
+			.tail(25)
 			.to_string(index=False)
 		)
 
-		print("\n[DEBUG] 月營收原始日期")
+		# ---- DEBUG: Revenue ----
+
+		print("\n[DEBUG] 月營收欄位")
+
+		print(revenue.columns.tolist())
+
+		print("\n[DEBUG] 月營收完整資料")
+
 		print(
-			revenue[
-				["date", "revenue", "TTM_YoY"]
-			].tail(6).to_string(index=False)
+			revenue.tail(6).to_string(index=False)
 		)
 
+		# ---- DEBUG: Dividend ----
+
 		print("\n[DEBUG] 股利原始日期")
+
 		print(
 			dividend[
-				["date", "cash_dividend", "TTM_dividend"]
+				[
+					"date",
+					"cash_dividend",
+					"TTM_dividend"
+				]
 			].tail(8).to_string(index=False)
 		)
 
